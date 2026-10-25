@@ -1,3 +1,4 @@
+import { englishTools, connectionError } from './language.mjs';
 export const UI_URI = 'ui://quota-panel/control-v1.html';
 const emptyArguments = { type: 'object', properties: {}, additionalProperties: false };
 const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -11,7 +12,7 @@ const tools = [
 ];
 const methodFor = { show_quota_overlay: 'status', start_quota_overlay: 'start', stop_quota_overlay: 'stop', get_quota_overlay_status: 'status' };
 
-export function createMcpHandler({ controller, readUi }) {
+export function createMcpHandler({ controller, readUi, getLanguage = () => 'ru' }) {
   return async request => {
     if (request?.id === undefined) return null;
     const respond = result => ({ jsonrpc: '2.0', id: request.id, result });
@@ -19,12 +20,12 @@ export function createMcpHandler({ controller, readUi }) {
     switch (request.method) {
       case 'initialize': return respond({ protocolVersion: request.params?.protocolVersion || '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'quota-panel', title: 'Quota Panel', version: '0.2.0-beta.3' } });
       case 'ping': return respond({});
-      case 'tools/list': return respond({ tools });
-      case 'resources/list': return respond({ resources: [{ uri: UI_URI, name: 'Управление панелью лимитов', mimeType: 'text/html;profile=mcp-app' }] });
+      case 'tools/list': return respond({ tools: getLanguage() === 'en' ? tools.map(tool => ({ ...tool, title: englishTools[tool.name][0], description: englishTools[tool.name][1] })) : tools });
+      case 'resources/list': return respond({ resources: [{ uri: UI_URI, name: getLanguage() === 'en' ? 'Quota panel controls' : 'Управление панелью лимитов', mimeType: 'text/html;profile=mcp-app' }] });
       case 'resources/templates/list': return respond({ resourceTemplates: [] });
       case 'resources/read': {
         if (request.params?.uri !== UI_URI) return error(-32602, 'Unknown UI resource');
-        return respond({ contents: [{ uri: UI_URI, mimeType: 'text/html;profile=mcp-app', text: await readUi(), _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } }, 'openai/widgetDescription': 'Controls a standalone local quota monitor: start, stop, and refresh status. Closing this card does not stop the monitor.' } }] });
+        return respond({ contents: [{ uri: UI_URI, mimeType: 'text/html;profile=mcp-app', text: await readUi(), _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } }, 'openai/widgetDescription': getLanguage() === 'en' ? 'Controls a standalone local quota monitor: start, stop, and refresh status. Closing this card does not stop the monitor.' : 'Управление самостоятельным локальным монитором квот: запуск, остановка и проверка состояния. Закрытие карточки не останавливает монитор.' } }] });
       }
       case 'tools/call': {
         const name = request.params?.name;
@@ -34,7 +35,7 @@ export function createMcpHandler({ controller, readUi }) {
           const state = await controller[methodFor[name]]();
           return respond({ structuredContent: state, content: [{ type: 'text', text: state.message }] });
         } catch {
-          return respond({ isError: true, content: [{ type: 'text', text: 'Не удалось связаться с монитором. Проверь установку плагина и повтори попытку.' }] });
+          return respond({ isError: true, content: [{ type: 'text', text: connectionError(getLanguage()) }] });
         }
       }
       default: return error(-32601, 'Method not found');

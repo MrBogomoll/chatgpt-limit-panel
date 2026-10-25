@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
@@ -9,6 +9,20 @@ import { fileURLToPath } from 'node:url';
 
 const controllerApi = await import('../plugins/quota-panel/server/overlay-controller.mjs').catch(() => ({}));
 const mcpApi = await import('../plugins/quota-panel/server/mcp.mjs').catch(() => ({}));
+const languageApi = await import('../plugins/quota-panel/server/language.mjs').catch(() => ({}));
+
+test('saved interface language is read without changing settings and tolerates an interrupted write', async t => {
+  const directory=await mkdtemp(join(tmpdir(),'quota-language-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  const settingsPath=join(directory,'settings.json');
+  const getLanguage=languageApi.createLanguageReader({settingsPath});
+  assert.equal(getLanguage(),'ru');
+  const settings='\uFEFF'+JSON.stringify({language:'en',themeMode:'light',autoStartEnabled:false});
+  await writeFile(settingsPath,settings);assert.equal(getLanguage(),'en');
+  assert.equal(await readFile(settingsPath,'utf8'),settings);
+  await writeFile(settingsPath,'{"language":');assert.equal(getLanguage(),'en');
+  await writeFile(settingsPath,'{"language":"invalid"}');assert.equal(getLanguage(),'ru');
+  await writeFile(settingsPath,'{"language":"ru"}');assert.equal(getLanguage(),'ru');
+});
 
 // Real subprocess fixture: a wrong command/argument or missing state transition fails the contract.
 const fixture = `
@@ -68,6 +82,19 @@ test('controller contains spawn failures, nonzero exits, invalid JSON, invalid s
       return true;
     });
   }
+});
+
+test('MCP translates tool and resource labels and safe failures from the saved language', async () => {
+  let language='en';
+  const controller={status:async()=>{throw new Error('private-token');}};
+  const handle=mcpApi.createMcpHandler({controller,readUi:async()=>'',getLanguage:()=>language});
+  const list=async()=> (await handle({id:1,method:'tools/list'})).result.tools;
+  assert.equal((await list())[1].title,'Start quota panel');
+  assert.equal((await handle({id:2,method:'resources/list'})).result.resources[0].name,'Quota panel controls');
+  const failure=await handle({id:3,method:'tools/call',params:{name:'show_quota_overlay'}});
+  assert.match(failure.result.content[0].text,/Could not connect/);
+  assert.doesNotMatch(failure.result.content[0].text,/private-token/);
+  language='ru';assert.equal((await list())[1].title,'Запустить панель лимитов');
 });
 
 test('MCP discovers a global and thread control card and marks lifecycle mutations correctly', async t => {

@@ -720,7 +720,33 @@ class OverlayNativeTest {
       Check(badge.Top>=-.01 && Math.Abs(badge.Bottom-client.Bottom/dpi)<.1,"settled frame must fit the actual viewport without clipping its top edge at fractional scale");
     }
     window.Hide();
-    Console.WriteLine("PASS native "+(Field<string>(window,"effectiveTheme")=="light"?"viewport-light":"viewport")+": real window composition keeps all modes and graphics inside the native client area");
+    Console.WriteLine("PASS native "+(Field<string>(window,"language")=="en"?"viewport-en":Field<string>(window,"effectiveTheme")=="light"?"viewport-light":"viewport")+": real window composition keeps all modes and graphics inside the native client area");
+  }
+  static void LanguageTest(ref OverlayWindow window,string directory) {
+    Known(window);
+    string[] before=new[]{Field<TextBlock[]>(window,"values")[0].Text,Field<TextBlock[]>(window,"times")[0].Text,Field<TextBlock[]>(window,"dates")[1].Text};
+    Invoke(window,"SelectTheme","light");Invoke(window,"SelectFullProgress","both");
+    Invoke(window,"SelectLanguage","en");
+    Check(Field<TextBlock[]>(window,"periods")[0].Text=="5 h"&&Field<TextBlock[]>(window,"periods")[1].Text=="Week","English period labels must replace Russian immediately");
+    Check(Field<TextBlock[]>(window,"markers")[0].Text=="stale"&&Field<TextBlock>(window,"compactStale").Text=="stale","both stale presentations must be translated");
+    Check(Field<TextBlock[]>(window,"values")[0].Text==before[0]&&Field<TextBlock[]>(window,"times")[0].Text==before[1]&&Field<TextBlock[]>(window,"dates")[1].Text==before[2],"switching language must not change quota or reset values");
+    Check(Field<MenuItem>(window,"languageEnglishItem").IsChecked&&!Field<MenuItem>(window,"languageRussianItem").IsChecked,"language choices must be exclusive");
+    Check(Convert.ToString(Field<MenuItem>(window,"pauseUpdatesItem").Header)=="Pause updates","action labels must switch immediately");
+    foreach(string mode in new[]{"full","compact","ultra"}) {
+      Invoke(window,"SelectMode",mode);Known(window);
+      var badge=Field<Border>(window,"panel");badge.Measure(new Size(Layout.PanelWidth,badge.Height));badge.Arrange(new Rect(0,0,Layout.PanelWidth,badge.Height));badge.UpdateLayout();
+      foreach(string field in new[]{"periods","values","dates","times","markers"})foreach(var label in Field<TextBlock[]>(window,field))if(label.Visibility==Visibility.Visible) {
+        var text=new FormattedText(label.Text,CultureInfo.GetCultureInfo("en-US"),label.FlowDirection,new Typeface(label.FontFamily,label.FontStyle,label.FontWeight,label.FontStretch),label.FontSize,label.Foreground);
+        Check(text.WidthIncludingTrailingWhitespace<=label.ActualWidth+.05,"English text must fit "+mode+": "+label.Text);
+        Check(label.TransformToAncestor(badge).TransformBounds(new Rect(new Point(),label.RenderSize)).Bottom<=badge.ActualHeight+.05,"English labels must fit vertically");
+      }
+    }
+    window.Close();window=NewWindow(Path.Combine(directory,"state.json"));Known(window);
+    Check(Field<string>(window,"language")=="en"&&Field<string>(window,"themeMode")=="light"&&Field<string>(window,"fullProgressMode")=="both","language must survive restart without resetting theme or indicators");
+    Invoke(window,"SelectLanguage","invalid");Check(Field<string>(window,"language")=="en","invalid selection must leave the language unchanged");
+    Invoke(window,"SelectLanguage","ru");
+    Check(Field<TextBlock[]>(window,"periods")[1].Text=="Нед."&&Field<TextBlock[]>(window,"markers")[0].Text=="устар.","Russian must be restored immediately without a provider refresh");
+    Console.WriteLine("PASS native language: live translation, unchanged quota, all mode bounds, restart persistence and Russian restoration");
   }
   [STAThread] public static int Main(string[] args) {
     Application app=null;OverlayWindow window=null;
@@ -732,6 +758,7 @@ class OverlayNativeTest {
       AssertUnshown(window);
       switch(args[0]) {
         case "layout":LayoutTest(window);break;
+        case "language":LanguageTest(ref window,directory);break;
         case "tones":ToneTest(window);break;
         case "unknown":UnknownTest(window);break;
         case "protocol":ProtocolTest(window);break;
@@ -763,9 +790,10 @@ class OverlayNativeTest {
         case "resize-native":ResizeNativeTest(window);break;
         case "viewport":ViewportTest(window,directory);break;
         case "viewport-light":Invoke(window,"SelectTheme","light");ViewportTest(window,directory);break;
+        case "viewport-en":Invoke(window,"SelectTheme","light");Invoke(window,"SelectLanguage","en");ViewportTest(window,directory);break;
         default:throw new Exception("unknown native test scenario "+args[0]);
       }
-      AssertUnshown(window,args[0]=="styles"||args[0]=="resize-native"||args[0]=="viewport"||args[0]=="viewport-light");
+      AssertUnshown(window,args[0]=="styles"||args[0]=="resize-native"||args[0]=="viewport"||args[0]=="viewport-light"||args[0]=="viewport-en");
       return 0;
     } catch(Exception error) {
       // Avoid an unhandled .NET Framework exception invoking Windows Error Reporting.

@@ -95,7 +95,7 @@ namespace QuotaOverlay {
     readonly string stateFile,settingsFile;
     readonly DispatcherTimer tracker=new DispatcherTimer();
     readonly Forms.NotifyIcon tray=new Forms.NotifyIcon();
-    readonly Forms.ToolStripMenuItem pause=new Forms.ToolStripMenuItem("Приостановить");
+    readonly Forms.ToolStripMenuItem pause=new Forms.ToolStripMenuItem();
     Native.EventProc nativeEvent;
     IntPtr eventHook,hwnd,target;
     EventWaitHandle stopEvent;
@@ -103,6 +103,7 @@ namespace QuotaOverlay {
     bool paused,closing,started,preferCompact,compact;
     string preferredMode,presentationMode;
     string themeMode,effectiveTheme;
+    string language;
     ThemePalette palette;
     readonly ThemeResolver themeResolver;
     readonly string[] rowTones=new[]{"unknown","unknown"};
@@ -121,6 +122,7 @@ namespace QuotaOverlay {
     MenuItem fullOutlineItem,fullBothItem,fullOffItem,contourSourceItem;
     MenuItem fullModeItem,ultraModeItem;
     MenuItem themeDarkItem,themeLightItem,themeAutoItem;
+    MenuItem languageRussianItem,languageEnglishItem;
     MenuItem autostartItem;
     bool autoStartEnabled,autostartBusy,appSignalSent,lastAppReady;
     readonly AppStartupGate appStartup=new AppStartupGate();
@@ -135,6 +137,7 @@ namespace QuotaOverlay {
       StartupCheckpoint("constructing");
       settingsFile=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(statePath)),"settings.json");
       var preferences=ReadPreferences();
+      language=PanelLanguage.Read(settingsFile);
       autoStartEnabled=BooleanPreference(preferences,"autoStartEnabled",true);
       string savedTheme=preferences.ContainsKey("themeMode")?Convert.ToString(preferences["themeMode"]):"";
       themeMode=savedTheme=="dark"||savedTheme=="light"||savedTheme=="auto"?savedTheme:"auto";
@@ -166,7 +169,7 @@ namespace QuotaOverlay {
       var stack=new StackPanel(); panel.Child=stack;
       for(int i=0;i<2;i++) {
         if(i==1) {divider=new Border { Height=1,Background=Brush(palette.Divider),Margin=new Thickness(1,5,1,5) };stack.Children.Add(divider);}
-        periods[i]=Text(i==0?"5 ч":"Нед.",10,FontWeights.Normal,palette.Secondary);
+        periods[i]=Text(T(i==0?"shortLabel":"weekLabel"),10,FontWeights.Normal,palette.Secondary);
         values[i]=Text("—",16,FontWeights.SemiBold,palette.Primary);
         dates[i]=Text("—",10.5,FontWeights.Normal,palette.Date);
         times[i]=Text("—",11.5,FontWeights.Bold,palette.Primary);
@@ -231,6 +234,37 @@ namespace QuotaOverlay {
     void SelectTheme(string mode) {
       if(mode!="dark"&&mode!="light"&&mode!="auto")return;
       themeMode=mode;SavePreferences();RefreshTheme(true);SyncMenu();lastState="";UpdatePlacement();
+    }
+    string T(string key) {return PanelLanguage.Text(language,key);}
+    MenuItem Menu(string key,bool checkable=false) {return new MenuItem {Header=T(key),Tag=key,IsCheckable=checkable};}
+    void TranslateMenu(ItemsControl items) {
+      foreach(object child in items.Items) {
+        var item=child as MenuItem;if(item==null)continue;
+        if(item.Tag is string)item.Header=T((string)item.Tag);TranslateMenu(item);
+      }
+    }
+    void SelectLanguage(string selected) {
+      if(selected!="ru"&&selected!="en")return;
+      language=selected;
+      try {Preferences.Update(settingsFile,preferences=>{preferences["language"]=language;});}catch{}
+      LocalizeRows();SyncMenu();ApplyTrayLanguage();SavePreview();lastState="";UpdatePlacement();
+    }
+    void LocalizeRows() {
+      var message=view as Dictionary<string,object>;var rows=message!=null&&message.ContainsKey("rows")?message["rows"] as object[]:null;
+      var tooltip=new StringBuilder();
+      for(int i=0;i<2;i++) {
+        var row=rows!=null&&rows.Length==2?rows[i] as Dictionary<string,object>:null;
+        string original=row==null?T(i==0?"shortLabel":"weekLabel"):Get(row,"period");
+        periods[i].Text=PanelLanguage.Period(language,original,i);
+        markers[i].Text=row!=null&&Get(row,"marker").Length>0?T("stale"):"";
+        if(i>0)tooltip.Append(" | ");tooltip.Append(periods[i].Text+": "+values[i].Text+" "+times[i].Text);
+      }
+      tray.Text=tooltip.ToString().Substring(0,Math.Min(63,tooltip.Length));UpdateCompactStatus();
+    }
+    void ApplyTrayLanguage() {
+      pause.Text=T(paused?"resume":"pause");
+      if(tray.ContextMenuStrip==null)return;
+      tray.ContextMenuStrip.Items[0].Text=T("refreshNow");tray.ContextMenuStrip.Items[3].Text=T("close");
     }
     bool RefreshTheme(bool force) {
       if(!force&&DateTime.UtcNow<nextThemeCheck)return false;
@@ -314,46 +348,50 @@ namespace QuotaOverlay {
         <ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' TargetType='Separator'>
           <Border Height='1' Margin='8,4' Background='{DynamicResource Quota.MenuDivider}'/>
         </ControlTemplate>")));optionsMenu.Resources.Add(typeof(Separator),separatorStyle);
-      var refresh=new MenuItem {Header="Обновить лимиты"};refresh.Click+=delegate {Command("refresh");};optionsMenu.Items.Add(refresh);
-      var modes=new MenuItem {Header="Вид панели"};
-      fullModeItem=new MenuItem {Header="Полный",IsCheckable=true};fullModeItem.Click+=delegate {SelectMode("full");};
-      compactModeItem=new MenuItem {Header="Компактный",IsCheckable=true};compactModeItem.Click+=delegate {SelectMode("compact");};
-      ultraModeItem=new MenuItem {Header="Ультракомпактный",IsCheckable=true};ultraModeItem.Click+=delegate {SelectMode("ultra");};
+      var refresh=Menu("refresh");refresh.Click+=delegate {Command("refresh");};optionsMenu.Items.Add(refresh);
+      var modes=Menu("view");
+      fullModeItem=Menu("full",true);fullModeItem.Click+=delegate {SelectMode("full");};
+      compactModeItem=Menu("compact",true);compactModeItem.Click+=delegate {SelectMode("compact");};
+      ultraModeItem=Menu("ultra",true);ultraModeItem.Click+=delegate {SelectMode("ultra");};
       modes.Items.Add(fullModeItem);modes.Items.Add(compactModeItem);modes.Items.Add(ultraModeItem);optionsMenu.Items.Add(modes);
-      var themes=new MenuItem {Header="Тема"};
-      themeDarkItem=new MenuItem {Header="Тёмная",IsCheckable=true};themeDarkItem.Click+=delegate {SelectTheme("dark");};
-      themeLightItem=new MenuItem {Header="Светлая",IsCheckable=true};themeLightItem.Click+=delegate {SelectTheme("light");};
-      themeAutoItem=new MenuItem {Header="Авто",IsCheckable=true};themeAutoItem.Click+=delegate {SelectTheme("auto");};
+      var themes=Menu("theme");
+      themeDarkItem=Menu("dark",true);themeDarkItem.Click+=delegate {SelectTheme("dark");};
+      themeLightItem=Menu("light",true);themeLightItem.Click+=delegate {SelectTheme("light");};
+      themeAutoItem=Menu("auto",true);themeAutoItem.Click+=delegate {SelectTheme("auto");};
       themes.Items.Add(themeDarkItem);themes.Items.Add(themeLightItem);themes.Items.Add(themeAutoItem);optionsMenu.Items.Add(themes);
-      autostartItem=new MenuItem {Header="Автозапуск с ChatGPT",IsCheckable=true};autostartItem.Click+=delegate {SetAutostart(autostartItem.IsChecked);};optionsMenu.Items.Add(autostartItem);
+      var languages=Menu("language");languageRussianItem=Menu("ru",true);languageEnglishItem=Menu("en",true);
+      languageRussianItem.Click+=delegate {SelectLanguage("ru");};languageEnglishItem.Click+=delegate {SelectLanguage("en");};
+      languages.Items.Add(languageRussianItem);languages.Items.Add(languageEnglishItem);optionsMenu.Items.Add(languages);
+      autostartItem=Menu("autostart",true);autostartItem.Click+=delegate {SetAutostart(autostartItem.IsChecked);};optionsMenu.Items.Add(autostartItem);
       optionsMenu.Items.Add(new Separator {Style=separatorStyle});
-      var fullSettings=new MenuItem {Header="Индикатор"};
-      fullProgressItem=new MenuItem {Header="Полоски",IsCheckable=true};fullProgressItem.Click+=delegate {SelectFullProgress("bars");};
-      fullOutlineItem=new MenuItem {Header="Контур",IsCheckable=true};fullOutlineItem.Click+=delegate {SelectFullProgress("outline");};
-      fullBothItem=new MenuItem {Header="Полоски и контур",IsCheckable=true};fullBothItem.Click+=delegate {SelectFullProgress("both");};
-      fullOffItem=new MenuItem {Header="Без индикатора",IsCheckable=true};fullOffItem.Click+=delegate {SelectFullProgress("off");};
+      var fullSettings=Menu("indicator");
+      fullProgressItem=Menu("bars",true);fullProgressItem.Click+=delegate {SelectFullProgress("bars");};
+      fullOutlineItem=Menu("outline",true);fullOutlineItem.Click+=delegate {SelectFullProgress("outline");};
+      fullBothItem=Menu("both",true);fullBothItem.Click+=delegate {SelectFullProgress("both");};
+      fullOffItem=Menu("off",true);fullOffItem.Click+=delegate {SelectFullProgress("off");};
       fullSettings.Items.Add(fullProgressItem);fullSettings.Items.Add(fullOutlineItem);fullSettings.Items.Add(fullBothItem);fullSettings.Items.Add(fullOffItem);
       optionsMenu.Items.Add(fullSettings);
-      contourSourceItem=new MenuItem {Header="Лимит контура"};
-      shortProgressItem=new MenuItem {Header="5 часов",IsCheckable=true};weeklyProgressItem=new MenuItem {Header="Неделя",IsCheckable=true};
+      contourSourceItem=Menu("source");
+      shortProgressItem=Menu("short",true);weeklyProgressItem=Menu("weekly",true);
       shortProgressItem.Click+=delegate {contourWindow="short";SavePreferences();UpdateProgress();SavePreview();};
       weeklyProgressItem.Click+=delegate {contourWindow="weekly";SavePreferences();UpdateProgress();SavePreview();};
       contourSourceItem.Items.Add(shortProgressItem);contourSourceItem.Items.Add(weeklyProgressItem);optionsMenu.Items.Add(contourSourceItem);
       optionsMenu.Items.Add(new Separator {Style=separatorStyle});
-      pauseUpdatesItem=new MenuItem {Header="Приостановить обновление"};pauseUpdatesItem.Click+=delegate {TogglePaused();};optionsMenu.Items.Add(pauseUpdatesItem);
-      var stop=new MenuItem {Header="Остановить панель"};stop.Click+=delegate {Close();};optionsMenu.Items.Add(stop);
+      pauseUpdatesItem=Menu("pauseUpdates");pauseUpdatesItem.Click+=delegate {TogglePaused();};optionsMenu.Items.Add(pauseUpdatesItem);
+      var stop=Menu("stop");stop.Click+=delegate {Close();};optionsMenu.Items.Add(stop);
       menuDismiss=new MenuDismissWatcher(Dispatcher,delegate {return !closing&&optionsMenu.IsOpen;},delegate {optionsMenu.IsOpen=false;},null);
       optionsMenu.Opened+=delegate {SyncMenu();menuDismiss.Start();};
       optionsMenu.Closed+=delegate {menuDismiss.Stop();};panel.ContextMenu=optionsMenu;
     }
     void SyncMenu() {
+      TranslateMenu(optionsMenu);languageRussianItem.IsChecked=language=="ru";languageEnglishItem.IsChecked=language=="en";
       fullProgressItem.IsChecked=fullProgressMode=="bars";fullOutlineItem.IsChecked=fullProgressMode=="outline";fullOffItem.IsChecked=fullProgressMode=="off";
       fullBothItem.IsChecked=fullProgressMode=="both";
       shortProgressItem.IsChecked=contourWindow=="short";weeklyProgressItem.IsChecked=contourWindow=="weekly";
       fullModeItem.IsChecked=preferredMode=="full";compactModeItem.IsChecked=preferredMode=="compact";ultraModeItem.IsChecked=preferredMode=="ultra";
       themeDarkItem.IsChecked=themeMode=="dark";themeLightItem.IsChecked=themeMode=="light";themeAutoItem.IsChecked=themeMode=="auto";
       autostartItem.IsChecked=autoStartEnabled;autostartItem.IsEnabled=!autostartBusy;
-      pauseUpdatesItem.Header=paused?"Продолжить обновление":"Приостановить обновление";
+      pauseUpdatesItem.Header=T(paused?"resumeUpdates":"pauseUpdates");
     }
     void SelectFullProgress(string mode) {
       fullProgressMode=mode;showFullProgress=mode!="off";SavePreferences();UpdateProgress();SavePreview();
@@ -373,12 +411,12 @@ namespace QuotaOverlay {
         }catch{}
         Dispatcher.BeginInvoke(new Action(delegate {
           if(closing)return;autostartBusy=false;if(succeeded)autoStartEnabled=actual;SyncMenu();lastState="";
-          if(!succeeded&&tray.Visible)tray.ShowBalloonTip(4000,"Quota Panel","Не удалось изменить автозапуск. Проверь задачу панели в Планировщике Windows.",Forms.ToolTipIcon.Warning);
+          if(!succeeded&&tray.Visible)tray.ShowBalloonTip(4000,"Quota Panel",T("autostartError"),Forms.ToolTipIcon.Warning);
         }));
       });
     }
     void TogglePaused() {
-      paused=!paused;pause.Text=paused?"Продолжить":"Приостановить";Command(paused?"pause":"resume");SyncMenu();UpdatePlacement();
+      paused=!paused;pause.Text=T(paused?"resume":"pause");Command(paused?"pause":"resume");SyncMenu();UpdatePlacement();
     }
     void UpdateProgress() {
       if(progressOutline==null)return;
@@ -451,20 +489,20 @@ namespace QuotaOverlay {
       if(hwnd==IntPtr.Zero)SavePreview();
     }
     void UpdateCompactStatus() {
-      compactStale.Text=markers[0].Text.Length>0 || markers[1].Text.Length>0 ? "устар." : "";
+      compactStale.Text=markers[0].Text.Length>0 || markers[1].Text.Length>0 ? T("stale") : "";
       compactStale.Visibility=presentationMode=="compact" && compactStale.Text.Length>0?Visibility.Visible:Visibility.Collapsed;
     }
     static void Command(string command) { try { Console.Out.WriteLine("{\"command\":\""+command+"\"}");Console.Out.Flush(); } catch {} }
     void SetupTray() {
       tray.Icon=System.Drawing.SystemIcons.Information;
-      tray.Text="Лимиты Codex / Work";
+      tray.Text=T("trayTitle");
       var menu=new Forms.ContextMenuStrip();
-      menu.Items.Add("Обновить сейчас",null,delegate { Command("refresh"); });
+      menu.Items.Add(T("refreshNow"),null,delegate { Command("refresh"); });
       pause.Click+=delegate {TogglePaused();};
       menu.Items.Add(pause);
       menu.Items.Add(new Forms.ToolStripSeparator());
-      menu.Items.Add("Закрыть монитор",null,delegate { Close(); });
-      tray.ContextMenuStrip=menu;ApplyTrayPalette();tray.Visible=true;
+      menu.Items.Add(T("close"),null,delegate { Close(); });
+      tray.ContextMenuStrip=menu;ApplyTrayLanguage();ApplyTrayPalette();tray.Visible=true;
       tray.DoubleClick+=delegate {Command("refresh");};
     }
     void StartInput() {
@@ -493,7 +531,7 @@ namespace QuotaOverlay {
         if(i>0)tooltip.Append(" | ");tooltip.Append(periods[i].Text+": "+values[i].Text+" "+times[i].Text);
       }
       tray.Text=tooltip.ToString().Substring(0,Math.Min(63,tooltip.Length));
-      UpdateCompactStatus();UpdateProgress();
+      LocalizeRows();UpdateProgress();
       SavePreview();lastState="";UpdatePlacement();
       if(receivedUpdates<=30)StartupCheckpoint("received-data");
     }
@@ -538,7 +576,7 @@ namespace QuotaOverlay {
       } else if(IsVisible)Hide();
       if(modeChanged) {UpdateLayout();SavePreview();}
       IntPtr owner=Native.GetWindowLongPtr(hwnd,-8);uint ownerProcess=0;if(owner!=IntPtr.Zero)Native.GetWindowThreadProcessId(owner,out ownerProcess);
-      var state=new {appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
+      var state=new {language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
       string encoded=json.Serialize(state);
       diagnosticState=state;
       if(encoded!=lastState){lastState=encoded;try{File.WriteAllText(stateFile,encoded,Encoding.UTF8);stateWriteError="";}catch(Exception error){stateWriteError=error.GetType().Name+":"+error.HResult.ToString();}}

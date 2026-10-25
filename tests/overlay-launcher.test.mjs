@@ -11,7 +11,7 @@ test('native launcher resolves portable paths and reports actual own mutex rathe
   t.after(()=>rm(temporary,{recursive:true,force:true,maxRetries:10,retryDelay:50}));
   const framework=path.join(process.env.WINDIR,'Microsoft.NET/Framework64/v4.0.30319');
   const executable=path.join(temporary,'launcher-test.exe');
-  const compile=spawnSync(path.join(framework,'csc.exe'),['/nologo','/codepage:65001','/platform:x64','/main:OverlayLauncherTest',`/out:${executable}`,`/reference:${framework}/System.Web.Extensions.dll`,`/reference:${framework}/System.Windows.Forms.dll`,path.join(root,'overlay/Launcher.cs'),path.join(root,'overlay/TaskHost.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'tests/overlay-launcher.cs')],{encoding:'utf8',windowsHide:true});
+  const compile=spawnSync(path.join(framework,'csc.exe'),['/nologo','/codepage:65001','/platform:x64','/main:OverlayLauncherTest',`/out:${executable}`,`/reference:${framework}/System.Web.Extensions.dll`,`/reference:${framework}/System.Windows.Forms.dll`,path.join(root,'overlay/Launcher.cs'),path.join(root,'overlay/TaskHost.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'overlay/Language.cs'),path.join(root,'tests/overlay-launcher.cs')],{encoding:'utf8',windowsHide:true});
   assert.equal(compile.status,0,compile.stdout+compile.stderr);
   const run=spawnSync(executable,[temporary],{encoding:'utf8',windowsHide:true,timeout:10000});
   assert.equal(run.status,0,run.stdout+run.stderr);

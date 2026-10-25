@@ -20,7 +20,7 @@ class QuotaMonitorLauncher {
   [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
   const string MonitorMutex="Local\\ChatGPTQuotaOverlay.v1",StopEvent="Local\\ChatGPTQuotaOverlay.Stop";
   internal class MonitorStatus {
-    public string status,message;
+    public string status,message,language;
     public bool running,changed,visible,paused;
     public bool autoStartEnabled,autoStartConfigured;
   }
@@ -31,7 +31,7 @@ class QuotaMonitorLauncher {
       string dir=AppDomain.CurrentDomain.BaseDirectory;
       string data=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ChatGPTQuotaOverlay");Directory.CreateDirectory(data);
       string command=args.Length==0?"--start":args[0];
-      if(args.Length>1 || !new[]{"--start","--stop","--status-json","--start-json","--stop-json","--run-host","--enable-autostart-json","--disable-autostart-json"}.Contains(command))throw new Exception("Неизвестная команда монитора.");
+      if(args.Length>1 || !new[]{"--start","--stop","--status-json","--start-json","--stop-json","--run-host","--enable-autostart-json","--disable-autostart-json"}.Contains(command))throw new Exception(QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"unknownCommand"));
       var before=ReadStatus(data,MonitorMutex);
       string launcher=Path.Combine(dir,"QuotaMonitor.exe");
       if(command=="--status-json") {FillAutostart(before,launcher);WriteJson(before);return;}
@@ -57,11 +57,11 @@ class QuotaMonitorLauncher {
       }
     } catch(Exception error) {
       Environment.ExitCode=1;
-      if(jsonMode)WriteJson(new {status="error",running=false,changed=false,visible=false,paused=false,message="Не удалось выполнить команду панели. Проверь локальный Codex и повтори запуск."});
+      if(jsonMode)WriteJson(new {status="error",running=false,changed=false,visible=false,paused=false,message=QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"commandError")});
       else if(taskHostMode) {
         try {File.WriteAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ChatGPTQuotaOverlay","task-host-error.json"),new JavaScriptSerializer().Serialize(new {time=DateTime.UtcNow.ToString("o"),code=error.HResult}),Encoding.UTF8);}catch{}
       }
-      else MessageBox.Show(error.Message,"Лимиты ChatGPT",MessageBoxButtons.OK,MessageBoxIcon.Error);
+      else MessageBox.Show(error.Message,"Quota Panel",MessageBoxButtons.OK,MessageBoxIcon.Error);
     }
   }
   static void ConfigureAutostart(string launcher,string data,bool? enabled) {
@@ -87,11 +87,11 @@ class QuotaMonitorLauncher {
     var startup=new StartupInfo();startup.cb=Marshal.SizeOf(typeof(StartupInfo));
     ProcessInfo process;
     var command=new StringBuilder(Quote(node)+" "+Quote(host)+" --state "+Quote(state));
-    if(!CreateProcess(node,command,IntPtr.Zero,IntPtr.Zero,false,0x08000000,IntPtr.Zero,Path.GetDirectoryName(host),ref startup,out process))throw new Exception("Не удалось запустить монитор.");
+    if(!CreateProcess(node,command,IntPtr.Zero,IntPtr.Zero,false,0x08000000,IntPtr.Zero,Path.GetDirectoryName(host),ref startup,out process))throw new Exception(QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"launchError"));
     CloseHandle(process.thread);
     try {
       uint exitCode;
-      if(WaitForSingleObject(process.process,waitForHost?UInt32.MaxValue:jsonMode?100u:1800u)==0 && GetExitCodeProcess(process.process,out exitCode) && exitCode!=0)throw new Exception("Монитор не запустился. Проверь вход в локальный Codex и файлы плагина.");
+      if(WaitForSingleObject(process.process,waitForHost?UInt32.MaxValue:jsonMode?100u:1800u)==0 && GetExitCodeProcess(process.process,out exitCode) && exitCode!=0)throw new Exception(QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"startError"));
     } finally {CloseHandle(process.process);}
   }
   internal static string ResolveRuntimePath(string directory,string value) {
@@ -112,12 +112,13 @@ class QuotaMonitorLauncher {
     foreach(string folder in (Environment.GetEnvironmentVariable("PATH")??"").Split(Path.PathSeparator)) {
       try {string file=Path.Combine(folder.Trim('"'),"codex.exe");if(File.Exists(file))return file;}catch{}
     }
-    throw new Exception("Не найден локальный Codex. Открой локальный чат Codex в ChatGPT и повтори запуск панели.");
+    throw new Exception(QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"codexMissing"));
   }
   internal static MonitorStatus ReadStatus(string data,string mutexName) {
     bool running;
     try{using(var mutex=Mutex.OpenExisting(mutexName))running=true;}catch(WaitHandleCannotBeOpenedException){running=false;}
-    var result=new MonitorStatus {running=running,status=running?"running":"stopped",message=running?"Панель запущена.":"Панель остановлена."};
+    string language=QuotaOverlay.PanelLanguage.Read(Path.Combine(data,"settings.json"));
+    var result=new MonitorStatus {running=running,status=running?"running":"stopped",message=QuotaOverlay.PanelLanguage.Text(language,running?"running":"stopped"),language=language};
     if(running)try {
       string file=Path.Combine(data,"state.json");
       if(DateTime.UtcNow-File.GetLastWriteTimeUtc(file)>TimeSpan.FromSeconds(10))return result;
@@ -138,7 +139,7 @@ class QuotaMonitorLauncher {
       if(!isRunning())return;
       Thread.Sleep(50);
     }while(timer.ElapsedMilliseconds<timeoutMs);
-    throw new Exception("Панель не ответила вовремя.");
+    throw new Exception(QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"timeout"));
   }
   internal static void StartAndWait(Func<bool> isRunning,Action requestStart,int timeoutMs) {
     var timer=Stopwatch.StartNew();
@@ -150,7 +151,7 @@ class QuotaMonitorLauncher {
       if(isRunning())return;
       Thread.Sleep(100);
     }while(timer.ElapsedMilliseconds<timeoutMs);
-    throw new Exception("Панель не ответила вовремя.");
+    throw new Exception(QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"timeout"));
   }
   static string Quote(string value) { return "\""+value.Replace("\"","")+"\""; }
 }

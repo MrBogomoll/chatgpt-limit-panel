@@ -12,7 +12,7 @@ const pluginFiles = [
   // plugin.json exists. Ship its supported compatibility entry point only.
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
   'assets/quota.svg', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
-  'server/ui.mjs', 'ui/control.html', 'ui/control.mjs',
+  'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs',
 ];
 const dependencyFiles = [
   'overlay/host.mjs', 'overlay/model.mjs',

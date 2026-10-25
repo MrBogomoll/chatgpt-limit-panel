@@ -12,14 +12,14 @@ else {
   args.push('/target:winexe',`/win32manifest:${path.join(root,'overlay/app.manifest')}`);
   for(const name of ['PresentationCore','PresentationFramework','WindowsBase']) args.push(`/reference:${path.join(framework,'WPF',name+'.dll')}`);
   for(const name of ['System.Web.Extensions','System.Windows.Forms','System.Drawing','System.Xaml']) args.push(`/reference:${path.join(framework,name+'.dll')}`);
-  args.push(path.join(root,'overlay/Layout.cs'),path.join(root,'overlay/Progress.cs'),path.join(root,'overlay/VisualHost.cs'),path.join(root,'overlay/Theme.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'overlay/Overlay.cs'));
+  args.push(path.join(root,'overlay/Layout.cs'),path.join(root,'overlay/Progress.cs'),path.join(root,'overlay/VisualHost.cs'),path.join(root,'overlay/Theme.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'overlay/Language.cs'),path.join(root,'overlay/Overlay.cs'));
 }
 const result=spawnSync(path.join(framework,'csc.exe'),args,{encoding:'utf8',windowsHide:true});
 if(result.stdout)process.stdout.write(result.stdout);if(result.stderr)process.stderr.write(result.stderr);
 if(result.error)throw result.error;
 process.exitCode=result.status??1;
 if(!test && result.status===0) {
-  const launcher=spawnSync(path.join(framework,'csc.exe'),['/nologo','/codepage:65001','/platform:x64','/target:winexe',`/out:${path.join(out,'QuotaMonitor.exe')}`,`/reference:${path.join(framework,'System.Web.Extensions.dll')}`,`/reference:${path.join(framework,'System.Windows.Forms.dll')}`,path.join(root,'overlay/Launcher.cs'),path.join(root,'overlay/TaskHost.cs'),path.join(root,'overlay/Preferences.cs')],{encoding:'utf8',windowsHide:true});
+  const launcher=spawnSync(path.join(framework,'csc.exe'),['/nologo','/codepage:65001','/platform:x64','/target:winexe',`/out:${path.join(out,'QuotaMonitor.exe')}`,`/reference:${path.join(framework,'System.Web.Extensions.dll')}`,`/reference:${path.join(framework,'System.Windows.Forms.dll')}`,path.join(root,'overlay/Launcher.cs'),path.join(root,'overlay/TaskHost.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'overlay/Language.cs')],{encoding:'utf8',windowsHide:true});
   if(launcher.stdout)process.stdout.write(launcher.stdout);if(launcher.stderr)process.stderr.write(launcher.stderr);
   if(launcher.error)throw launcher.error;process.exitCode=launcher.status??1;
   const codex=process.env.QUOTA_CODEX_BIN||process.env.CODEX_CLI_PATH||'codex';

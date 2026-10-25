@@ -2,8 +2,10 @@ import { createInterface } from 'node:readline';
 import { createOverlayController } from './overlay-controller.mjs';
 import { createMcpHandler } from './mcp.mjs';
 import { buildUi } from './ui.mjs';
+import { createLanguageReader } from './language.mjs';
 
-const handle = createMcpHandler({ controller: createOverlayController(), readUi: buildUi });
+const getLanguage = createLanguageReader();
+const handle = createMcpHandler({ controller: createOverlayController(), getLanguage, readUi: () => buildUi({ language: getLanguage() }) });
 const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
 input.on('line', async line => {
   let request;

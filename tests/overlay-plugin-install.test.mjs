@@ -8,7 +8,7 @@ const api = await import('../overlay/install-plugin.mjs').catch(() => ({}));
 const payloadFiles = [
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
   'assets/quota.svg', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
-  'server/ui.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
+  'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/quota-chips/server/reader.mjs', 'plugins/quota-chips/server/quota.mjs',
   'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe', 'dist/overlay/runtime.json',
   'runtime/node.exe', 'runtime/NODE-LICENSE.txt',

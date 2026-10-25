@@ -40,6 +40,12 @@ class OverlayLauncherTest {
         Check(new JavaScriptSerializer().Serialize(status).Contains("running"),"native result serializes to machine-readable JSON");
       }
       Check(!QuotaMonitorLauncher.ReadStatus(root,name).running,"released mutex reports stopped");
+      File.WriteAllText(Path.Combine(root,"settings.json"),"{\"language\":\"en\",\"themeMode\":\"light\",\"autoStartEnabled\":false}");
+      var english=QuotaMonitorLauncher.ReadStatus(root,name);
+      Check(english.language=="en"&&english.message=="Panel is stopped.","launcher must pass the saved language and translated status into the card");
+      Check(File.ReadAllText(Path.Combine(root,"settings.json")).Contains("false"),"status must not alter language, theme or autostart settings");
+      File.WriteAllText(Path.Combine(root,"settings.json"),"{\"language\":false}");
+      Check(QuotaMonitorLauncher.ReadStatus(root,name).language=="ru","invalid native language must safely fall back to Russian");
       bool newMonitor=false;int startAttempts=0;
       QuotaMonitorLauncher.StartAndWait(()=>newMonitor,()=>{if(++startAttempts==3)newMonitor=true;},1500);
       Check(newMonitor && startAttempts==3,"start retries while a previous scheduler host finishes stopping");

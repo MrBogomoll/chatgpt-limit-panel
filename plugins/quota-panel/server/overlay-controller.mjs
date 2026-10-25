@@ -15,6 +15,7 @@ export function createOverlayController({ pluginRoot = defaultRoot, command = jo
       const value = JSON.parse(stdout.replace(/^\uFEFF/, '').trim());
       if (!value || !['running', 'stopped'].includes(value.status) || typeof value.running !== 'boolean' || value.running !== (value.status === 'running') || ['changed', 'visible', 'paused'].some(key => typeof value[key] !== 'boolean') || typeof value.message !== 'string' || value.message.length > 500) throw new Error('Invalid monitor response');
       const state={ status: value.status, running: value.running, changed: value.changed, visible: value.visible, paused: value.paused, message: value.message };
+      if(value.language==='ru'||value.language==='en')state.language=value.language;
       if(typeof value.autoStartEnabled==='boolean'&&typeof value.autoStartConfigured==='boolean'){state.autoStartEnabled=value.autoStartEnabled;state.autoStartConfigured=value.autoStartConfigured;}
       return state;
     } catch {

@@ -27,12 +27,13 @@ test('native overlay renders and accepts updates using only isolated own control
     '/nologo', '/codepage:65001', '/platform:x64', '/target:exe', '/main:OverlayNativeTest', `/out:${executable}`,
     `/win32manifest:${path.join(root, 'overlay', 'app.manifest')}`,
     ...references.map(reference => `/reference:${reference}`),
-    path.join(root, 'overlay', 'Layout.cs'), path.join(root, 'overlay', 'Progress.cs'), path.join(root, 'overlay', 'VisualHost.cs'), path.join(root, 'overlay', 'Theme.cs'), path.join(root, 'overlay', 'Preferences.cs'), path.join(root, 'overlay', 'Overlay.cs'), path.join(root, 'tests', 'overlay-native.cs'),
+    path.join(root, 'overlay', 'Layout.cs'), path.join(root, 'overlay', 'Progress.cs'), path.join(root, 'overlay', 'VisualHost.cs'), path.join(root, 'overlay', 'Theme.cs'), path.join(root, 'overlay', 'Preferences.cs'), path.join(root, 'overlay', 'Language.cs'), path.join(root, 'overlay', 'Overlay.cs'), path.join(root, 'tests', 'overlay-native.cs'),
   ], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
   succeeded(compilation, 'native test compilation');
 
   for (const [scenario, description] of [
     ['layout', '100% and bold reset times fit actual available width with current fonts'],
+    ['language', 'Russian and English switch live, fit all three sizes and survive restart without changing quota or settings'],
     ['tones', 'both rows apply readable muted warning and critical colours'],
     ['unknown', 'unknown and missing data do not fabricate quota or reset values'],
     ['protocol', 'production stdin reader preserves multiple UTF-8 JSON lines and closes at EOF'],
@@ -63,6 +64,7 @@ test('native overlay renders and accepts updates using only isolated own control
     ['resize-native', 'content changes do not issue a separate live HWND resize before native placement'],
     ['viewport', 'real offscreen WPF window keeps all quota text inside the actual resized native viewport'],
     ['viewport-light', 'light full/compact/ultra graphics fit actual native windows at all supported scales'],
+    ['viewport-en', 'English full/compact/ultra labels and graphics fit actual native windows at all supported scales'],
     ['styles', 'own hidden HWND accepts native clicks without activating or appearing in the taskbar'],
   ]) {
     if(process.env.QUOTA_NATIVE_SCENARIO && process.env.QUOTA_NATIVE_SCENARIO!==scenario)continue;

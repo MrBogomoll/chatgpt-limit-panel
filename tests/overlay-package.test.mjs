@@ -14,7 +14,7 @@ const allowedFiles = [
   'mcp.json', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/quota-chips/server/quota.mjs', 'plugins/quota-chips/server/reader.mjs',
   'runtime/NODE-LICENSE.txt', 'runtime/node.exe',
-  'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs', 'server/ui.mjs',
+  'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs', 'server/ui.mjs', 'server/language.mjs',
   'ui/control.html', 'ui/control.mjs',
 ].sort();
 
