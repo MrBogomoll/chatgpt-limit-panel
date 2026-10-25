@@ -12,6 +12,7 @@ const payloadFiles = [
   'plugins/quota-chips/server/reader.mjs', 'plugins/quota-chips/server/quota.mjs',
   'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe', 'dist/overlay/runtime.json',
   'runtime/node.exe', 'runtime/NODE-LICENSE.txt',
+  'server/updates.mjs','plugins/quota-panel/server/updates.mjs',
 ];
 
 async function fixture(t, installed = true) {
@@ -23,7 +24,7 @@ async function fixture(t, installed = true) {
     await writeFile(path.join(stagePath, filename), 'payload:' + filename);
   }
   for (const filename of ['.codex-plugin/plugin.json']) {
-    await writeFile(path.join(stagePath, filename), JSON.stringify({ name: 'quota-panel', version: '1.0.1',
+    await writeFile(path.join(stagePath, filename), JSON.stringify({ name: 'quota-panel', version: '1.1.0',
       interface: { displayName: 'Quota Panel' }, extensions: { 'com.openai': { interface: { displayName: 'Quota Panel' } } } }));
   }
   await writeFile(path.join(stagePath, 'private-author-config.toml'), 'do not install');
@@ -47,7 +48,7 @@ if(args[1] === 'marketplace') {
   console.log(JSON.stringify({installed:true}));
 } else if(args[1] === 'list') {
   if(JSON.stringify(args.slice(2)) !== JSON.stringify(['--marketplace','quota-panel-local','--json'])) process.exit(16);
-  console.log(JSON.stringify({installed:${installed ? "[{pluginId:'quota-panel@quota-panel-local',name:'quota-panel',marketplaceName:'quota-panel-local',installed:true,enabled:true,version:'1.0.1'}]" : '[]'}}));
+  console.log(JSON.stringify({installed:${installed ? "[{pluginId:'quota-panel@quota-panel-local',name:'quota-panel',marketplaceName:'quota-panel-local',installed:true,enabled:true,version:'1.1.0'}]" : '[]'}}));
 } else process.exit(17);
 `);
   return { stagePath, codexHome, codexBin: process.execPath, codexPrefixArgs: [cli, log], log, originalConfig };

@@ -235,3 +235,15 @@ test('host reuses the read-only App Server reader and shuts down its actual chil
   await host.stop();
   await until(() => backend.exitCode !== null || backend.signalCode !== null, 'backend subprocess exit');
 });
+
+test('manual update command uses a separate coalesced checker without changing quota and stops replying after shutdown',async t=>{
+  let count=0,finish;const updateChecker={check:()=>{count++;return new Promise(resolve=>{finish=resolve;});}};
+  const {host,views,send,reader}=await fixtureHost(t,{updateChecker,config:{autoReady:false}});
+  assert.equal(count,0);await send('check-updates');await until(()=>count===1);
+  await send('check-updates');await delay(30);assert.equal(count,1);assert.equal(reader.calls,0);
+  assert((await views()).some(view=>view.update?.state==='checking'));
+  finish({state:'available',currentVersion:'1.1.0',latestVersion:'1.2.0',url:'https://github.com/MrBogomoll/quota-panel-releases/releases/tag/v1.2.0'});
+  await until(async()=> (await views()).some(view=>view.update?.state==='available'));
+  assert.equal(reader.calls,0);await send('check-updates');await until(()=>count===2);await host.stop();finish({state:'current'});await delay(20);
+  assert(!(await views()).some(view=>view.update?.state==='current'));
+});

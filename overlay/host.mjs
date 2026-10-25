@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RateLimitReader } from '../plugins/quota-chips/server/reader.mjs';
 import { normalizeQuota } from '../plugins/quota-chips/server/quota.mjs';
 import { overlayView } from './model.mjs';
+import {createUpdateChecker,CURRENT_VERSION} from '../plugins/quota-panel/server/updates.mjs';
 
 const executablePath = fileURLToPath(new URL('../dist/overlay/QuotaOverlay.exe', import.meta.url));
 const defaultStatePath = () => join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ChatGPTQuotaOverlay', 'state.json');
@@ -24,11 +25,13 @@ export function createOverlayHost({
   now = Date.now,
   timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   spawnGui = spawn,
+  updateChecker=createUpdateChecker(),
 } = {}) {
   const absoluteStatePath = resolve(statePath);
   let child, lines, pollTimer, freshnessTimer, shutdownTimer, inFlight;
   let ready = false, paused = false, stopping = false, closed = false;
   let appPresent = !waitForApp;
+  let checkingUpdate=false;
   let snapshot = normalizeQuota(null, now());
   let result = { code: 0, reason: 'stopped' };
   let resolveDone;
@@ -44,6 +47,7 @@ export function createOverlayHost({
     result = { code, reason };
     clearInterval(pollTimer);
     clearInterval(freshnessTimer);
+    try{updateChecker.cancel?.();}catch{}
     closeReader();
     if (!child || closed) {
       resolveDone(result);
@@ -67,6 +71,17 @@ export function createOverlayHost({
         if (error) stop(1, 'gui-input-error');
       });
     } catch { stop(1, 'gui-input-error'); }
+  }
+  function sendUpdate(update) {
+    if(stopping||!child||child.stdin.destroyed)return;
+    try{child.stdin.write(JSON.stringify({update})+'\n',error=>{if(error)stop(1,'gui-input-error');});}catch{stop(1,'gui-input-error');}
+  }
+  async function checkUpdates() {
+    if(checkingUpdate||stopping)return;
+    checkingUpdate=true;sendUpdate({state:'checking',currentVersion:CURRENT_VERSION});
+    try{sendUpdate(await updateChecker.check());}
+    catch{sendUpdate({state:'error',reason:'network',currentVersion:CURRENT_VERSION});}
+    finally{checkingUpdate=false;}
   }
 
   function refresh() {
@@ -101,6 +116,7 @@ export function createOverlayHost({
         refresh();
         break;
       case 'refresh': refresh(); break;
+      case 'check-updates': checkUpdates(); break;
       case 'app-open': if(!appPresent){appPresent=true;refresh();} break;
       case 'app-closed': if(appPresent){appPresent=false;if(waitForApp)closeReader();} break;
       case 'pause': paused = true; break;

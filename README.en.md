@@ -4,11 +4,11 @@
 
 A Windows x64 quota monitor that shows the shared Codex / Work quota above the avatar in the ChatGPT desktop navigation rail. The panel is a separate native overlay window; it does not modify the ChatGPT client. The installed plugin provides a control card to start, stop and check the monitor.
 
-**Current internal version: 1.0.1.** Version 1.0 is available as a manual-install package in this private repository. It has not been submitted to or approved for the OpenAI Plugin Directory.
+**Current version: 1.1.0.** Built releases are distributed through GitHub. The source repository remains private; Quota Panel has not been submitted to or approved for the OpenAI Plugin Directory.
 
 Public-submission requirements and remaining steps: [Russian publishing guide](docs/PUBLISHING-RU.md).
 
-Version 1.0.1 fixes disappearing on focus loss and delayed movement while dragging ChatGPT. The panel follows the visible window's position and stacking order. Diagnostic writes and preview saving are deferred until movement ends.
+Version 1.1.0 adds manual update checks. Right-click the panel → **Check for updates**, or use the button in the control card. When a newer stable release is available, choose **Open release**. Git and GitHub sign-in are not required; updates are not installed automatically.
 
 ## Language and controls
 

@@ -32,7 +32,7 @@ let needsRecovery=false;
 try {
   const session=connect();
   assert((await session.request('initialize',{protocolVersion:'2025-06-18'})).result.serverInfo.name==='quota-panel');
-  const discovery=await session.request('tools/list');assert.equal(discovery.result.tools.length,4);
+  const discovery=await session.request('tools/list');assert.equal(discovery.result.tools.length,5);
   const before=await control(session,'get_quota_overlay_status');
   const started=await control(session,'start_quota_overlay');assert(started.running);
   assert.equal(started.autoStartConfigured,true,'first native activation must configure the user logon task');
@@ -96,7 +96,7 @@ try {
   const reopened=connect();
   const afterClose=await control(reopened,'get_quota_overlay_status');assert(afterClose.running,'closing the plugin transport must leave the monitor running');
   await reopened.close();sessions.splice(sessions.indexOf(reopened),1);
-  console.log(JSON.stringify({result:'PASS',packageRoot:root,tools:4,nativeStartStop:true,idempotent:true,realQuota:true,survivesTransportClose:true,noHoverTooltip:true,autostart:{configured:started.autoStartConfigured,enabled:started.autoStartEnabled,delayMs:state.startupDelayMs,appReady:state.appReady},progressSettings:state.progress,theme:state.theme,diagnosticSource,panelProcess:state.process,visible:state.visible,compact:state.compact,mode:state.mode}));
+  console.log(JSON.stringify({result:'PASS',packageRoot:root,tools:discovery.result.tools.length,nativeStartStop:true,idempotent:true,realQuota:true,survivesTransportClose:true,noHoverTooltip:true,autostart:{configured:started.autoStartConfigured,enabled:started.autoStartEnabled,delayMs:state.startupDelayMs,appReady:state.appReady},progressSettings:state.progress,theme:state.theme,diagnosticSource,panelProcess:state.process,visible:state.visible,compact:state.compact,mode:state.mode}));
 } finally {
   if(needsRecovery){const recovery=connect();try{await control(recovery,'start_quota_overlay');}catch{}}
   for(const session of sessions)try{await session.close();}catch{}

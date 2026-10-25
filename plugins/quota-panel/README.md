@@ -1,5 +1,9 @@
 # Quota Panel
 
+Версия 1.1.0: ПКМ по панели → **«Проверить обновления»** или одноимённая кнопка карточки. Проверка сравнивает установленную версию с последним стабильным релизом GitHub. Если есть новая версия, **«Открыть релиз»** ведёт на страницу скачивания. Git и вход в GitHub не требуются. Обновление устанавливается вручную; ошибка сети показывается отдельно.
+
+**English:** Version 1.1.0 adds **Check for updates** to the panel menu and control card. It checks the latest stable GitHub release. Choose **Open release** to visit the download page when a newer version is available. Git and GitHub sign-in are not required. Installation remains manual; network failures are reported separately.
+
 Язык интерфейса выбирается через **ПКМ → «Язык / Language» → «Русский / English»**. Выбор сохраняется после перезапуска. Переводятся подписи панели, меню, трей, карточка управления и сообщения; карточка подхватывает выбор при следующем обновлении состояния (обычно в течение 5 секунд). Язык самого ChatGPT не изменяется. Числа, даты и время сброса сохраняют прежний формат, а ультракомпактный вид остаётся без текста. По умолчанию используется русский.
 
 **English:** Right-click the panel → **Language / Язык → English**. The choice is saved across restarts and applies to panel labels, context and tray menus, the control card and messages. The card picks it up on the next status refresh, normally within 5 seconds. ChatGPT's own language is not changed. Reset dates keep the DD.MM format and times use 24-hour HH:mm. The ultracompact view remains text-free. Russian is the default.

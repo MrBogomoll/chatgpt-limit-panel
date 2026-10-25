@@ -129,6 +129,10 @@ namespace QuotaOverlay {
     MenuItem themeDarkItem,themeLightItem,themeAutoItem;
     MenuItem languageRussianItem,languageEnglishItem;
     MenuItem autostartItem;
+    MenuItem updatesItem;
+    Window updateDialog;
+    Action<Window> showUpdateDialog=delegate(Window dialog){dialog.Show();};
+    Action<string> openReleasePage=delegate(string url){Process.Start(new ProcessStartInfo(url){UseShellExecute=true});};
     bool autoStartEnabled,autostartBusy,appSignalSent,lastAppReady;
     readonly AppStartupGate appStartup=new AppStartupGate();
     bool showFullProgress,showCompactProgress;
@@ -204,6 +208,7 @@ namespace QuotaOverlay {
       Loaded+=delegate { if(started)return;started=true;StartupCheckpoint("loaded");Hide(); SetupTray(); StartInput(); UpdatePlacement();StartupCheckpoint("ready"); };
       Closed+=delegate {
         closing=true;if(optionsMenu!=null)optionsMenu.IsOpen=false;
+        if(updateDialog!=null)updateDialog.Close();
         if(menuDismiss!=null)menuDismiss.Dispose();StopTracking();
         if(stopWait!=null)stopWait.Unregister(null);if(stopEvent!=null)stopEvent.Dispose();
         tray.Visible=false;tray.Dispose();Command("exit");
@@ -387,6 +392,10 @@ namespace QuotaOverlay {
           <Border Height='1' Margin='8,4' Background='{DynamicResource Quota.MenuDivider}'/>
         </ControlTemplate>")));optionsMenu.Resources.Add(typeof(Separator),separatorStyle);
       var refresh=Menu("refresh");refresh.Click+=delegate {Command("refresh");};optionsMenu.Items.Add(refresh);
+      updatesItem=Menu("checkUpdates");updatesItem.Click+=delegate {
+        if(!updatesItem.IsEnabled)return;
+        updatesItem.IsEnabled=false;updatesItem.Header=T("checkingUpdates");Command("check-updates");
+      };optionsMenu.Items.Add(updatesItem);
       var modes=Menu("view");
       fullModeItem=Menu("full",true);fullModeItem.Click+=delegate {SelectMode("full");};
       compactModeItem=Menu("compact",true);compactModeItem.Click+=delegate {SelectMode("compact");};
@@ -423,6 +432,7 @@ namespace QuotaOverlay {
     }
     void SyncMenu() {
       TranslateMenu(optionsMenu);languageRussianItem.IsChecked=language=="ru";languageEnglishItem.IsChecked=language=="en";
+      if(updatesItem!=null&&!updatesItem.IsEnabled)updatesItem.Header=T("checkingUpdates");
       fullProgressItem.IsChecked=fullProgressMode=="bars";fullOutlineItem.IsChecked=fullProgressMode=="outline";fullOffItem.IsChecked=fullProgressMode=="off";
       fullBothItem.IsChecked=fullProgressMode=="both";
       shortProgressItem.IsChecked=contourWindow=="short";weeklyProgressItem.IsChecked=contourWindow=="weekly";
@@ -552,6 +562,8 @@ namespace QuotaOverlay {
       });thread.IsBackground=true;thread.Start();Command("ready");
     }
     void Apply(Dictionary<string,object> message) {
+      object update;
+      if(message.TryGetValue("update",out update)) {ApplyUpdate(update as Dictionary<string,object>);return;}
       if(!message.ContainsKey("rows"))return;
       receivedUpdates++;
       view=message;var rows=message["rows"] as object[];if(rows==null||rows.Length!=2)return;
@@ -578,6 +590,30 @@ namespace QuotaOverlay {
         SavePreview();UpdatePlacement();
         if(receivedUpdates<=30)StartupCheckpoint("received-data");
       }
+    }
+    static bool SafeReleaseUrl(string url) {
+      return url!=null&&url.Length<200&&System.Text.RegularExpressions.Regex.IsMatch(url,@"\Ahttps://github\.com/MrBogomoll/quota-panel-releases/releases/tag/v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\z");
+    }
+    void ApplyUpdate(Dictionary<string,object> update) {
+      if(closing||update==null)return;
+      string state=Get(update,"state");
+      if(state=="checking"){updatesItem.IsEnabled=false;updatesItem.Header=T("checkingUpdates");return;}
+      updatesItem.IsEnabled=true;updatesItem.Header=T("checkUpdates");
+      string current=Get(update,"currentVersion"),latest=Get(update,"latestVersion"),url=Get(update,"url"),reason=Get(update,"reason");
+      bool available=state=="available"&&SafeReleaseUrl(url);
+      string text=available?String.Format(T("updateAvailable"),latest,current):state=="current"?String.Format(T("updateCurrent"),current):state=="ahead"?String.Format(T("updateAhead"),current,latest):T(reason=="rate-limit"?"updateRateLimit":reason=="timeout"?"updateTimeout":"updateError");
+      if(updateDialog!=null)updateDialog.Close();
+      var dialog=new Window {Title=T("updatesTitle"),Width=400,SizeToContent=SizeToContent.Height,ResizeMode=ResizeMode.NoResize,ShowActivated=false,ShowInTaskbar=false,WindowStartupLocation=WindowStartupLocation.CenterScreen,Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),FontFamily=FontFamily,FontSize=14};
+      if(hwnd!=IntPtr.Zero)dialog.Owner=this;
+      var body=new StackPanel {Margin=new Thickness(20)};dialog.Content=body;
+      var label=new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Foreground=Brush(palette.MenuText),Margin=new Thickness(0,0,0,18)};body.Children.Add(label);
+      var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};body.Children.Add(buttons);
+      if(available) {
+        var open=new Button {Content=T("openRelease"),Padding=new Thickness(12,6,12,6),Margin=new Thickness(0,0,8,0),Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),BorderBrush=Brush(palette.MenuBorder)};
+        open.Click+=delegate {try{openReleasePage(url);}catch{label.Text=T("openReleaseError");}};buttons.Children.Add(open);
+      }
+      var close=new Button {Content=T("dismiss"),Padding=new Thickness(12,6,12,6),Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),BorderBrush=Brush(palette.MenuBorder),IsCancel=true};close.Click+=delegate {dialog.Close();};buttons.Children.Add(close);
+      dialog.Closed+=delegate {if(updateDialog==dialog)updateDialog=null;};updateDialog=dialog;showUpdateDialog(dialog);
     }
     static string Get(Dictionary<string,object> row,string key) { return row.ContainsKey(key)?Convert.ToString(row[key]):""; }
     bool IsTarget(IntPtr window) {

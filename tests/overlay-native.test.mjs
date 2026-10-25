@@ -62,6 +62,7 @@ test('native overlay renders and accepts updates using only isolated own control
     ['focus-persistence', 'panel stays on an inactive visible target below covering apps, follows topmost bands and still hides on minimize/close'],
     ['motion', 'rapid movement aligns in the native callback, avoids disk/render work and fills event gaps at frame rate'],
     ['motion-hook', 'real cross-process WinEvent delivery follows an isolated external target without activation'],
+    ['updates','manual update controls show localized themed results without changing quotas or opening arbitrary links'],
     ['combined-zero', 'combined mode persists and known zero draws full red warnings distinct from off and unknown'],
     ['resize-aspect', 'mode transitions preserve proportions while the viewport still has the previous height'],
     ['resize-native', 'content changes do not issue a separate live HWND resize before native placement'],

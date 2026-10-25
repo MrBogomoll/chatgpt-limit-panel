@@ -541,6 +541,36 @@ class OverlayNativeTest {
       child.Dispose();
     }
   }
+  static void UpdatesTest(OverlayWindow window) {
+    Known(window);Window shown=null;string opened=null;
+    var showProduction=Field<Action<Window>>(window,"showUpdateDialog");
+    typeof(OverlayWindow).GetField("showUpdateDialog",PrivateInstance).SetValue(window,new Action<Window>(delegate(Window dialog){shown=dialog;}));
+    typeof(OverlayWindow).GetField("openReleasePage",PrivateInstance).SetValue(window,new Action<string>(delegate(string url){opened=url;}));
+    var action=Field<MenuItem>(window,"updatesItem");MenuClick(action);Check(!action.IsEnabled,"update check must disable duplicate clicks");
+    foreach(string language in new[]{"ru","en"})foreach(string theme in new[]{"dark","light"}) {
+      Invoke(window,"SelectLanguage",language);Invoke(window,"SelectTheme",theme);
+      var update=new Dictionary<string,object>{{"state","available"},{"currentVersion","1.1.0"},{"latestVersion","1.2.0"},{"url","https://github.com/MrBogomoll/quota-panel-releases/releases/tag/v1.2.0"}};
+      Invoke(window,"Apply",new Dictionary<string,object>{{"update",update}});Check(shown!=null&&action.IsEnabled,"manual result must show its own dialog and re-enable action");
+      Check(!shown.ShowActivated,"delayed update result must not activate over the user's current app");
+      var stack=(StackPanel)shown.Content;var text=(TextBlock)stack.Children[0];Check(text.Text.Contains("1.2.0")&&text.Text.Contains("1.1.0"),"result must show available and installed versions");
+      Check(text.Text.Contains(language=="en"?"available":"Доступна"),"result must use selected language");
+      var buttons=(StackPanel)stack.Children[1];Check(buttons.Children.Count==2,"available update needs explicit release and close buttons");
+      Check(opened==null,"checking must not open a browser automatically");((Button)buttons.Children[0]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Check(opened==Convert.ToString(update["url"]),"only explicit click opens verified release");opened=null;
+      ((Button)buttons.Children[1]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));shown=null;
+    }
+    foreach(string state in new[]{"current","ahead","error"}) {
+      Invoke(window,"Apply",new Dictionary<string,object>{{"update",new Dictionary<string,object>{{"state",state},{"reason","network"},{"currentVersion","1.1.0"},{"latestVersion","1.0.1"}}}});
+      var stack=(StackPanel)shown.Content;Check(((StackPanel)stack.Children[1]).Children.Count==1,"non-update results must not offer a download");shown.Close();shown=null;
+    }
+    Invoke(window,"Apply",new Dictionary<string,object>{{"update",new Dictionary<string,object>{{"state","available"},{"url","file:///C:/bad.exe"},{"latestVersion","1.2.0"},{"currentVersion","1.1.0"}}}});
+    Check(((StackPanel)((StackPanel)shown.Content).Children[1]).Children.Count==1,"untrusted release URL must have no open action");shown.Close();
+    Check(Field<TextBlock[]>(window,"values")[0].Text=="100%","update messages must not replace quota rows");
+    IntPtr foreground=Native.GetForegroundWindow();
+    typeof(OverlayWindow).GetField("showUpdateDialog",PrivateInstance).SetValue(window,new Action<Window>(delegate(Window dialog){shown=dialog;dialog.WindowStartupLocation=WindowStartupLocation.Manual;dialog.Left=-32000;dialog.Top=-32000;showProduction(dialog);}));
+    Invoke(window,"Apply",new Dictionary<string,object>{{"update",new Dictionary<string,object>{{"state","current"},{"currentVersion","1.1.0"}}}});PumpDispatcher();
+    Check(shown.IsVisible&&Native.GetForegroundWindow()==foreground,"production result Show must preserve foreground focus");shown.Close();
+    Console.WriteLine("PASS native updates: manual request, separate explicit release opening, RU/EN dark/light and isolated quota state");
+  }
   static void MenuPlacementTest(OverlayWindow window) {
     var menu=Field<ContextMenu>(window,"optionsMenu");
     Check(menu.Placement==System.Windows.Controls.Primitives.PlacementMode.Right && Object.ReferenceEquals(menu.PlacementTarget,Field<Border>(window,"panel")),"context menu must anchor beside the entire panel, not at the click point");
@@ -936,6 +966,7 @@ class OverlayNativeTest {
         case "focus-persistence":FocusPersistenceTest(window);break;
         case "motion":MotionTest(window,directory);break;
         case "motion-hook":MotionHookTest(window);break;
+        case "updates":UpdatesTest(window);break;
         case "combined-zero":CombinedZeroTest(ref window,directory);break;
         case "resize-aspect":ResizeAspectTest(window);break;
         case "resize-native":ResizeNativeTest(window);break;

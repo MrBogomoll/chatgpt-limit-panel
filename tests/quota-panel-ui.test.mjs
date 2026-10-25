@@ -8,6 +8,39 @@ const api = await import('../plugins/quota-panel/server/ui.mjs').catch(() => ({}
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
+test('manual update card keeps its result through status refreshes, opens only explicit verified links and fits narrow themes',async()=>{
+  const ui=await api.buildUi();
+  const host=`<iframe src='/control' style='width:100%;height:450px;border:0'></iframe><script>
+  window.calls=[];window.language='ru';window.update={state:'available',currentVersion:'1.1.0',latestVersion:'1.2.0',url:'https://github.com/MrBogomoll/quota-panel-releases/releases/tag/v1.2.0'};window.deny=false;
+  addEventListener('message',event=>{const m=event.data;if(m?.jsonrpc!=='2.0')return;calls.push(m);let result={};
+  if(m.method==='ui/initialize')result={hostContext:{theme:'dark'}};
+  if(m.method==='tools/call')result=m.params.name==='check_quota_panel_updates'?{structuredContent:{update:window.update,language:window.language}}:{structuredContent:{status:'stopped',running:false,paused:false,language:window.language}};
+  if(m.method==='ui/open-link'&&deny)result={isError:true};
+  if(m.id!==undefined)event.source.postMessage({jsonrpc:'2.0',id:m.id,result},'*');});</script>`;
+  const server=createServer((request,response)=>{response.setHeader('content-type','text/html;charset=utf-8');response.end(request.url==='/control'?ui:host);});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const browser=await chromium.launch({channel:'msedge',headless:true});
+  try {
+    const page=await browser.newPage({viewport:{width:360,height:650}});const errors=[];page.on('pageerror',error=>errors.push(error.message));
+    await page.goto(`http://127.0.0.1:${server.address().port}`);const frame=page.frameLocator('iframe');
+    await frame.locator('#refresh:enabled').waitFor();assert.equal((await page.evaluate(()=>calls.filter(x=>x.params?.name==='check_quota_panel_updates'))).length,0);
+    await frame.getByRole('button',{name:'Проверить обновления',exact:true}).click();await frame.locator('#update-status').filter({hasText:'1.2.0'}).waitFor();
+    assert.equal((await page.evaluate(()=>calls.filter(x=>x.method==='ui/open-link'))).length,0);
+    await frame.getByRole('button',{name:'Открыть релиз',exact:true}).click();await page.waitForFunction(()=>calls.some(x=>x.method==='ui/open-link'));
+    await page.evaluate(()=>{language='en';});await frame.locator('#refresh').click();await frame.getByRole('button',{name:'Check for updates',exact:true}).waitFor();
+    assert.match(await frame.locator('#update-status').textContent(),/available/);assert.doesNotMatch(await frame.locator('main').textContent(),/[А-Яа-яЁё]/);
+    await page.evaluate(()=>{deny=true;});await frame.getByRole('button',{name:'Open release',exact:true}).click();await frame.locator('#update-status').filter({hasText:'Could not open'}).waitFor();
+    for(const theme of ['light','dark']) {
+      await page.evaluate(theme=>{document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/host-context-changed',params:{theme}},'*');},theme);
+      assert(await frame.locator('html').evaluate(root=>root.scrollWidth<=root.clientWidth));
+      if(process.env.QUOTA_CARD_ARTIFACT_DIR){await mkdir(process.env.QUOTA_CARD_ARTIFACT_DIR,{recursive:true});await frame.locator('main').screenshot({path:path.join(process.env.QUOTA_CARD_ARTIFACT_DIR,'updates-'+theme+'.png')});}
+    }
+    await page.evaluate(()=>{update={state:'error',reason:'network',currentVersion:'1.1.0'};});await frame.locator('#check-updates').click();await frame.locator('#update-status').filter({hasText:'Could not check'}).waitFor();assert.equal(await frame.locator('#open-release').isVisible(),false);
+    await page.evaluate(()=>{update={state:'current',currentVersion:'1.1.0',latestVersion:'1.1.0',url:null};});await frame.locator('#check-updates').click();await frame.locator('#update-status').filter({hasText:'up to date'}).waitFor();
+    await page.evaluate(()=>{update={state:'available',currentVersion:'1.1.0',latestVersion:'1.2.0',url:'javascript:alert(1)'};});await frame.locator('#check-updates').click();await frame.locator('#check-updates:enabled').waitFor();assert.equal(await frame.locator('#open-release').isVisible(),false);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+});
+
 test('control card starts and stops the monitor, refreshes state, and never publishes composer context', async () => {
   assert.equal(typeof api.buildUi, 'function', 'native panel control UI must exist');
   const ui = await api.buildUi();

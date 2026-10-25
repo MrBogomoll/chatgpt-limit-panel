@@ -13,6 +13,7 @@ const payloadFiles = [
   'plugins/quota-chips/server/reader.mjs', 'plugins/quota-chips/server/quota.mjs',
   'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe', 'dist/overlay/runtime.json',
   'runtime/node.exe', 'runtime/NODE-LICENSE.txt',
+  'server/updates.mjs','plugins/quota-panel/server/updates.mjs',
 ];
 
 /** Install a complete release through the native Codex plugin commands. */

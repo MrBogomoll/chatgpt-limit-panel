@@ -1,5 +1,14 @@
 # Changes
 
+## 1.1.0 — 2026-10-25
+
+- Add **Check for updates** to the panel context menu and plugin control card.
+- Compare the installed version with the latest stable GitHub release and offer
+  **Open release** when a newer Windows build is available.
+- Show distinct up-to-date, installed-ahead, timeout, connection and request-limit
+  results in Russian and English, with light and dark native dialogs.
+- Keep updates manual; no Git installation or GitHub sign-in is required.
+
 ## 1.0.1 — 2026-10-25
 
 - Keep the panel visible when ChatGPT loses focus. Follow the target window's

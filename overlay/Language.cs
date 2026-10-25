@@ -6,6 +6,18 @@ namespace QuotaOverlay {
   internal static class PanelLanguage {
     static readonly Dictionary<string,string[]> Copy=new Dictionary<string,string[]> {
       {"refresh",new[]{"Обновить лимиты","Refresh limits"}},
+      {"checkUpdates",new[]{"Проверить обновления","Check for updates"}},
+      {"checkingUpdates",new[]{"Проверка обновлений…","Checking for updates…"}},
+      {"updatesTitle",new[]{"Quota Panel — обновления","Quota Panel — updates"}},
+      {"updateAvailable",new[]{"Доступна Quota Panel {0}.\nУстановлена: {1}.","Quota Panel {0} is available.\nInstalled: {1}."}},
+      {"updateCurrent",new[]{"Установлена актуальная Quota Panel {0}.","Quota Panel {0} is up to date."}},
+      {"updateAhead",new[]{"Установленная версия {0} новее последнего релиза {1}.","Installed {0} is newer than the latest release {1}."}},
+      {"updateError",new[]{"Не удалось проверить обновления. Проверь соединение и повтори попытку.","Could not check for updates. Check your connection and try again."}},
+      {"updateRateLimit",new[]{"Достигнут лимит запросов GitHub. Повтори проверку позже.","GitHub request limit reached. Try again later."}},
+      {"updateTimeout",new[]{"Время проверки обновлений истекло. Повтори попытку.","The update check timed out. Try again."}},
+      {"openRelease",new[]{"Открыть релиз","Open release"}},
+      {"dismiss",new[]{"Закрыть","Close"}},
+      {"openReleaseError",new[]{"Не удалось открыть страницу релиза.","Could not open the release page."}},
       {"view",new[]{"Вид панели","Panel view"}},
       {"full",new[]{"Полный","Full"}},
       {"compact",new[]{"Компактный","Compact"}},

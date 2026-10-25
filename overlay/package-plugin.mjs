@@ -5,17 +5,18 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
-const version = '1.0.1';
+const version = '1.1.0';
 const archiveName = `quota-panel-${version}-windows-x64.zip`;
 const pluginFiles = [
   // The installed desktop parser ignores bundled MCP servers when root
   // plugin.json exists. Ship its supported compatibility entry point only.
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
   'assets/quota.svg', 'assets/quota.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
-  'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs',
+  'server/ui.mjs', 'server/language.mjs', 'server/updates.mjs', 'ui/control.html', 'ui/control.mjs',
 ];
 const dependencyFiles = [
   'overlay/host.mjs', 'overlay/model.mjs',
+  'plugins/quota-panel/server/updates.mjs',
   'plugins/quota-chips/server/reader.mjs', 'plugins/quota-chips/server/quota.mjs',
   'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe',
 ];
