@@ -41,4 +41,4 @@
 - Изменение расположения элементов в будущей версии ChatGPT может потребовать обновления привязки панели.
 - Плагин управляет одним экземпляром монитора в текущем сеансе Windows. Если монитор был запущен ярлыком, карточка показывает его состояние и может остановить его.
 
-Версия: `0.2.0-beta.3`. Поддерживаемые команды: `show_quota_overlay`, `start_quota_overlay`, `stop_quota_overlay`, `get_quota_overlay_status`.
+Версия: `1.0.0`. Поддерживаемые команды: `show_quota_overlay`, `start_quota_overlay`, `stop_quota_overlay`, `get_quota_overlay_status`.

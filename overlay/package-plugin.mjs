@@ -5,13 +5,13 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
-const version = '0.2.0-beta.3';
+const version = '1.0.0';
 const archiveName = `quota-panel-${version}-windows-x64.zip`;
 const pluginFiles = [
   // The installed desktop parser ignores bundled MCP servers when root
   // plugin.json exists. Ship its supported compatibility entry point only.
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
-  'assets/quota.svg', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
+  'assets/quota.svg', 'assets/quota.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs',
 ];
 const dependencyFiles = [
@@ -36,7 +36,7 @@ function requirePortableJson(value, filename) {
   }
 }
 
-/** Stage only the reviewed beta payload. Each invocation preserves every earlier stage. */
+/** Stage only the reviewed release payload. Each invocation preserves every earlier stage. */
 export function stagePluginBundle({
   sourceRoot = projectRoot,
   outputDir = path.join(projectRoot, 'dist', 'releases'),
@@ -57,7 +57,7 @@ export function stagePluginBundle({
     const manifest = JSON.parse(readFileSync(filename, 'utf8').replace(/^\uFEFF/, ''));
     requirePortableJson(manifest, relative);
     if (relative.endsWith('plugin.json') && (manifest.name !== 'quota-panel' || manifest.version !== version)) {
-      throw new Error(`Plugin manifest must identify quota-panel beta version ${version}: ${relative}`);
+      throw new Error(`Plugin manifest must identify quota-panel release version ${version}: ${relative}`);
     }
   }
   mkdirSync(output, { recursive: true });
@@ -73,13 +73,13 @@ export function stagePluginBundle({
   return { version, stagePath };
 }
 
-/** Produce the local Windows upload draft and checksum; this never installs or publishes it. */
+/** Produce the local Windows release archive and checksum; this never installs or publishes it. */
 export function packagePlugin(options = {}) {
   const outputDir = path.resolve(options.outputDir || path.join(projectRoot, 'dist', 'releases'));
   const archivePath = path.join(outputDir, archiveName);
   const sha256Path = archivePath + '.sha256';
   if (existsSync(archivePath) || existsSync(sha256Path)) {
-    throw new Error('Beta release already exists; choose another output directory to preserve the earlier review.');
+    throw new Error('Release already exists; choose another output directory to preserve the earlier review.');
   }
   const staged = stagePluginBundle({ ...options, outputDir });
   const archive = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
@@ -97,5 +97,5 @@ export function packagePlugin(options = {}) {
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   try { process.stdout.write(JSON.stringify(packagePlugin(), null, 2) + '\n'); }
-  catch (error) { process.stderr.write(`Beta packaging failed: ${error.message}\n`); process.exitCode = 1; }
+  catch (error) { process.stderr.write(`Release packaging failed: ${error.message}\n`); process.exitCode = 1; }
 }

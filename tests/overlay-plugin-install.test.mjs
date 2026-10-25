@@ -7,7 +7,7 @@ import path from 'node:path';
 const api = await import('../overlay/install-plugin.mjs').catch(() => ({}));
 const payloadFiles = [
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
-  'assets/quota.svg', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
+  'assets/quota.svg', 'assets/quota.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/quota-chips/server/reader.mjs', 'plugins/quota-chips/server/quota.mjs',
   'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe', 'dist/overlay/runtime.json',
@@ -23,7 +23,7 @@ async function fixture(t, installed = true) {
     await writeFile(path.join(stagePath, filename), 'payload:' + filename);
   }
   for (const filename of ['.codex-plugin/plugin.json']) {
-    await writeFile(path.join(stagePath, filename), JSON.stringify({ name: 'quota-panel', version: '0.2.0-beta.3',
+    await writeFile(path.join(stagePath, filename), JSON.stringify({ name: 'quota-panel', version: '1.0.0',
       interface: { displayName: 'Quota Panel' }, extensions: { 'com.openai': { interface: { displayName: 'Quota Panel' } } } }));
   }
   await writeFile(path.join(stagePath, 'private-author-config.toml'), 'do not install');
@@ -47,7 +47,7 @@ if(args[1] === 'marketplace') {
   console.log(JSON.stringify({installed:true}));
 } else if(args[1] === 'list') {
   if(JSON.stringify(args.slice(2)) !== JSON.stringify(['--marketplace','quota-panel-local','--json'])) process.exit(16);
-  console.log(JSON.stringify({installed:${installed ? "[{pluginId:'quota-panel@quota-panel-local',name:'quota-panel',marketplaceName:'quota-panel-local',installed:true,enabled:true,version:'0.2.0-beta.3'}]" : '[]'}}));
+  console.log(JSON.stringify({installed:${installed ? "[{pluginId:'quota-panel@quota-panel-local',name:'quota-panel',marketplaceName:'quota-panel-local',installed:true,enabled:true,version:'1.0.0'}]" : '[]'}}));
 } else process.exit(17);
 `);
   return { stagePath, codexHome, codexBin: process.execPath, codexPrefixArgs: [cli, log], log, originalConfig };

@@ -7,9 +7,9 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const api = await import('../overlay/package-plugin.mjs').catch(() => ({}));
-const version = '0.2.0-beta.3';
+const version = '1.0.0';
 const allowedFiles = [
-  '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'assets/quota.svg',
+  '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'assets/quota.svg', 'assets/quota.png',
   'dist/overlay/QuotaMonitor.exe', 'dist/overlay/QuotaOverlay.exe', 'dist/overlay/runtime.json',
   'mcp.json', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/quota-chips/server/quota.mjs', 'plugins/quota-chips/server/reader.mjs',
@@ -96,7 +96,7 @@ test('beta staging uses a fresh versioned directory without overwriting an earli
   await writeFile(path.join(first.stagePath, 'review-marker.txt'), 'preserve earlier review');
   const second = api.stagePluginBundle(fixture);
   assert.notEqual(first.stagePath, second.stagePath);
-  assert.match(path.basename(second.stagePath), /quota-panel-0\.2\.0-beta\.3/);
+  assert.match(path.basename(second.stagePath), /quota-panel-1\.0\.0/);
   assert.equal(path.dirname(second.stagePath), fixture.outputDir);
   assert.equal(await readFile(path.join(first.stagePath, 'review-marker.txt'), 'utf8'), 'preserve earlier review');
 });
@@ -108,10 +108,10 @@ test('beta staging rejects a missing license before creating an incomplete packa
   assert.throws(() => api.stagePluginBundle(fixture), /license/i);
 });
 
-test('beta staging rejects a source manifest with a public or mismatched version', async t => {
+test('beta staging rejects a source manifest with a mismatched version', async t => {
   assert.equal(typeof api.stagePluginBundle, 'function');
   const fixture = await fixtureBundle(t);
-  await fixture.put('plugins/quota-panel/plugin.json', JSON.stringify({ name: 'quota-panel', version: '1.0.0' }));
+  await fixture.put('plugins/quota-panel/plugin.json', JSON.stringify({ name: 'quota-panel', version: '2.0.0' }));
   assert.throws(() => api.stagePluginBundle(fixture), /version|beta/i);
 });
 
@@ -126,7 +126,7 @@ test('beta ZIP has upload manifests at its root, includes dotfiles, and publishe
   assert.equal(typeof api.packagePlugin, 'function', 'the beta packager must produce a ZIP');
   const fixture = await fixtureBundle(t);
   const result = api.packagePlugin(fixture);
-  assert.equal(path.basename(result.archivePath), 'quota-panel-0.2.0-beta.3-windows-x64.zip');
+  assert.equal(path.basename(result.archivePath), 'quota-panel-1.0.0-windows-x64.zip');
   assert.equal(path.dirname(result.archivePath), fixture.outputDir);
   const zip = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
     'Add-Type -AssemblyName System.IO.Compression.FileSystem; $archive = [System.IO.Compression.ZipFile]::OpenRead($env:QUOTA_TEST_ZIP); try { @($archive.Entries | ForEach-Object { $_.FullName }) | ConvertTo-Json -Compress } finally { $archive.Dispose() }'], {
@@ -137,6 +137,6 @@ test('beta ZIP has upload manifests at its root, includes dotfiles, and publishe
   assert.deepEqual(JSON.parse(zip.stdout).map(name => name.replaceAll('\\', '/')).sort(), allowedFiles);
   const digest = createHash('sha256').update(await readFile(result.archivePath)).digest('hex');
   assert.equal(result.sha256, digest);
-  assert.equal(await readFile(result.sha256Path, 'utf8'), `${digest}  quota-panel-0.2.0-beta.3-windows-x64.zip\n`);
+  assert.equal(await readFile(result.sha256Path, 'utf8'), `${digest}  quota-panel-1.0.0-windows-x64.zip\n`);
   assert.throws(() => api.packagePlugin(fixture), /already exists|overwrite/i);
 });

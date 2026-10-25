@@ -2,9 +2,11 @@
 
 [Русская документация](README.md)
 
-A private Windows x64 beta that shows the shared Codex / Work quota above the avatar in the ChatGPT desktop navigation rail. The panel is a separate native overlay window; it does not modify the ChatGPT client. The installed plugin provides a control card to start, stop and check the monitor.
+A Windows x64 quota monitor that shows the shared Codex / Work quota above the avatar in the ChatGPT desktop navigation rail. The panel is a separate native overlay window; it does not modify the ChatGPT client. The installed plugin provides a control card to start, stop and check the monitor.
 
-**Current internal version: 0.2.0-beta.3.** The bilingual preview is for private testing. Version 1.0 has not been assigned or published.
+**Current internal version: 1.0.0.** Version 1.0 is available as a manual-install package in this private repository. It has not been submitted to or approved for the OpenAI Plugin Directory.
+
+Public-submission requirements and remaining steps: [Russian publishing guide](docs/PUBLISHING-RU.md).
 
 ## Language and controls
 
@@ -47,11 +49,11 @@ npm run build:overlay
 npm run package:plugin
 ```
 
-The package bundles the Node executable used to run packaging. This beta uses Node.js 24.22.1 x64. If changing Node versions, also update third-party/NODE-LICENSE.txt. Build output goes to dist/overlay, and versioned package output goes to dist/releases. Existing archives are not overwritten.
+The package bundles the Node executable used to run packaging. This release uses Node.js 24.22.1 x64. If changing Node versions, also update third-party/NODE-LICENSE.txt. Build output goes to dist/overlay, and versioned package output goes to dist/releases. Existing archives are not overwritten.
 
 Native tests use their own windows offscreen and do not operate ChatGPT. A separate installed-package smoke check starts and stops this monitor and reads real quota data; it is not part of the ordinary test suite.
 
-## Beta limitations and data
+## Known limitations and data
 
 Only the supported Windows desktop client is covered. Browser ChatGPT and macOS are not supported. The panel hides when ChatGPT is not active; changes to future client layout may require placement updates. Physical monitor switching and every client zoom combination have not been validated.
 
