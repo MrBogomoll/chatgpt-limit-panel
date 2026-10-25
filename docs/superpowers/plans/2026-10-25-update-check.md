@@ -51,4 +51,13 @@ Files: versioned manifests/package/tests, overlay/package-plugin.mjs, install-pl
 - [x] Bump to 1.1.0 and include the shared checker in both installed import locations.
 - [x] Run relevant suite, review, build and package; preserve prior archives.
 - [x] Migrate this user's owned startup task from 1.0.1 to 1.1.0 with backup, reload registered source, verify payloads and live update response.
-- [ ] Publish private source and public release with user-facing RU/EN notes, then verify anonymous download and latest-release response.
+- [x] Publish private source and public release with user-facing RU/EN notes, then verify anonymous download and latest-release response.
+
+## Completion evidence
+
+Final suite: 126/126 passed. The review finding about delayed result activation
+was reproduced and corrected; production offscreen Show preserves foreground.
+Installed payload: all 24 files match, existing preferences and autostart retained.
+Installed checker returned ahead while 1.0.1 was latest, then current=1.1.0 after
+publication. Both repositories have v1.1.0 releases; anonymous public download
+matches SHA-256 b275caf8059ef579d2ff842011f84618b5f9f8733a4b3191c8a874a08abea5ca.
