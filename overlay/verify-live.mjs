@@ -41,7 +41,10 @@ export function verifyOverlayState(state, { isProcessAlive = processIsAlive, upd
       assert(rectangle && ['x', 'y', 'width', 'height'].every(key => Number.isFinite(rectangle[key]))
         && rectangle.width > 0 && rectangle.height > 0, `${name} bounds must be finite with positive dimensions`);
     }
-    assert.equal(state.target,state.foreground,'only show for the active ChatGPT window');
+    assert.equal(state.targetVisible,true,'only show on a visible, restored target');
+    assert.equal(typeof state.topmost,'boolean','panel must report its topmost band');
+    assert.equal(typeof state.targetTopmost,'boolean','target must report its topmost band');
+    assert.equal(state.topmost,state.targetTopmost,'panel must follow the target topmost band');
     assert(state.panel.y>=state.client.y&&state.panel.x+state.panel.width<=state.client.x+state.client.width,
       'panel must stay within client bounds');
     assert(state.panel.x>=state.client.x&&state.panel.x+state.panel.width<=state.client.x+52*state.dpi/96,'stay within rail');

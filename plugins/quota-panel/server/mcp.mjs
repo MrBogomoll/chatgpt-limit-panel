@@ -9,7 +9,7 @@ const tools = [
     _meta: { ui: { resourceUri: UI_URI }, 'openai/outputTemplate': UI_URI, 'openai/ui': { entrypoints: [{ type: 'global' }, { type: 'thread' }] }, 'openai/widgetAccessible': true } },
   { name: 'start_quota_overlay', title: 'Запустить панель лимитов', description: 'Запускает один локальный монитор лимитов. При первой активации настраивает пользовательскую задачу автозапуска при входе в Windows; монитор ждёт открытия ChatGPT. Автозапуск отключается через ПКМ по панели. Повторный запуск не создаёт дубликат.', inputSchema: emptyArguments, annotations: mutation, _meta: { 'openai/widgetAccessible': true } },
   { name: 'stop_quota_overlay', title: 'Остановить панель лимитов', description: 'Кооперативно закрывает только локальный монитор лимитов. Повторная остановка безопасна. Клиент ChatGPT не закрывает.', inputSchema: emptyArguments, annotations: mutation, _meta: { 'openai/widgetAccessible': true } },
-  { name: 'get_quota_overlay_status', title: 'Обновить состояние панели', description: 'Проверяет, запущен ли локальный монитор лимитов. Скрытая при другом активном приложении панель продолжает считаться запущенной.', inputSchema: emptyArguments, annotations: readOnly, _meta: { ui: { visibility: ['app'] }, 'openai/widgetAccessible': true } },
+  { name: 'get_quota_overlay_status', title: 'Обновить состояние панели', description: 'Проверяет, запущен ли локальный монитор лимитов. Перекрытая другим окном или скрытая при сворачивании панель продолжает считаться запущенной.', inputSchema: emptyArguments, annotations: readOnly, _meta: { ui: { visibility: ['app'] }, 'openai/widgetAccessible': true } },
 ];
 const methodFor = { show_quota_overlay: 'status', start_quota_overlay: 'start', stop_quota_overlay: 'stop', get_quota_overlay_status: 'status' };
 
@@ -19,7 +19,7 @@ export function createMcpHandler({ controller, readUi, getLanguage = () => 'ru' 
     const respond = result => ({ jsonrpc: '2.0', id: request.id, result });
     const error = (code, message) => ({ jsonrpc: '2.0', id: request.id, error: { code, message } });
     switch (request.method) {
-      case 'initialize': return respond({ protocolVersion: request.params?.protocolVersion || '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'quota-panel', title: 'Quota Panel', version: '1.0.0' } });
+      case 'initialize': return respond({ protocolVersion: request.params?.protocolVersion || '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'quota-panel', title: 'Quota Panel', version: '1.0.1' } });
       case 'ping': return respond({});
       case 'tools/list': return respond({ tools: getLanguage() === 'en' ? tools.map(tool => ({ ...tool, title: englishTools[tool.name][0], description: englishTools[tool.name][1] })) : tools });
       case 'resources/list': return respond({ resources: [{ uri: UI_URI, name: getLanguage() === 'en' ? 'Quota panel controls' : 'Управление панелью лимитов', mimeType: 'text/html;profile=mcp-app' }] });

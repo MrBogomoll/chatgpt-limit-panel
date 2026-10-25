@@ -4,9 +4,11 @@
 
 A Windows x64 quota monitor that shows the shared Codex / Work quota above the avatar in the ChatGPT desktop navigation rail. The panel is a separate native overlay window; it does not modify the ChatGPT client. The installed plugin provides a control card to start, stop and check the monitor.
 
-**Current internal version: 1.0.0.** Version 1.0 is available as a manual-install package in this private repository. It has not been submitted to or approved for the OpenAI Plugin Directory.
+**Current internal version: 1.0.1.** Version 1.0 is available as a manual-install package in this private repository. It has not been submitted to or approved for the OpenAI Plugin Directory.
 
 Public-submission requirements and remaining steps: [Russian publishing guide](docs/PUBLISHING-RU.md).
+
+Version 1.0.1 fixes disappearing on focus loss and delayed movement while dragging ChatGPT. The panel follows the visible window's position and stacking order. Diagnostic writes and preview saving are deferred until movement ends.
 
 ## Language and controls
 
@@ -55,7 +57,7 @@ Native tests use their own windows offscreen and do not operate ChatGPT. A separ
 
 ## Known limitations and data
 
-Only the supported Windows desktop client is covered. Browser ChatGPT and macOS are not supported. The panel hides when ChatGPT is not active; changes to future client layout may require placement updates. Physical monitor switching and every client zoom combination have not been validated.
+Only the supported Windows desktop client is covered. Browser ChatGPT and macOS are not supported. The panel stays on a visible ChatGPT window when focus moves elsewhere and follows its Z-order, so other applications can cover it normally. It hides when ChatGPT is minimized, closed or cloaked. Future client layout changes may require placement updates. Physical monitor switching and every client zoom combination have not been validated.
 
 Migration of the Windows task to a future installed version/path and automatic task cleanup on uninstall still need work before public release. The task definition, trigger toggling and actual installed startup have been checked; a real Windows reboot was not performed in the latest acceptance check.
 

@@ -30,6 +30,7 @@ namespace QuotaOverlay {
     [DllImport("kernel32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr GetModuleHandle(string name);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb,IntPtr p);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hwnd,uint command);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
@@ -94,10 +95,13 @@ namespace QuotaOverlay {
     readonly TextBlock[] periods=new TextBlock[2],values=new TextBlock[2],dates=new TextBlock[2],times=new TextBlock[2],markers=new TextBlock[2];
     readonly string stateFile,settingsFile;
     readonly DispatcherTimer tracker=new DispatcherTimer();
+    readonly DispatcherTimer motionTracker=new DispatcherTimer(DispatcherPriority.Render);
     readonly Forms.NotifyIcon tray=new Forms.NotifyIcon();
     readonly Forms.ToolStripMenuItem pause=new Forms.ToolStripMenuItem();
     Native.EventProc nativeEvent;
-    IntPtr eventHook,hwnd,target;
+    IntPtr eventHook,locationHook,moveHook,minimizeHook,hwnd,target;
+    bool placing,refreshQueued,pendingPreview,pendingStartupCheckpoint,interactiveMove;
+    long motionDeadline;
     EventWaitHandle stopEvent;
     RegisteredWaitHandle stopWait;
     bool paused,closing,started,preferCompact,compact;
@@ -106,6 +110,7 @@ namespace QuotaOverlay {
     string language;
     ThemePalette palette;
     readonly ThemeResolver themeResolver;
+    Func<IntPtr,bool> targetMatcher;
     readonly string[] rowTones=new[]{"unknown","unknown"};
     DateTime nextThemeCheck=DateTime.MinValue;
     string lastState="",previewError="",stateWriteError="";
@@ -132,7 +137,8 @@ namespace QuotaOverlay {
     TextBlock compactStale;
 
     public OverlayWindow(string statePath):this(statePath,null) { }
-    internal OverlayWindow(string statePath,ThemeResolver resolver) {
+    internal OverlayWindow(string statePath,ThemeResolver resolver,Func<IntPtr,bool> matchTarget=null) {
+      targetMatcher=matchTarget;
       stateFile=statePath;
       StartupCheckpoint("constructing");
       settingsFile=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(statePath)),"settings.json");
@@ -162,7 +168,7 @@ namespace QuotaOverlay {
       Width=Layout.PanelWidth; Height=Layout.PanelHeight;
       WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize;
       AllowsTransparency=true; Background=Brushes.Transparent;
-      ShowInTaskbar=false; ShowActivated=false; Topmost=true; Focusable=false;
+      ShowInTaskbar=false; ShowActivated=false; Topmost=false; Focusable=false;
       FontFamily=new FontFamily("Segoe UI");
       panel=new Border { Width=Layout.PanelWidth,Height=Layout.PanelHeight,Background=Brush(palette.Surface),BorderBrush=Brush(palette.Border),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(3,5,3,5) };
       ToolTipService.SetIsEnabled(panel,false);
@@ -198,19 +204,51 @@ namespace QuotaOverlay {
       Loaded+=delegate { if(started)return;started=true;StartupCheckpoint("loaded");Hide(); SetupTray(); StartInput(); UpdatePlacement();StartupCheckpoint("ready"); };
       Closed+=delegate {
         closing=true;if(optionsMenu!=null)optionsMenu.IsOpen=false;
-        if(menuDismiss!=null)menuDismiss.Dispose();tracker.Stop();
-        if(eventHook!=IntPtr.Zero)Native.UnhookWinEvent(eventHook);
+        if(menuDismiss!=null)menuDismiss.Dispose();StopTracking();
         if(stopWait!=null)stopWait.Unregister(null);if(stopEvent!=null)stopEvent.Dispose();
         tray.Visible=false;tray.Dispose();Command("exit");
       };
       stopEvent=new EventWaitHandle(false,EventResetMode.ManualReset,"Local\\ChatGPTQuotaOverlay.Stop");stopEvent.Reset();
       stopWait=ThreadPool.RegisterWaitForSingleObject(stopEvent,delegate {if(!closing)Dispatcher.BeginInvoke(new Action(Close));},null,-1,true);
       tracker.Interval=TimeSpan.FromMilliseconds(200); tracker.Tick+=delegate { UpdatePlacement(); };tracker.Start();
-      nativeEvent=delegate(IntPtr hook,uint ev,IntPtr window,int obj,int child,uint thread,uint time) {
-        if(!closing && (ev==3 || window==target && obj==0 && (ev==0x800B || ev==0x16 || ev==0x17))) Dispatcher.BeginInvoke(new Action(UpdatePlacement));
+      motionTracker.Interval=TimeSpan.FromMilliseconds(16);
+      motionTracker.Tick+=delegate {
+        if(closing||NowMilliseconds()>=motionDeadline) {interactiveMove=false;motionTracker.Stop();QueuePlacementRefresh();return;}
+        SyncTargetFrame();
       };
-      eventHook=Native.SetWinEventHook(3,0x800B,IntPtr.Zero,nativeEvent,0,0,2);
+      // Out-of-context events run on this registering UI thread. Apply geometry
+      // directly here; queuing the heavyweight refresh leaves a visible trail.
+      nativeEvent=ReceiveWindowEvent;
+      eventHook=Native.SetWinEventHook(3,3,IntPtr.Zero,nativeEvent,0,0,2);
+      locationHook=Native.SetWinEventHook(0x800B,0x800B,IntPtr.Zero,nativeEvent,0,0,2);
+      moveHook=Native.SetWinEventHook(0xA,0xB,IntPtr.Zero,nativeEvent,0,0,2);
+      minimizeHook=Native.SetWinEventHook(0x16,0x17,IntPtr.Zero,nativeEvent,0,0,2);
       StartupCheckpoint("constructed");
+    }
+    static long NowMilliseconds() {return (long)(Stopwatch.GetTimestamp()*1000.0/Stopwatch.Frequency);}
+    bool MotionActive() {return motionTracker.IsEnabled&&NowMilliseconds()<motionDeadline;}
+    void QueuePlacementRefresh() {
+      if(closing||refreshQueued)return;
+      refreshQueued=true;
+      Dispatcher.BeginInvoke(DispatcherPriority.Background,new Action(delegate {refreshQueued=false;UpdatePlacement();}));
+    }
+    void ReceiveWindowEvent(IntPtr hook,uint ev,IntPtr window,int obj,int child,uint thread,uint time) {
+      if(closing)return;
+      if(ev==3){QueuePlacementRefresh();return;}
+      if(window!=target||target==IntPtr.Zero||obj!=0||child!=0)return;
+      if(ev==0xA)interactiveMove=true;
+      if(ev==0xB) {
+        interactiveMove=false;motionTracker.Stop();SyncTargetFrame();QueuePlacementRefresh();return;
+      }
+      if(ev==0x800B||ev==0xA) {
+        motionDeadline=NowMilliseconds()+(interactiveMove?1000:120);
+        SyncTargetFrame();motionTracker.Start();
+      }else if(ev==0x16||ev==0x17){SyncTargetFrame();QueuePlacementRefresh();}
+    }
+    void StopTracking() {
+      tracker.Stop();motionTracker.Stop();interactiveMove=false;
+      foreach(IntPtr hook in new[]{eventHook,locationHook,moveHook,minimizeHook})if(hook!=IntPtr.Zero)Native.UnhookWinEvent(hook);
+      eventHook=locationHook=moveHook=minimizeHook=IntPtr.Zero;
     }
     void StartupCheckpoint(string stage) {
       try {File.WriteAllText(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(stateFile)),"startup.json"),json.Serialize(new {process=Process.GetCurrentProcess().Id,executable=Process.GetCurrentProcess().MainModule.FileName,time=DateTime.UtcNow.ToString("o"),stage=stage,hwnd=hwnd.ToInt64(),previewError=previewError,stateWriteError=stateWriteError,receivedUpdates=receivedUpdates,statePath=stateFile,stateUpdated=File.GetLastWriteTimeUtc(stateFile).ToString("o"),previewUpdated=File.GetLastWriteTimeUtc(Path.Combine(Path.GetDirectoryName(stateFile),"panel.png")).ToString("o"),monitorState=diagnosticState}),Encoding.UTF8);}catch{}
@@ -532,11 +570,18 @@ namespace QuotaOverlay {
       }
       tray.Text=tooltip.ToString().Substring(0,Math.Min(63,tooltip.Length));
       LocalizeRows();UpdateProgress();
-      SavePreview();lastState="";UpdatePlacement();
-      if(receivedUpdates<=30)StartupCheckpoint("received-data");
+      lastState="";
+      if(MotionActive()) {
+        pendingPreview=true;if(receivedUpdates<=30)pendingStartupCheckpoint=true;
+        SyncTargetFrame();
+      }else {
+        SavePreview();UpdatePlacement();
+        if(receivedUpdates<=30)StartupCheckpoint("received-data");
+      }
     }
     static string Get(Dictionary<string,object> row,string key) { return row.ContainsKey(key)?Convert.ToString(row[key]):""; }
     bool IsTarget(IntPtr window) {
+      if(targetMatcher!=null)return targetMatcher(window);
       if(window==IntPtr.Zero||!Native.IsWindowVisible(window))return false;
       uint id;Native.GetWindowThreadProcessId(window,out id);
       try {
@@ -547,8 +592,40 @@ namespace QuotaOverlay {
         }
       } catch {return false;} // Retry transient startup failures; PIDs may also be reused.
     }
+    sealed class TargetFrame {
+      internal bool Valid,AppPresent,AppReady,Show;
+      internal double Scale;
+      internal Native.Rect Rect;
+      internal Native.Point Origin;
+      internal Placement Placement;
+    }
+    TargetFrame SyncTargetFrame() {
+      if(closing||hwnd==IntPtr.Zero||placing)return null;
+      placing=true;
+      try {
+      Native.Rect rect=new Native.Rect();var origin=new Native.Point();int cloaked=0;
+      bool valid=target!=IntPtr.Zero && Native.IsWindow(target) && Native.IsWindowVisible(target) && !Native.IsIconic(target);
+      if(valid) {Native.DwmGetWindowAttribute(target,14,out cloaked,4);valid=cloaked==0&&Native.GetClientRect(target,out rect)&&Native.ClientToScreen(target,ref origin);}
+      bool appPresent=target!=IntPtr.Zero&&Native.IsWindow(target)&&Native.IsWindowVisible(target);
+      if(appPresent){Native.DwmGetWindowAttribute(target,14,out cloaked,4);appPresent=cloaked==0;}
+      bool appReady=appStartup.Ready(target,appPresent,NowMilliseconds());
+      double scale=valid?Native.GetDpiForWindow(target)/96.0:1;
+      var placement=Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode);
+      bool modeChanged=presentationMode!=placement.Mode;
+      if(modeChanged)SetMode(placement.Mode);
+      bool show=valid&&!paused&&placement.Visible&&appReady;
+      if(show) {
+        if(!IsVisible) Show();
+        ApplyAttachedPlacement(hwnd,target,placement,optionsMenu.IsOpen);
+      } else if(IsVisible)Hide();
+      if(modeChanged)pendingPreview=true;
+      return new TargetFrame {Valid=valid,AppPresent=appPresent,AppReady=appReady,Show=show,Scale=scale,Rect=rect,Origin=origin,Placement=placement};
+      }finally{placing=false;}
+    }
     void UpdatePlacement() {
       if(closing||hwnd==IntPtr.Zero)return;
+      // Discovery, theme reads, previews and diagnostics stay off the drag path.
+      if(MotionActive()){SyncTargetFrame();return;}
       RefreshTheme(false);
       IntPtr foreground=Native.GetForegroundWindow();
       IntPtr root=Native.GetAncestor(foreground,3);
@@ -556,35 +633,41 @@ namespace QuotaOverlay {
       else if(target==IntPtr.Zero||!Native.IsWindow(target)) {
         Native.EnumWindows(delegate(IntPtr w,IntPtr p){ if(IsTarget(w)) {var title=new StringBuilder(256);Native.GetWindowText(w,title,256);if(title.Length>0){target=w;return false;}}return true;},IntPtr.Zero);
       }
-      uint popupProcess=0;if(optionsMenu.IsOpen)Native.GetWindowThreadProcessId(foreground,out popupProcess);
-      bool active=foreground==target||root==target||(optionsMenu.IsOpen && popupProcess==Process.GetCurrentProcess().Id);
-      Native.Rect rect=new Native.Rect();var origin=new Native.Point();int cloaked=0;
-      bool valid=target!=IntPtr.Zero && Native.IsWindow(target) && Native.IsWindowVisible(target) && !Native.IsIconic(target);
-      if(valid) {Native.DwmGetWindowAttribute(target,14,out cloaked,4);valid=cloaked==0&&Native.GetClientRect(target,out rect)&&Native.ClientToScreen(target,ref origin);}
-      bool appPresent=target!=IntPtr.Zero&&Native.IsWindow(target)&&Native.IsWindowVisible(target);
-      if(appPresent){Native.DwmGetWindowAttribute(target,14,out cloaked,4);appPresent=cloaked==0;}
-      bool appReady=appStartup.Ready(target,appPresent,(long)(Stopwatch.GetTimestamp()*1000.0/Stopwatch.Frequency));
+      var frame=SyncTargetFrame();if(frame==null)return;
+      bool valid=frame.Valid,appPresent=frame.AppPresent,appReady=frame.AppReady,show=frame.Show;
+      double scale=frame.Scale;var rect=frame.Rect;var origin=frame.Origin;var placement=frame.Placement;
       if(!appSignalSent||lastAppReady!=appReady){appSignalSent=true;lastAppReady=appReady;Command(appReady?"app-open":"app-closed");}
-      double scale=valid?Native.GetDpiForWindow(target)/96.0:1;
-      var placement=Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode);
-      bool modeChanged=presentationMode!=placement.Mode;
-      if(modeChanged)SetMode(placement.Mode);
-      bool show=valid&&active&&!paused&&placement.Visible&&appReady;
-      if(show) {
-        if(!IsVisible) Show();
-        ApplyNativePlacement(hwnd,placement,optionsMenu.IsOpen);
-      } else if(IsVisible)Hide();
-      if(modeChanged) {UpdateLayout();SavePreview();}
+      if(pendingPreview) {pendingPreview=false;UpdateLayout();SavePreview();}
       IntPtr owner=Native.GetWindowLongPtr(hwnd,-8);uint ownerProcess=0;if(owner!=IntPtr.Zero)Native.GetWindowThreadProcessId(owner,out ownerProcess);
-      var state=new {language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
+      var state=new {targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
       string encoded=json.Serialize(state);
       diagnosticState=state;
       if(encoded!=lastState){lastState=encoded;try{File.WriteAllText(stateFile,encoded,Encoding.UTF8);stateWriteError="";}catch(Exception error){stateWriteError=error.GetType().Name+":"+error.HResult.ToString();}}
+      if(pendingStartupCheckpoint){pendingStartupCheckpoint=false;StartupCheckpoint("received-data");}
     }
     internal static void ApplyNativePlacement(IntPtr handle,Placement placement,bool menuOpen) {
-      uint flags=0x10|0x40;
+      PlaceWindow(handle,IntPtr.Zero,placement,menuOpen);
+    }
+    internal static void ApplyAttachedPlacement(IntPtr handle,IntPtr target,Placement placement,bool menuOpen) {
+      IntPtr after=IntPtr.Zero;
+      if(!menuOpen&&target!=IntPtr.Zero) {
+        // Follow the target's actual layer, including while another app has focus.
+        // No cross-process owner/parent or input-queue attachment is necessary.
+        after=Native.GetWindow(target,3); // GW_HWNDPREV: the window above ChatGPT.
+        if(after==handle)after=Native.GetWindow(handle,3);
+        bool pinned=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0;
+        if(after==IntPtr.Zero||(!pinned&&(Native.GetWindowLongPtr(after,-20).ToInt64()&8)!=0)) {
+          // Never promote a normal panel by inserting it behind a topmost window.
+          // HWND_NOTOPMOST is needed only to demote an earlier pinned state.
+          after=pinned?new IntPtr(-1):(Native.GetWindowLongPtr(handle,-20).ToInt64()&8)!=0?new IntPtr(-2):IntPtr.Zero;
+        }
+      }
+      PlaceWindow(handle,after,placement,menuOpen);
+    }
+    static void PlaceWindow(IntPtr handle,IntPtr after,Placement placement,bool menuOpen) {
+      uint flags=0x10|0x40|0x200; // no activation, show, preserve owner order.
       if(menuOpen)flags|=0x4; // SWP_NOZORDER: never raise our panel over an open menu.
-      Native.SetWindowPos(handle,new IntPtr(-1),(int)Math.Round(placement.X),(int)Math.Round(placement.Y),(int)Math.Round(placement.Width),(int)Math.Round(placement.Height),flags);
+      Native.SetWindowPos(handle,after,(int)Math.Round(placement.X),(int)Math.Round(placement.Y),(int)Math.Round(placement.Width),(int)Math.Round(placement.Height),flags);
     }
     void SavePreview() {
       // Capture only our own WPF visual, never the desktop or another application.

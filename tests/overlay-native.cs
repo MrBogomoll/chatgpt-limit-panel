@@ -19,7 +19,11 @@ using QuotaOverlay;
 // window. No tray is installed; previews are written under the runner's temp dir.
 class OverlayNativeTest {
   static readonly BindingFlags PrivateInstance=BindingFlags.NonPublic|BindingFlags.Instance;
-  static OverlayWindow NewWindow(string statePath) {return new OverlayWindow(statePath,new ThemeResolver(Path.Combine(Path.GetDirectoryName(statePath),"test-app-config.toml"),delegate{return false;}));}
+  static OverlayWindow NewWindow(string statePath) {
+    var window=new OverlayWindow(statePath,new ThemeResolver(Path.Combine(Path.GetDirectoryName(statePath),"test-app-config.toml"),delegate{return false;}));
+    // Keep native fixtures independent of real application events and timers.
+    Invoke(window,"StopTracking");return window;
+  }
   static void Check(bool condition,string message) { if(!condition)throw new Exception(message); }
   static T Field<T>(OverlayWindow window,string name) {
     var field=typeof(OverlayWindow).GetField(name,PrivateInstance);
@@ -389,10 +393,153 @@ class OverlayNativeTest {
   }
   [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern IntPtr CreateWindowEx(int extended,string className,string name,uint style,int x,int y,int width,int height,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr data);
   [DllImport("user32.dll")] static extern bool DestroyWindow(IntPtr handle);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr handle,int command);
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr handle,out Native.Rect rect);
   [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr handle,uint command);
   static bool IsAbove(IntPtr first,IntPtr second) {
     IntPtr current=GetWindow(second,3);int count=0;
     while(current!=IntPtr.Zero && count++<10000) {if(current==first)return true;current=GetWindow(current,3);}return false;
+  }
+  static void FocusPersistenceTest(OverlayWindow window) {
+    // All simulated application/cover windows belong to this test process and
+    // stay offscreen. Never click, activate or move external applications.
+    Field<DispatcherTimer>(window,"tracker").Stop();
+    var hook=Field<IntPtr>(window,"eventHook");if(hook!=IntPtr.Zero){Native.UnhookWinEvent(hook);typeof(OverlayWindow).GetField("eventHook",PrivateInstance).SetValue(window,IntPtr.Zero);}
+    var matcher=typeof(OverlayWindow).GetField("targetMatcher",PrivateInstance);
+    Check(matcher!=null,"tracker must allow an isolated target matcher for own-window acceptance");
+    IntPtr target=IntPtr.Zero,cover=IntPtr.Zero;IntPtr foreground=Native.GetForegroundWindow();
+    try {
+      target=CreateWindowEx(0x08000080,"STATIC","Quota target fixture",0x90000000u,-32000,-32000,1100,1000,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero);
+      cover=CreateWindowEx(0x08000080,"STATIC","Quota cover fixture",0x90000000u,-32000,-32000,1100,1000,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero);
+      Check(target!=IntPtr.Zero&&cover!=IntPtr.Zero,"own application fixtures must exist");
+      matcher.SetValue(window,new Func<IntPtr,bool>(delegate(IntPtr candidate){return candidate==target&&Native.IsWindowVisible(candidate);}));
+      typeof(OverlayWindow).GetField("target",PrivateInstance).SetValue(window,target);
+      typeof(OverlayWindow).GetField("started",PrivateInstance).SetValue(window,true);
+      Known(window);var handle=new WindowInteropHelper(window).EnsureHandle();
+      long now=(long)(System.Diagnostics.Stopwatch.GetTimestamp()*1000.0/System.Diagnostics.Stopwatch.Frequency);
+      Field<AppStartupGate>(window,"appStartup").Ready(target,true,now-4000);
+      Native.SetWindowPos(target,IntPtr.Zero,-32000,-32000,1100,1000,0x10|0x40);
+      Native.SetWindowPos(cover,IntPtr.Zero,-32000,-32000,1100,1000,0x10|0x40);
+      Check(Native.GetForegroundWindow()!=target,"target fixture must remain inactive");
+      foreach(string mode in new[]{"full","compact","ultra"}) {
+        Invoke(window,"SelectMode",mode);Invoke(window,"UpdatePlacement");PumpDispatcher();
+        Check(window.IsVisible&&Native.IsWindowVisible(handle),"visible ChatGPT must retain its panel after focus moves outside, in "+mode);
+        Check(IsAbove(handle,target)&&IsAbove(cover,handle),"panel must sit above its target and below the covering application");
+        Check((Native.GetWindowLongPtr(handle,-20).ToInt64()&8)==0,"normal target must not create a globally topmost panel");
+      }
+      Native.SetWindowPos(cover,new IntPtr(-1),-32000,-32000,1100,1000,0x10|0x40);
+      Invoke(window,"UpdatePlacement");Check(IsAbove(cover,handle)&&(Native.GetWindowLongPtr(handle,-20).ToInt64()&8)==0,"unrelated topmost windows must stay above the normal panel");
+      Native.SetWindowPos(target,new IntPtr(-1),-32000,-32000,1100,1000,0x10|0x40);
+      Invoke(window,"UpdatePlacement");Check(IsAbove(handle,target)&&(Native.GetWindowLongPtr(handle,-20).ToInt64()&8)!=0,"a pinned target must keep its panel in the same topmost band");
+      Native.SetWindowPos(target,new IntPtr(-2),-32000,-32000,1100,1000,0x10|0x40);
+      Invoke(window,"UpdatePlacement");Check(IsAbove(cover,handle)&&(Native.GetWindowLongPtr(handle,-20).ToInt64()&8)==0,"unpinning the target must demote the panel too");
+      ShowWindow(target,7);Invoke(window,"UpdatePlacement");Check(!window.IsVisible,"minimizing the target must hide its panel");
+      ShowWindow(target,4);Invoke(window,"UpdatePlacement");Check(window.IsVisible,"restoring the inactive target must restore the panel");
+      Invoke(window,"TogglePaused");Check(!window.IsVisible,"pause must still hide the panel");Invoke(window,"TogglePaused");Check(window.IsVisible,"resume must restore an inactive visible panel");
+      IntPtr owner=Native.GetWindowLongPtr(handle,-8);uint ownerProcess=0;if(owner!=IntPtr.Zero)Native.GetWindowThreadProcessId(owner,out ownerProcess);
+      Check(owner==IntPtr.Zero||owner!=target&&ownerProcess==System.Diagnostics.Process.GetCurrentProcess().Id,"only WPF's own hidden owner is allowed; never attach to the target process");
+      Check(Native.GetForegroundWindow()==foreground,"all placement updates must preserve actual user focus");
+      DestroyWindow(target);target=IntPtr.Zero;Invoke(window,"UpdatePlacement");Check(!window.IsVisible,"closing the target must hide its panel");
+      Console.WriteLine("PASS native focus-persistence: inactive visibility, covering windows, topmost bands, minimize/restore, pause and unchanged foreground");
+    }finally{window.Hide();if(cover!=IntPtr.Zero)DestroyWindow(cover);if(target!=IntPtr.Zero)DestroyWindow(target);}
+  }
+  static bool FrameMatches(OverlayWindow window,IntPtr target,IntPtr overlay) {
+    Native.Rect rect,bounds;var origin=new Native.Point();Native.GetClientRect(target,out rect);Native.ClientToScreen(target,ref origin);GetWindowRect(overlay,out bounds);
+    var expected=Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,Native.GetDpiForWindow(target)/96.0,Field<string>(window,"preferredMode"));
+    return Math.Abs(bounds.Left-Math.Round(expected.X))<1&&Math.Abs(bounds.Top-Math.Round(expected.Y))<1&&Math.Abs(bounds.Right-bounds.Left-Math.Round(expected.Width))<1&&Math.Abs(bounds.Bottom-bounds.Top-Math.Round(expected.Height))<1;
+  }
+  static void MotionTest(OverlayWindow window,string directory) {
+    Field<DispatcherTimer>(window,"tracker").Stop();
+    var hook=Field<IntPtr>(window,"eventHook");if(hook!=IntPtr.Zero){Native.UnhookWinEvent(hook);typeof(OverlayWindow).GetField("eventHook",PrivateInstance).SetValue(window,IntPtr.Zero);}
+    IntPtr target=IntPtr.Zero;IntPtr foreground=Native.GetForegroundWindow();
+    try {
+      target=CreateWindowEx(0x08000080,"STATIC","Quota rapid movement fixture",0x90000000u,-32000,-32000,1100,1000,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero);
+      Check(target!=IntPtr.Zero,"own movement target must exist");
+      typeof(OverlayWindow).GetField("targetMatcher",PrivateInstance).SetValue(window,new Func<IntPtr,bool>(delegate(IntPtr candidate){return candidate==target&&Native.IsWindowVisible(candidate);}));
+      typeof(OverlayWindow).GetField("target",PrivateInstance).SetValue(window,target);typeof(OverlayWindow).GetField("started",PrivateInstance).SetValue(window,true);
+      Known(window);var overlay=new WindowInteropHelper(window).EnsureHandle();
+      long now=(long)(System.Diagnostics.Stopwatch.GetTimestamp()*1000.0/System.Diagnostics.Stopwatch.Frequency);Field<AppStartupGate>(window,"appStartup").Ready(target,true,now-4000);
+      Invoke(window,"UpdatePlacement");PumpDispatcher();Check(window.IsVisible&&FrameMatches(window,target,overlay),"initial own frame must be aligned");
+      string statePath=Path.Combine(directory,"state.json"),previewPath=Path.Combine(directory,"panel.png");File.WriteAllText(statePath,"hot-path-must-not-write-diagnostics");var oldPreview=new DateTime(2000,1,1,0,0,0,DateTimeKind.Utc);File.SetLastWriteTimeUtc(previewPath,oldPreview);
+      var callback=Field<Native.EventProc>(window,"nativeEvent");callback(IntPtr.Zero,0xA,target,0,0,0,0);
+      for(int step=1;step<=40;step++) {
+        Native.SetWindowPos(target,IntPtr.Zero,-32000+step*37,-32000+step*13,1100,1000,0x10|0x4|0x40);
+        callback(IntPtr.Zero,0x800B,target,0,0,0,0);
+        Check(FrameMatches(window,target,overlay),"location callback must align immediately without a queued 200ms follower, step "+step);
+      }
+      Check(File.ReadAllText(statePath)=="hot-path-must-not-write-diagnostics","motion callbacks must not serialize/write diagnostic state");
+      Check(File.GetLastWriteTimeUtc(previewPath)==oldPreview,"motion callbacks must not render or save PNG previews");
+      string startupPath=Path.Combine(directory,"startup.json");File.SetLastWriteTimeUtc(startupPath,oldPreview);
+      Apply(window,Row("5 ч","53%","25.10","01:32","","normal"),Row("Нед.","62%","01.11","09:59","","normal"));
+      Check(File.GetLastWriteTimeUtc(previewPath)==oldPreview&&File.GetLastWriteTimeUtc(startupPath)==oldPreview,"incoming quota updates must defer preview and startup diagnostic writes during a drag");
+      Check(File.ReadAllText(statePath)=="hot-path-must-not-write-diagnostics","quota refresh must not reintroduce slow placement during dragging");
+      Native.SetWindowPos(target,IntPtr.Zero,-30000,-31000,1100,1000,0x10|0x4|0x40);
+      var deadline=DateTime.UtcNow.AddSeconds(1);while(!FrameMatches(window,target,overlay)&&DateTime.UtcNow<deadline){System.Threading.Thread.Sleep(2);PumpDispatcher();}
+      Check(FrameMatches(window,target,overlay),"frame timer must fill gaps between native movement notifications");
+      callback(IntPtr.Zero,0xB,target,0,0,0,0);Check(!Field<DispatcherTimer>(window,"motionTracker").IsEnabled,"end of drag must stop the high-frequency timer");
+      PumpDispatcher();
+      Check(File.GetLastWriteTimeUtc(previewPath)!=oldPreview&&File.GetLastWriteTimeUtc(startupPath)!=oldPreview,"deferred preview and diagnostics must flush after dragging ends");
+      Check(File.ReadAllText(statePath).Contains("53%"),"deferred state must contain the latest quota received while dragging");
+      Check(Native.GetForegroundWindow()==foreground,"following rapid movement must not activate any window");
+      Console.WriteLine("PASS native motion: forty immediate frame moves, no hot-path disk/render work, movement timer fallback and unchanged foreground");
+    }finally{window.Hide();if(target!=IntPtr.Zero)DestroyWindow(target);}
+  }
+  static int MotionFixture() {
+    // Independent test-only process: it owns the target and never touches any
+    // real application. Its offscreen native window has no activation rights.
+    IntPtr target=CreateWindowEx(0x08000080,"STATIC","Quota external movement fixture",0x90000000u,-32000,-32000,1100,1000,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero);
+    if(target==IntPtr.Zero)return 1;
+    var dispatcher=Dispatcher.CurrentDispatcher;
+    Console.WriteLine(target.ToInt64());Console.Out.Flush();
+    var reader=new System.Threading.Thread(delegate() {
+      string line;
+      while((line=Console.ReadLine())!=null) {
+        if(line=="quit")break;
+        string[] parts=line.Split(',');int x=Int32.Parse(parts[0]),y=Int32.Parse(parts[1]);
+        dispatcher.Invoke(new Action(delegate {
+          Native.SetWindowPos(target,IntPtr.Zero,x,y,1100,1000,0x10|0x4|0x40);
+          Console.WriteLine("moved");Console.Out.Flush();
+        }));
+      }
+      dispatcher.BeginInvoke(new Action(delegate {dispatcher.InvokeShutdown();}));
+    });reader.IsBackground=true;reader.Start();
+    try {Dispatcher.Run();return 0;}finally{DestroyWindow(target);}
+  }
+  static void MotionHookTest(OverlayWindow window) {
+    var child=new System.Diagnostics.Process {StartInfo=new System.Diagnostics.ProcessStartInfo(System.Reflection.Assembly.GetExecutingAssembly().Location,"motion-fixture") {UseShellExecute=false,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true,CreateNoWindow=true}};
+    IntPtr foreground=Native.GetForegroundWindow();Native.EventProc observer=null;
+    try {
+      Check(child.Start(),"own independent movement process must start");
+      IntPtr target=new IntPtr(Int64.Parse(child.StandardOutput.ReadLine()));
+      typeof(OverlayWindow).GetField("targetMatcher",PrivateInstance).SetValue(window,new Func<IntPtr,bool>(delegate(IntPtr candidate){return candidate==target&&Native.IsWindowVisible(candidate);}));
+      typeof(OverlayWindow).GetField("target",PrivateInstance).SetValue(window,target);typeof(OverlayWindow).GetField("started",PrivateInstance).SetValue(window,true);
+      Known(window);var overlay=new WindowInteropHelper(window).EnsureHandle();
+      long now=(long)(System.Diagnostics.Stopwatch.GetTimestamp()*1000.0/System.Diagnostics.Stopwatch.Frequency);Field<AppStartupGate>(window,"appStartup").Ready(target,true,now-4000);
+      Invoke(window,"UpdatePlacement");PumpDispatcher();
+      int delivered=0;var production=Field<Native.EventProc>(window,"nativeEvent");
+      observer=delegate(IntPtr hook,uint ev,IntPtr changed,int obj,int nested,uint thread,uint time) {
+        if(changed==target&&obj==0&&nested==0)delivered++;
+        production(hook,ev,changed,obj,nested,thread,time);
+      };
+      var registration=Native.SetWinEventHook(0x800B,0x800B,IntPtr.Zero,observer,(uint)child.Id,0,2);
+      Check(registration!=IntPtr.Zero,"real skip-own-process location hook must register");
+      typeof(OverlayWindow).GetField("locationHook",PrivateInstance).SetValue(window,registration);
+      double maximumMs=0;
+      for(int step=1;step<=20;step++) {
+        int before=delivered;child.StandardInput.WriteLine((-32000+step*31)+","+(-32000+step*17));child.StandardInput.Flush();
+        Check(child.StandardOutput.ReadLine()=="moved","independent own target must acknowledge movement");
+        var elapsed=System.Diagnostics.Stopwatch.StartNew();
+        do {PumpDispatcher();if(delivered>before&&FrameMatches(window,target,overlay))break;System.Threading.Thread.Sleep(1);}while(elapsed.ElapsedMilliseconds<500);
+        Check(delivered>before&&FrameMatches(window,target,overlay),"real external WinEvent must reach production geometry path, move "+step);
+        maximumMs=Math.Max(maximumMs,elapsed.Elapsed.TotalMilliseconds);
+      }
+      Check(Native.GetForegroundWindow()==foreground,"real hook movement must preserve the user's actual focus");
+      Console.WriteLine("PASS native motion-hook: twenty real cross-process location events aligned; maximum observation "+maximumMs.ToString("F1",CultureInfo.InvariantCulture)+"ms after fixture acknowledgement");
+    }finally {
+      Invoke(window,"StopTracking");window.Hide();GC.KeepAlive(observer);
+      if(child.Id!=0&&!child.HasExited){child.StandardInput.WriteLine("quit");child.StandardInput.Flush();if(!child.WaitForExit(2000))child.Kill();}
+      child.Dispose();
+    }
   }
   static void MenuPlacementTest(OverlayWindow window) {
     var menu=Field<ContextMenu>(window,"optionsMenu");
@@ -401,7 +548,7 @@ class OverlayNativeTest {
     Known(window);Console.WriteLine("PASS native menu-placement: side anchoring and gap prevent click-point overlap");
   }
   static void MenuLayerTest(OverlayWindow window) {
-    var apply=typeof(OverlayWindow).GetMethod("ApplyNativePlacement",BindingFlags.Static|BindingFlags.NonPublic);
+    var apply=typeof(OverlayWindow).GetMethod("ApplyAttachedPlacement",BindingFlags.Static|BindingFlags.NonPublic);
     Check(apply!=null,"native placement must expose the production move operation for an own-window integration test");
     IntPtr overlay=IntPtr.Zero,menu=IntPtr.Zero;
     try {
@@ -414,9 +561,9 @@ class OverlayNativeTest {
       Native.SetWindowPos(menu,new IntPtr(-1),-31980,-32000,240,240,0x10|0x40);
       Check(IsAbove(menu,overlay),"test menu must initially be above the panel");
       var placement=new Placement {X=-32000,Y=-32000,Width=46,Height=192};
-      for(int tick=0;tick<4;tick++)apply.Invoke(null,new object[]{overlay,placement,true});
+      for(int tick=0;tick<4;tick++)apply.Invoke(null,new object[]{overlay,menu,placement,true});
       Check(IsAbove(menu,overlay),"tracker ticks must not raise the panel over its open menu");
-      apply.Invoke(null,new object[]{overlay,placement,false});
+      apply.Invoke(null,new object[]{overlay,menu,placement,false});
       Check(IsAbove(overlay,menu),"normal closed-menu placement must retain topmost following behavior");
     }finally {if(menu!=IntPtr.Zero)DestroyWindow(menu);if(overlay!=IntPtr.Zero)DestroyWindow(overlay);}
     Known(window);Console.WriteLine("PASS native menu-layer: actual offscreen HWND ordering survives tracker updates");
@@ -749,6 +896,7 @@ class OverlayNativeTest {
     Console.WriteLine("PASS native language: live translation, unchanged quota, all mode bounds, restart persistence and Russian restoration");
   }
   [STAThread] public static int Main(string[] args) {
+    if(args.Length==1&&args[0]=="motion-fixture")return MotionFixture();
     Application app=null;OverlayWindow window=null;
     try {
       Check(args.Length==2,"expected scenario and unique temporary state directory");
@@ -785,6 +933,9 @@ class OverlayNativeTest {
         case "menu-placement":MenuPlacementTest(window);break;
         case "menu-dismiss":MenuDismissTest(window);break;
         case "menu-layer":MenuLayerTest(window);break;
+        case "focus-persistence":FocusPersistenceTest(window);break;
+        case "motion":MotionTest(window,directory);break;
+        case "motion-hook":MotionHookTest(window);break;
         case "combined-zero":CombinedZeroTest(ref window,directory);break;
         case "resize-aspect":ResizeAspectTest(window);break;
         case "resize-native":ResizeNativeTest(window);break;
@@ -793,7 +944,7 @@ class OverlayNativeTest {
         case "viewport-en":Invoke(window,"SelectTheme","light");Invoke(window,"SelectLanguage","en");ViewportTest(window,directory);break;
         default:throw new Exception("unknown native test scenario "+args[0]);
       }
-      AssertUnshown(window,args[0]=="styles"||args[0]=="resize-native"||args[0]=="viewport"||args[0]=="viewport-light"||args[0]=="viewport-en");
+      AssertUnshown(window,args[0]=="styles"||args[0]=="resize-native"||args[0]=="viewport"||args[0]=="viewport-light"||args[0]=="viewport-en"||args[0]=="focus-persistence"||args[0]=="motion"||args[0]=="motion-hook");
       return 0;
     } catch(Exception error) {
       // Avoid an unhandled .NET Framework exception invoking Windows Error Reporting.

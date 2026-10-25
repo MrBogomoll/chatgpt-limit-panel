@@ -13,6 +13,7 @@ function healthyState() {
   return {
     visible: true, paused: false, compact: true, preferredCompact: true,
     process: process.pid, owner: 0, ownerProcess: 0, target: 100, foreground: 100,
+    targetVisible: true, topmost: false, targetTopmost: false,
     dpi: 96, client: { x: 100, y: 200, width: 1000, height: 800 },
     panel: { x: 103, y: 790, width: 46, height: 100 },
     noActivate: true, clickThrough: false, clickToToggle: true,
@@ -127,6 +128,12 @@ test('diagnostics accepts a live hidden panel while its target is unavailable', 
   assert.equal(verifyOverlayState(state, fresh).visible, false);
 });
 
+test('diagnostics accepts an inactive visible target when the panel follows its window band', () => {
+  const state={...healthyState(),foreground:999};
+  assert.equal(verifyOverlayState(state,fresh).visible,true);
+  assert.equal(verifyOverlayState({...state,topmost:true,targetTopmost:true},fresh).result,'PASS');
+});
+
 for (const [description, change, message] of [
   ['cross-process ownership', state => { state.owner = 555; state.ownerProcess = 999; }, /cross-process owner/i],
   ['ownership by the ChatGPT target', state => { state.owner = state.target; state.ownerProcess = state.process; }, /ChatGPT must not own/i],
@@ -134,7 +141,8 @@ for (const [description, change, message] of [
   ['disabled click toggling', state => { state.clickToToggle = false; }, /toggle compact/i],
   ['missing effective mode', state => { delete state.compact; }, /effective presentation/i],
   ['missing preferred mode', state => { delete state.preferredCompact; }, /saved preference/i],
-  ['a background target', state => { state.foreground = 999; }, /active ChatGPT/i],
+  ['an invisible or minimized target', state => { state.targetVisible = false; }, /visible.*target/i],
+  ['a globally topmost panel over a normal target', state => { state.topmost = true; }, /topmost|band/i],
   ['overlap of the avatar clearance', state => { state.panel.y = 791; }, /avatar free/i],
   ['wrong panel height', state => { state.panel.height = 99; }, /scaled height/i],
   ['a missing quota row', state => { state.view.rows.pop(); }, /2/],

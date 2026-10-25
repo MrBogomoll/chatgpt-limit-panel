@@ -1,6 +1,6 @@
 {
   "name": "quota-panel",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "A Windows quota monitor for Codex / Work, with a local ChatGPT plugin controller.",
   "engines": {
