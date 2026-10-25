@@ -1,15 +1,37 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile, copyFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const controllerApi = await import('../plugins/quota-panel/server/overlay-controller.mjs').catch(() => ({}));
 const mcpApi = await import('../plugins/quota-panel/server/mcp.mjs').catch(() => ({}));
 const languageApi = await import('../plugins/quota-panel/server/language.mjs').catch(() => ({}));
+
+test('a changed control card receives a new cache address while existing addresses keep their exact bundle', async t => {
+  const directory=await mkdtemp(join(tmpdir(),'quota-ui-cache-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  await mkdir(join(directory,'server'));await mkdir(join(directory,'ui'));
+  await copyFile(new URL('../plugins/quota-panel/server/ui.mjs',import.meta.url),join(directory,'server/ui.mjs'));
+  await writeFile(join(directory,'ui/control.html'),'<html lang="ru"><script>/* QUOTA_PANEL_BUNDLE */</script></html>');
+  await writeFile(join(directory,'ui/control.mjs'),'// first card');
+  const moduleUrl=pathToFileURL(join(directory,'server/ui.mjs')).href;
+  const oldCard=await import(moduleUrl+'?revision=old');
+  assert.equal(typeof oldCard.UI_URI,'string','card address must be derived from its actual bundle');
+  assert.notEqual(oldCard.UI_URI,'ui://quota-panel/control-v1.html');
+  const oldHtml=await oldCard.buildUi();
+  await writeFile(join(directory,'ui/control.mjs'),'// translated card');
+  assert.equal(await oldCard.buildUi(),oldHtml,'a cached address must never silently acquire different bytes');
+  const newCard=await import(moduleUrl+'?revision=new');
+  assert.notEqual(newCard.UI_URI,oldCard.UI_URI,'updated JavaScript must bypass an older cached card');
+  assert.match(await newCard.buildUi({language:'en'}),/translated card/);
+  assert.match(await newCard.buildUi({language:'en'}),/<html lang="en">/);
+  await writeFile(join(directory,'ui/control.html'),'<html lang="ru"><h1>New layout</h1><script>/* QUOTA_PANEL_BUNDLE */</script></html>');
+  const layoutCard=await import(moduleUrl+'?revision=layout');
+  assert.notEqual(layoutCard.UI_URI,newCard.UI_URI,'updated markup must also invalidate an older cached card');
+});
 
 test('saved interface language is read without changing settings and tolerates an interrupted write', async t => {
   const directory=await mkdtemp(join(tmpdir(),'quota-language-'));t.after(()=>rm(directory,{recursive:true,force:true}));
@@ -118,6 +140,8 @@ test('MCP discovers a global and thread control card and marks lifecycle mutatio
   const resource = await handle({ id: 3, method: 'resources/read', params: { uri: mcpApi.UI_URI } });
   assert.equal(resource.result.contents[0].text, '<main>Панель управления</main>');
   assert.equal(resource.result.contents[0].mimeType, 'text/html;profile=mcp-app');
+  const oldCard = await handle({ id: 4, method: 'resources/read', params: { uri: 'ui://quota-panel/control-v1.html' } });
+  assert.equal(oldCard.result.contents[0].text, '<main>Панель управления</main>', 'older saved cards must still resolve to the current UI');
 });
 
 test('MCP routes lifecycle tools to the actual controller and rejects unknown requests', async t => {
@@ -150,7 +174,7 @@ test('stdio entrypoint serves MCP resources and closes after EOF without lifecyc
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
     { jsonrpc: '2.0', method: 'notifications/initialized' },
     { jsonrpc: '2.0', id: 2, method: 'tools/list' },
-    { jsonrpc: '2.0', id: 3, method: 'resources/read', params: { uri: 'ui://quota-panel/control-v1.html' } },
+    { jsonrpc: '2.0', id: 3, method: 'resources/read', params: { uri: mcpApi.UI_URI } },
   ].map(value => JSON.stringify(value)).join('\n') + '\n');
   const [code] = await closed;
   assert.equal(code, 0, diagnostics);

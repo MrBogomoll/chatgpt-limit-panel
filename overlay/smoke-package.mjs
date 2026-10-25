@@ -44,7 +44,9 @@ try {
   const restartAt=Date.now();
   const restarted=await control(session,'start_quota_overlay');assert(restarted.running&&restarted.changed);needsRecovery=false;
   assert(Date.now()-restartAt<7000,'native start response must not wait for the controller eight-second timeout');
-  const resource=await session.request('resources/read',{uri:'ui://quota-panel/control-v1.html'});
+  const resourceUri=discovery.result.tools[0]._meta.ui.resourceUri;
+  assert.match(resourceUri,/^ui:\/\/quota-panel\/control-[a-f0-9]{16}\.html$/,'installed card must use its content-derived cache address');
+  const resource=await session.request('resources/read',{uri:resourceUri});
   assert(resource.result.contents[0].text.includes('Запустить'));
   const stateFile=path.join(process.env.LOCALAPPDATA,'ChatGPTQuotaOverlay/state.json');
   let state,diagnosticSource='state.json',updatedAt;

@@ -1,5 +1,6 @@
 import { englishTools, connectionError } from './language.mjs';
-export const UI_URI = 'ui://quota-panel/control-v1.html';
+import { UI_URI } from './ui.mjs';
+export { UI_URI };
 const emptyArguments = { type: 'object', properties: {}, additionalProperties: false };
 const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const mutation = { ...readOnly, readOnlyHint: false };
@@ -24,8 +25,11 @@ export function createMcpHandler({ controller, readUi, getLanguage = () => 'ru' 
       case 'resources/list': return respond({ resources: [{ uri: UI_URI, name: getLanguage() === 'en' ? 'Quota panel controls' : 'Управление панелью лимитов', mimeType: 'text/html;profile=mcp-app' }] });
       case 'resources/templates/list': return respond({ resourceTemplates: [] });
       case 'resources/read': {
-        if (request.params?.uri !== UI_URI) return error(-32602, 'Unknown UI resource');
-        return respond({ contents: [{ uri: UI_URI, mimeType: 'text/html;profile=mcp-app', text: await readUi(), _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } }, 'openai/widgetDescription': getLanguage() === 'en' ? 'Controls a standalone local quota monitor: start, stop, and refresh status. Closing this card does not stop the monitor.' : 'Управление самостоятельным локальным монитором квот: запуск, остановка и проверка состояния. Закрытие карточки не останавливает монитор.' } }] });
+        const requestedUri = request.params?.uri;
+        // Old saved conversations may still ask for the original card address.
+        // Resolve that one compatibility alias to the current translated UI.
+        if (requestedUri !== UI_URI && requestedUri !== 'ui://quota-panel/control-v1.html') return error(-32602, 'Unknown UI resource');
+        return respond({ contents: [{ uri: requestedUri, mimeType: 'text/html;profile=mcp-app', text: await readUi(), _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } }, 'openai/widgetDescription': getLanguage() === 'en' ? 'Controls a standalone local quota monitor: start, stop, and refresh status. Closing this card does not stop the monitor.' : 'Управление самостоятельным локальным монитором квот: запуск, остановка и проверка состояния. Закрытие карточки не останавливает монитор.' } }] });
       }
       case 'tools/call': {
         const name = request.params?.name;

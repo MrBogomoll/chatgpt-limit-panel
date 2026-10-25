@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { mkdir } from 'node:fs/promises';
 const api = await import('../plugins/quota-panel/server/ui.mjs').catch(() => ({}));
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -49,6 +50,11 @@ test('control card starts and stops the monitor, refreshes state, and never publ
     assert.match(await frame.locator('#notice').textContent(), /Windows sign-in/);
     await frame.getByRole('button', { name: 'Start', exact: true }).click();
     await frame.getByRole('status').filter({ hasText: 'Monitor is running.' }).waitFor();
+    assert.doesNotMatch(await frame.locator('main').textContent(), /[А-Яа-яЁё]/, 'English card must translate every visible button, status and explanatory paragraph');
+    if (process.env.QUOTA_CARD_ARTIFACT_DIR) {
+      await mkdir(process.env.QUOTA_CARD_ARTIFACT_DIR, { recursive: true });
+      await frame.locator('main').screenshot({ path: path.join(process.env.QUOTA_CARD_ARTIFACT_DIR, 'control-english.png') });
+    }
     await page.evaluate(() => { fail = true; });
     await frame.getByRole('button', { name: 'Refresh status', exact: true }).click();
     await frame.getByRole('status').filter({ hasText: 'Could not connect' }).waitFor();
