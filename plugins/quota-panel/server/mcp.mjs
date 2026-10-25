@@ -1,0 +1,43 @@
+export const UI_URI = 'ui://quota-panel/control-v1.html';
+const emptyArguments = { type: 'object', properties: {}, additionalProperties: false };
+const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+const mutation = { ...readOnly, readOnlyHint: false };
+const tools = [
+  { name: 'show_quota_overlay', title: 'Открыть управление панелью лимитов', description: 'Открывает кнопки запуска и остановки локального монитора общего лимита Codex/Work. Читает состояние; сам монитор не запускает. Требует Windows x64 и локальный исполнитель.', inputSchema: emptyArguments, annotations: readOnly,
+    _meta: { ui: { resourceUri: UI_URI }, 'openai/outputTemplate': UI_URI, 'openai/ui': { entrypoints: [{ type: 'global' }, { type: 'thread' }] }, 'openai/widgetAccessible': true } },
+  { name: 'start_quota_overlay', title: 'Запустить панель лимитов', description: 'Запускает один локальный монитор лимитов. При первой активации настраивает пользовательскую задачу автозапуска при входе в Windows; монитор ждёт открытия ChatGPT. Автозапуск отключается через ПКМ по панели. Повторный запуск не создаёт дубликат.', inputSchema: emptyArguments, annotations: mutation, _meta: { 'openai/widgetAccessible': true } },
+  { name: 'stop_quota_overlay', title: 'Остановить панель лимитов', description: 'Кооперативно закрывает только локальный монитор лимитов. Повторная остановка безопасна. Клиент ChatGPT не закрывает.', inputSchema: emptyArguments, annotations: mutation, _meta: { 'openai/widgetAccessible': true } },
+  { name: 'get_quota_overlay_status', title: 'Обновить состояние панели', description: 'Проверяет, запущен ли локальный монитор лимитов. Скрытая при другом активном приложении панель продолжает считаться запущенной.', inputSchema: emptyArguments, annotations: readOnly, _meta: { ui: { visibility: ['app'] }, 'openai/widgetAccessible': true } },
+];
+const methodFor = { show_quota_overlay: 'status', start_quota_overlay: 'start', stop_quota_overlay: 'stop', get_quota_overlay_status: 'status' };
+
+export function createMcpHandler({ controller, readUi }) {
+  return async request => {
+    if (request?.id === undefined) return null;
+    const respond = result => ({ jsonrpc: '2.0', id: request.id, result });
+    const error = (code, message) => ({ jsonrpc: '2.0', id: request.id, error: { code, message } });
+    switch (request.method) {
+      case 'initialize': return respond({ protocolVersion: request.params?.protocolVersion || '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'quota-panel', title: 'Quota Panel', version: '0.2.0-beta.3' } });
+      case 'ping': return respond({});
+      case 'tools/list': return respond({ tools });
+      case 'resources/list': return respond({ resources: [{ uri: UI_URI, name: 'Управление панелью лимитов', mimeType: 'text/html;profile=mcp-app' }] });
+      case 'resources/templates/list': return respond({ resourceTemplates: [] });
+      case 'resources/read': {
+        if (request.params?.uri !== UI_URI) return error(-32602, 'Unknown UI resource');
+        return respond({ contents: [{ uri: UI_URI, mimeType: 'text/html;profile=mcp-app', text: await readUi(), _meta: { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } }, 'openai/widgetDescription': 'Controls a standalone local quota monitor: start, stop, and refresh status. Closing this card does not stop the monitor.' } }] });
+      }
+      case 'tools/call': {
+        const name = request.params?.name;
+        const args = request.params?.arguments === undefined ? {} : request.params.arguments;
+        if (!Object.hasOwn(methodFor, name) || typeof args !== 'object' || args === null || Array.isArray(args) || Object.keys(args).length) return error(-32602, 'Unknown tool or arguments');
+        try {
+          const state = await controller[methodFor[name]]();
+          return respond({ structuredContent: state, content: [{ type: 'text', text: state.message }] });
+        } catch {
+          return respond({ isError: true, content: [{ type: 'text', text: 'Не удалось связаться с монитором. Проверь установку плагина и повтори попытку.' }] });
+        }
+      }
+      default: return error(-32601, 'Method not found');
+    }
+  };
+}

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+runtime/
+*.log
+*.tmp
+.env
+.env.*
+.codex/
+settings.json
+state.json
+startup.json
+panel.png
+config-before-install.toml
+*.user
+*.suo

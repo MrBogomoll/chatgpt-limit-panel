@@ -1,0 +1,39 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { isAbsolute, join, resolve } from 'node:path';
+
+const root = new URL('../plugins/quota-panel/', import.meta.url);
+const json = async name => JSON.parse(await readFile(new URL(name, root), 'utf8'));
+
+test('portable and compatibility manifests resolve the same local server without author profile paths', async () => {
+  const portable = await json('plugin.json');
+  const compatibility = await json('.codex-plugin/plugin.json');
+  assert.equal(portable.name, 'quota-panel');
+  assert.equal(portable.extensions['com.openai'].interface.displayName, 'Quota Panel');
+  assert.equal(compatibility.interface.displayName, 'Quota Panel');
+  assert.equal(portable.version, '0.2.0-beta.3');
+  assert.equal(compatibility.version, '0.2.0-beta.3');
+  assert.equal(portable.extensions['com.openai'].requires_local_executor, true);
+  assert.equal(compatibility.requires_local_executor, true);
+  assert.match(portable.extensions['com.openai'].interface.longDescription, /Windows x64/);
+  assert.equal(compatibility.mcpServers, './.mcp.json');
+  const portableMcp = await json('mcp.json');
+  const compatibleMcp = await json(compatibility.mcpServers);
+  const native = portableMcp.mcpServers.quota_panel;
+  const legacy = compatibleMcp.mcpServers.quota_panel;
+  assert.equal(native.type, 'stdio');
+  const rootPath = fileURLToPath(root);
+  const expand = value => value.replaceAll('${PLUGIN_ROOT}', rootPath);
+  assert.equal(resolve(expand(native.command)), join(rootPath, 'runtime', 'node.exe'));
+  assert.equal(resolve(expand(native.args[0])), fileURLToPath(new URL('server/index.mjs', root)));
+  assert.equal(resolve(expand(native.cwd)), resolve(rootPath));
+  assert.equal(resolve(rootPath, legacy.command), join(rootPath, 'runtime', 'node.exe'));
+  assert.equal(resolve(rootPath, legacy.cwd, legacy.args[0]), fileURLToPath(new URL('server/index.mjs', root)));
+  for (const config of [portableMcp, compatibleMcp]) {
+    const text = JSON.stringify(config);
+    assert(!/C:[/\\]|Users[/\\]|QUOTA_CODEX_BIN/.test(text));
+  }
+  assert.equal(isAbsolute(legacy.command), false);
+});
