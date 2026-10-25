@@ -12,9 +12,3 @@
   incoming quota freshness updates. Flush the latest state when movement ends.
 - Preserve hiding on minimize, close, cloaking and pause; retain no-activation
   behavior, menu layering, settings, themes, languages and autostart preference.
-
-Validation: 116 automated checks passed, including independent test-process
-WinEvent delivery and isolated native focus/Z-order tests. The installed MCP
-and native monitor passed lifecycle, real-quota and transport-close checks.
-The user confirmed both focus-loss visibility and rapid dragging on ChatGPT.
-Physical Windows reboot and installation on a second computer were not run.
