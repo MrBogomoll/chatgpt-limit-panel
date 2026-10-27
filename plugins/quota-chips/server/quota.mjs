@@ -13,7 +13,7 @@ export function normalizeQuota(raw, collectedAt = Date.now()) {
       windowDurationMins: value?.windowDurationMins ?? (kind === 'weekly' ? 10080 : 300),
       remaining: valid ? Math.round(Math.max(0, Math.min(100, 100 - value.usedPercent))) : null,
       usedPercent: valid ? value.usedPercent : null,
-      resetsAt: Number.isSafeInteger(value?.resetsAt) && value.resetsAt > 0 ? value.resetsAt : null,
+      resetsAt: Number.isSafeInteger(value?.resetsAt) && value.resetsAt > 0 && Number.isFinite(new Date(value.resetsAt * 1000).getTime()) ? value.resetsAt : null,
     };
   });
   const known = windows.filter(x => x.remaining !== null).length;

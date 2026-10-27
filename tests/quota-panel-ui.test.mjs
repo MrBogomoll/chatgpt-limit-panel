@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
 test('manual update card keeps its result through status refreshes, opens only explicit verified links and fits narrow themes',async()=>{
   const ui=await api.buildUi();
   const host=`<iframe src='/control' style='width:100%;height:450px;border:0'></iframe><script>
-  window.calls=[];window.language='ru';window.update={state:'available',currentVersion:'1.1.0',latestVersion:'1.2.0',url:'https://github.com/MrBogomoll/quota-panel-releases/releases/tag/v1.2.0'};window.deny=false;
+  window.calls=[];window.language='ru';window.update={state:'available',currentVersion:'1.1.0',latestVersion:'1.2.0',url:'https://github.com/MrBogomoll/quota-panel-chatgpt/releases/tag/v1.2.0'};window.deny=false;
   addEventListener('message',event=>{const m=event.data;if(m?.jsonrpc!=='2.0')return;calls.push(m);let result={};
   if(m.method==='ui/initialize')result={hostContext:{theme:'dark'}};
   if(m.method==='tools/call')result=m.params.name==='check_quota_panel_updates'?{structuredContent:{update:window.update,language:window.language}}:{structuredContent:{status:'stopped',running:false,paused:false,language:window.language}};

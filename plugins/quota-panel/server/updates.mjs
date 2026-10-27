@@ -1,6 +1,7 @@
-export const CURRENT_VERSION='1.1.0';
-export const RELEASE_ORIGIN='https://github.com/MrBogomoll/quota-panel-releases';
-const endpoint='https://api.github.com/repos/MrBogomoll/quota-panel-releases/releases/latest';
+export const CURRENT_VERSION='1.2.0';
+export const RELEASE_ORIGIN='https://github.com/MrBogomoll/quota-panel-chatgpt';
+// Repository names can change. The verified public repository ID stays stable.
+const endpoint='https://api.github.com/repositories/1433486830/releases/latest';
 function version(value) {
   if(typeof value!=='string'||value.length>64||!/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value))throw new Error('Invalid stable version');
   return value.replace(/^v/,'');
@@ -31,11 +32,14 @@ export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=gl
           let release;try{release=JSON.parse(text);}catch{return failure('invalid');}
           try {
             if(release.draft!==false||release.prerelease!==false)throw new Error();
-            const latestVersion=version(release.tag_name),url=RELEASE_ORIGIN+'/releases/tag/'+release.tag_name;
+            const canonical=/^https:\/\/api\.github\.com\/repos\/MrBogomoll\/([A-Za-z0-9][A-Za-z0-9_.-]{0,99})\/releases\/([1-9]\d*)$/.exec(release.url);
+            if(!canonical||!Number.isSafeInteger(release.id)||String(release.id)!==canonical[2])throw new Error();
+            const origin='https://github.com/MrBogomoll/'+canonical[1];
+            const latestVersion=version(release.tag_name),url=origin+'/releases/tag/'+release.tag_name;
             if(release.html_url!==url)throw new Error();
             const filename=`quota-panel-${latestVersion}-windows-x64.zip`;
             const asset=release.assets?.find(item=>item.name===filename);
-            if(!asset||asset.state!=='uploaded'||!Number.isSafeInteger(asset.size)||asset.size<=0||asset.browser_download_url!==RELEASE_ORIGIN+'/releases/download/'+release.tag_name+'/'+filename)throw new Error();
+            if(!asset||asset.state!=='uploaded'||!Number.isSafeInteger(asset.size)||asset.size<=0||asset.browser_download_url!==origin+'/releases/download/'+release.tag_name+'/'+filename)throw new Error();
             const compared=compareVersions(latestVersion,currentVersion);
             return {state:compared>0?'available':compared===0?'current':'ahead',currentVersion,latestVersion,url:compared>0?url:null,checkedAt:now()};
           }catch{return failure('invalid');}

@@ -12,6 +12,15 @@ test('overlay retains server resets and applies warning boundaries with readable
   assert(neutral.rows.every(r=>r.tone==='normal'));
 });
 
+test('overlay labels short windows by their actual duration instead of assuming five hours', () => {
+  for (const [windowDurationMins, period] of [[15, '15 мин'], [90, '90 мин'], [120, '2 ч'], [300, '5 ч'], [null, '—'], [undefined, '—'], [0, '—']]) {
+    const view = api.overlayView({ ...snapshot, windows: [{ ...snapshot.windows[0], windowDurationMins }] }, { now: collectedAt });
+    assert.equal(view.rows[0].period, period);
+    assert.equal(view.rows[0].value, '10%');
+    assert.equal(view.rows[1].period, 'Нед.');
+  }
+});
+
 test('unknown and stale overlay states never masquerade as a fresh full quota', () => {
   assert.equal(typeof api.overlayView, 'function');
   const unknown = api.overlayView(null, { now:collectedAt });

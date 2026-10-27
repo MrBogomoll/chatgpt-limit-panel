@@ -27,6 +27,18 @@ test('zero, reversed windows, invalid percentages, and partial reset data are ha
   assert.equal(result.windows[1].resetsAt, null);
 });
 
+test('reset timestamps outside the JavaScript date range remain unknown while preserving quota', () => {
+  for (const resetsAt of [8_640_000_000_001, Number.MAX_SAFE_INTEGER]) {
+    const snapshot = api.normalizeQuota({ rateLimits: { primary: { usedPercent: 25, windowDurationMins: 300, resetsAt } } }, 1792760000000);
+    assert.equal(snapshot.windows[0].resetsAt, null);
+    assert.equal(snapshot.windows[0].remaining, 75);
+    const context = api.contextForQuota(snapshot, { now: 1792760000000, timeZone: 'Europe/Moscow' });
+    assert.equal(context.content[0].text, '5 ч: 75% · сброс —');
+  }
+  const boundary = api.normalizeQuota({ rateLimits: { primary: { usedPercent: 25, windowDurationMins: 300, resetsAt: 8_640_000_000_000 } } });
+  assert.equal(boundary.windows[0].resetsAt, 8_640_000_000_000);
+});
+
 test('publishes exactly two user-visible group labels with local reset times', () => {
   assert.equal(typeof api.contextForQuota, 'function');
   const context = api.contextForQuota(api.normalizeQuota(sample, 1792760000000), { now: 1792760000000, timeZone: 'Europe/Moscow' });

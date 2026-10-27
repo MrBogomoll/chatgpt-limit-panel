@@ -31,6 +31,7 @@ export function createOverlayHost({
   let child, lines, pollTimer, freshnessTimer, shutdownTimer, inFlight;
   let ready = false, paused = false, stopping = false, closed = false;
   let appPresent = !waitForApp;
+  let taskbarEnabled = false;
   let checkingUpdate=false;
   let snapshot = normalizeQuota(null, now());
   let result = { code: 0, reason: 'stopped' };
@@ -85,11 +86,11 @@ export function createOverlayHost({
   }
 
   function refresh() {
-    if (stopping || !ready || paused || !appPresent) return Promise.resolve(null);
+    if (stopping || !ready || paused || (!appPresent && !taskbarEnabled)) return Promise.resolve(null);
     if (inFlight) return inFlight;
     // Set the shared promise before calling even a synchronous injected reader.
     const pending = Promise.resolve().then(async () => {
-      if (stopping || paused || !appPresent) return;
+      if (stopping || paused || (!appPresent && !taskbarEnabled)) return;
       const raw = await reader.read();
       if (!stopping) snapshot = normalizeQuota(raw, now());
     }).catch(() => {
@@ -118,7 +119,9 @@ export function createOverlayHost({
       case 'refresh': refresh(); break;
       case 'check-updates': checkUpdates(); break;
       case 'app-open': if(!appPresent){appPresent=true;refresh();} break;
-      case 'app-closed': if(appPresent){appPresent=false;if(waitForApp)closeReader();} break;
+      case 'app-closed': if(appPresent){appPresent=false;if(waitForApp&&!taskbarEnabled)closeReader();} break;
+      case 'taskbar-on': if(!taskbarEnabled){taskbarEnabled=true;refresh();} break;
+      case 'taskbar-off': if(taskbarEnabled){taskbarEnabled=false;if(waitForApp&&!appPresent)closeReader();} break;
       case 'pause': paused = true; break;
       case 'resume':
         if (paused) { paused = false; refresh(); }
@@ -153,7 +156,7 @@ export function createOverlayHost({
     stop(1, 'gui-error');
   }
 
-  return { done, refresh, stop, statePath: absoluteStatePath, get child() { return child; }, get paused() { return paused; }, get appPresent(){return appPresent;} };
+  return { done, refresh, stop, statePath: absoluteStatePath, get child() { return child; }, get paused() { return paused; }, get appPresent(){return appPresent;}, get taskbarEnabled(){return taskbarEnabled;} };
 }
 
 async function run() {

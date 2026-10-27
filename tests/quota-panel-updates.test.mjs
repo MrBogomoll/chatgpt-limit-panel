@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 const api=await import('../plugins/quota-panel/server/updates.mjs').catch(()=>({}));
 const origin='https://github.com/MrBogomoll/quota-panel-releases';
-function release(version='1.2.0') {return {tag_name:'v'+version,draft:false,prerelease:false,html_url:origin+'/releases/tag/v'+version,assets:[{name:`quota-panel-${version}-windows-x64.zip`,state:'uploaded',size:123,browser_download_url:origin+`/releases/download/v${version}/quota-panel-${version}-windows-x64.zip`}]};}
+function release(version='1.2.0',slug='quota-panel-releases') {const base='https://github.com/MrBogomoll/'+slug;return {id:99,url:'https://api.github.com/repos/MrBogomoll/'+slug+'/releases/99',tag_name:'v'+version,draft:false,prerelease:false,html_url:base+'/releases/tag/v'+version,assets:[{name:`quota-panel-${version}-windows-x64.zip`,state:'uploaded',size:123,browser_download_url:base+`/releases/download/v${version}/quota-panel-${version}-windows-x64.zip`}]};}
 const reply=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers});
 function checker(options={}) {assert.equal(typeof api.createUpdateChecker,'function');return api.createUpdateChecker({currentVersion:'1.1.0',cooldownMs:0,...options});}
 
@@ -18,7 +18,7 @@ test('stable numeric versions compare correctly without treating a development v
 });
 test('checks are explicit, public, coalesced and briefly cached without lifecycle or authentication',async()=>{
   let calls=0,finish,clock=1000;
-  const check=checker({cooldownMs:15000,now:()=>clock,fetchImpl:(url,options)=>{calls++;assert.equal(url,'https://api.github.com/repos/MrBogomoll/quota-panel-releases/releases/latest');assert.equal(options.headers.Authorization,undefined);assert.equal(options.redirect,'error');return new Promise(resolve=>{finish=resolve;});}});
+  const check=checker({cooldownMs:15000,now:()=>clock,fetchImpl:(url,options)=>{calls++;assert.equal(url,'https://api.github.com/repositories/1433486830/releases/latest');assert.equal(options.headers.Authorization,undefined);assert.equal(options.redirect,'error');return new Promise(resolve=>{finish=resolve;});}});
   assert.equal(calls,0);const first=check.check();const second=check.check();await Promise.resolve();assert.equal(calls,1);
   finish(reply(release()));assert.deepEqual(await first,await second);await check.check();assert.equal(calls,1);
   clock+=16000;const third=check.check();await Promise.resolve();assert.equal(calls,2);finish(reply(release('1.1.0')));assert.equal((await third).state,'current');
@@ -41,6 +41,12 @@ test('drafts, prereleases, malformed versions, external URLs and incomplete Wind
   for(const change of [x=>x.draft=true,x=>x.prerelease=true,x=>x.tag_name='v1.2.0-rc.1',x=>x.html_url='https://github.com.evil.test/release',x=>x.html_url+='?redirect=evil',x=>x.assets=[],x=>x.assets[0].browser_download_url='file:///C:/bad.exe',x=>x.assets[0].state='new']) {
     const data=release();change(data);const value=await checker({fetchImpl:async()=>reply(data)}).check();assert.equal(value.state,'error');assert.equal(value.reason,'invalid');assert.equal(value.url,null);
   }
+});
+test('immutable repository identity accepts canonical renamed releases while mismatched identity and owners are rejected',async()=>{
+  for(const slug of ['quota-panel-chatgpt','quota-panel-renamed-again']) {
+    const result=await checker({fetchImpl:async()=>reply(release('1.2.0',slug))}).check();assert.equal(result.state,'available');assert.equal(result.url,`https://github.com/MrBogomoll/${slug}/releases/tag/v1.2.0`);
+  }
+  for(const modify of [x=>x.url=x.url.replace('MrBogomoll','attacker'),x=>x.url=x.url.replace('/99','/100'),x=>x.html_url=x.html_url.replace('MrBogomoll','attacker')]){const data=release();modify(data);const result=await checker({fetchImpl:async()=>reply(data)}).check();assert.equal(result.state,'error');assert.equal(result.url,null);}
 });
 test('MCP update tool works without starting or contacting the monitor and uses the selected language',async()=>{
   const {createMcpHandler}=await import('../plugins/quota-panel/server/mcp.mjs');let calls=0;

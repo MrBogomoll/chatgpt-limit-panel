@@ -9,14 +9,14 @@ export class RateLimitReader {
 
   async start() {
     if (this.starting) return this.starting;
-    this.starting = (async () => {
+    const starting = this.starting = (async () => {
       const child = spawn(this.command, this.args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
       this.child = child;
       const lines = createInterface({ input: child.stdout });
       child.stderr.resume(); // Never expose backend diagnostics or credentials through MCP.
-      child.on('error', () => this.fail(new Error('Codex App Server is unavailable')));
+      child.on('error', () => { if (this.child === child) this.fail(new Error('Codex App Server is unavailable')); });
       child.on('exit', () => { if (this.child === child) this.fail(new Error('Codex App Server disconnected')); });
-      child.stdin.on('error', () => this.fail(new Error('Codex App Server disconnected')));
+      child.stdin.on('error', () => { if (this.child === child) this.fail(new Error('Codex App Server disconnected')); });
       lines.on('line', line => {
         let message; try { message = JSON.parse(line); } catch { return; }
         const request = this.pending.get(message.id);
@@ -27,7 +27,7 @@ export class RateLimitReader {
       await this.request('initialize', { clientInfo: { name: 'quota_chips', title: 'Quota Chips', version: '1.0.1' } });
       child.stdin.write(JSON.stringify({ method: 'initialized' }) + '\n');
     })();
-    try { await this.starting; } catch (error) { this.close(); throw error; }
+    try { await starting; } catch (error) { if (this.starting === starting) this.close(); throw error; }
   }
 
   request(method, params = {}) {

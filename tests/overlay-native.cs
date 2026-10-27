@@ -20,7 +20,7 @@ using QuotaOverlay;
 class OverlayNativeTest {
   static readonly BindingFlags PrivateInstance=BindingFlags.NonPublic|BindingFlags.Instance;
   static OverlayWindow NewWindow(string statePath) {
-    var window=new OverlayWindow(statePath,new ThemeResolver(Path.Combine(Path.GetDirectoryName(statePath),"test-app-config.toml"),delegate{return false;}));
+    var window=new OverlayWindow(statePath,new ThemeResolver(Path.Combine(Path.GetDirectoryName(statePath),"test-app-config.toml"),delegate{return false;}),null,delegate{return null;});
     // Keep native fixtures independent of real application events and timers.
     Invoke(window,"StopTracking");return window;
   }
@@ -549,7 +549,7 @@ class OverlayNativeTest {
     var action=Field<MenuItem>(window,"updatesItem");MenuClick(action);Check(!action.IsEnabled,"update check must disable duplicate clicks");
     foreach(string language in new[]{"ru","en"})foreach(string theme in new[]{"dark","light"}) {
       Invoke(window,"SelectLanguage",language);Invoke(window,"SelectTheme",theme);
-      var update=new Dictionary<string,object>{{"state","available"},{"currentVersion","1.1.0"},{"latestVersion","1.2.0"},{"url","https://github.com/MrBogomoll/quota-panel-releases/releases/tag/v1.2.0"}};
+      var update=new Dictionary<string,object>{{"state","available"},{"currentVersion","1.1.0"},{"latestVersion","1.2.0"},{"url","https://github.com/MrBogomoll/quota-panel-chatgpt/releases/tag/v1.2.0"}};
       Invoke(window,"Apply",new Dictionary<string,object>{{"update",update}});Check(shown!=null&&action.IsEnabled,"manual result must show its own dialog and re-enable action");
       Check(!shown.ShowActivated,"delayed update result must not activate over the user's current app");
       var stack=(StackPanel)shown.Content;var text=(TextBlock)stack.Children[0];Check(text.Text.Contains("1.2.0")&&text.Text.Contains("1.1.0"),"result must show available and installed versions");
@@ -570,6 +570,24 @@ class OverlayNativeTest {
     Invoke(window,"Apply",new Dictionary<string,object>{{"update",new Dictionary<string,object>{{"state","current"},{"currentVersion","1.1.0"}}}});PumpDispatcher();
     Check(shown.IsVisible&&Native.GetForegroundWindow()==foreground,"production result Show must preserve foreground focus");shown.Close();
     Console.WriteLine("PASS native updates: manual request, separate explicit release opening, RU/EN dark/light and isolated quota state");
+  }
+  static void TaskbarSettingsTest(ref OverlayWindow window,string directory) {
+    Known(window);
+    Check(!Field<bool>(window,"taskbarEnabled"),"taskbar display must default off");
+    var toggle=Field<MenuItem>(window,"taskbarEnabledItem");
+    Check(Convert.ToString(toggle.Header).Contains("Показывать"),"Russian taskbar toggle must be discoverable");
+    MenuClick(toggle);Check(Field<bool>(window,"taskbarEnabled"),"taskbar toggle must enable independent view");
+    MenuClick(Field<MenuItem>(window,"taskbarRightItem"));
+    Check(Field<string>(window,"taskbarSide")=="right","right side selection must persist independently of panel mode");
+    Invoke(window,"SelectMode","ultra");Invoke(window,"SelectTheme","light");Invoke(window,"SelectLanguage","en");
+    Check(Convert.ToString(toggle.Header).Contains("Show"),"English toggle must translate live");
+    window.Close();window=NewWindow(Path.Combine(directory,"state.json"));Known(window);
+    Check(Field<bool>(window,"taskbarEnabled")&&Field<string>(window,"taskbarSide")=="right","taskbar settings must survive reconstruction");
+    Check(Field<string>(window,"language")=="en"&&Field<string>(window,"themeMode")=="light"&&Field<string>(window,"preferredMode")=="ultra","taskbar settings must preserve language/theme/view");
+    MenuClick(Field<MenuItem>(window,"taskbarLeftItem"));MenuClick(Field<MenuItem>(window,"taskbarEnabledItem"));
+    window.Close();window=NewWindow(Path.Combine(directory,"state.json"));Known(window);
+    Check(!Field<bool>(window,"taskbarEnabled")&&Field<string>(window,"taskbarSide")=="left","off must persist and retain chosen side");
+    Console.WriteLine("PASS native taskbar-settings: independent toggle, both sides, RU/EN, reconstruction and preserved settings");
   }
   static void MenuPlacementTest(OverlayWindow window) {
     var menu=Field<ContextMenu>(window,"optionsMenu");
@@ -923,6 +941,9 @@ class OverlayNativeTest {
     Invoke(window,"SelectLanguage","invalid");Check(Field<string>(window,"language")=="en","invalid selection must leave the language unchanged");
     Invoke(window,"SelectLanguage","ru");
     Check(Field<TextBlock[]>(window,"periods")[1].Text=="Нед."&&Field<TextBlock[]>(window,"markers")[0].Text=="устар.","Russian must be restored immediately without a provider refresh");
+    Apply(window,Row("15 мин","50%","25.10","14:59","","normal"),Row("Нед.","70%","01.11","09:59","","normal"));
+    Invoke(window,"SelectLanguage","en");Check(Field<TextBlock[]>(window,"periods")[0].Text=="15 min","minute windows must translate without relabeling them as five hours");
+    Invoke(window,"SelectLanguage","ru");Check(Field<TextBlock[]>(window,"periods")[0].Text=="15 мин","Russian minute duration must restore exactly");
     Console.WriteLine("PASS native language: live translation, unchanged quota, all mode bounds, restart persistence and Russian restoration");
   }
   [STAThread] public static int Main(string[] args) {
@@ -967,6 +988,7 @@ class OverlayNativeTest {
         case "motion":MotionTest(window,directory);break;
         case "motion-hook":MotionHookTest(window);break;
         case "updates":UpdatesTest(window);break;
+        case "taskbar-settings":TaskbarSettingsTest(ref window,directory);break;
         case "combined-zero":CombinedZeroTest(ref window,directory);break;
         case "resize-aspect":ResizeAspectTest(window);break;
         case "resize-native":ResizeNativeTest(window);break;

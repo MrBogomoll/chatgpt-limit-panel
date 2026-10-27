@@ -1,5 +1,11 @@
 # Quota Panel
 
+Предварительная 1.2.0: **ПКМ → «Панель задач» → «Показывать проценты» → «Слева» / «Справа»**. Дополнительный индикатор по умолчанию выключен. В нём только два процента: короткий лимит сверху и недельный снизу. Пока он включён, запросы квоты продолжаются и при закрытом окне ChatGPT. При недоступности данных последние значения затемняются. Настройки доступны также из значка Quota Panel в трее.
+
+**English:** Private preview 1.2.0 adds **Taskbar → Show percentages → Left / Right**, initially off. Two rows show short-window and weekly remaining quota. Enabled taskbar mode continues polling with ChatGPT closed. Stale values are dimmed. Controls are also available through Quota Panel's tray icon.
+
+Индикатор использует проверенное свободное место основной горизонтальной панели задач снизу; он не резервирует место в Windows. При нехватке места, полноэкранном режиме или неопределённой геометрии скрывается. Windows 10 не проверялась на отдельном компьютере. Стабильный публичный выпуск пока 1.1.0.
+
 Версия 1.1.0: ПКМ по панели → **«Проверить обновления»** или одноимённая кнопка карточки. Проверка сравнивает установленную версию с последним стабильным релизом GitHub. Если есть новая версия, **«Открыть релиз»** ведёт на страницу скачивания. Git и вход в GitHub не требуются. Обновление устанавливается вручную; ошибка сети показывается отдельно.
 
 **English:** Version 1.1.0 adds **Check for updates** to the panel menu and control card. It checks the latest stable GitHub release. Choose **Open release** to visit the download page when a newer version is available. Git and GitHub sign-in are not required. Installation remains manual; network failures are reported separately.

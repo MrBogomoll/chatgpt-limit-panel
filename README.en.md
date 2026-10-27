@@ -4,7 +4,11 @@
 
 A Windows x64 quota monitor that shows the shared Codex / Work quota above the avatar in the ChatGPT desktop navigation rail. The panel is a separate native overlay window; it does not modify the ChatGPT client. The installed plugin provides a control card to start, stop and check the monitor.
 
-**Current version: 1.1.0.** Built releases are distributed through GitHub. The source repository remains private; Quota Panel has not been submitted to or approved for the OpenAI Plugin Directory.
+**Private preview: 1.2.0. Public stable release: 1.1.0.** Source remains private; Quota Panel has not been submitted to or approved for the OpenAI Plugin Directory.
+
+The 1.2.0 preview adds a two-row percentage display in a measured free taskbar gap: short-window quota above weekly quota. Right-click → **Taskbar → Show percentages**, then **Left** or **Right**. It defaults off. The tray icon provides the same controls with ChatGPT closed; enabled taskbar mode keeps quota polling independent of the chat window.
+
+This is a separate window in verified free space, not a shell-reserved slot. It hides instead of covering occupied or uncertain regions. Initial support covers the primary horizontal bottom taskbar. See the [Windows 10/11 comparison](docs/research/2026-10-27-windows-taskbar-research.md). Windows 10 has not received live acceptance testing.
 
 Public-submission requirements and remaining steps: [Russian publishing guide](docs/PUBLISHING-RU.md).
 

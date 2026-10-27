@@ -71,7 +71,7 @@ function buttons() {
   refreshButton.disabled = disabled;
   updateButton.disabled=updateBusy||!connected||disposed;
 }
-function safeReleaseUrl(url) {return typeof url==='string'&&url.length<200&&url===url.trim()&&/^https:\/\/github\.com\/MrBogomoll\/quota-panel-releases\/releases\/tag\/v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(url);}
+function safeReleaseUrl(url) {return typeof url==='string'&&url.length<200&&url===url.trim()&&/^https:\/\/github\.com\/MrBogomoll\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\/releases\/tag\/v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(url);}
 function renderUpdate() {
   const value=updateSnapshot;releaseButton.hidden=updateBusy||value?.state!=='available'||!safeReleaseUrl(value.url);
   if(updateBusy){updateStatus.textContent=t('checkingUpdates');return;}
@@ -144,7 +144,7 @@ refreshButton.addEventListener('click', () => call('get_quota_overlay_status'));
 window.addEventListener('pagehide', dispose, { once: true });
 
 try {
-  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'quota-panel', version: '1.1.0' }, appCapabilities: {} });
+  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'quota-panel', version: '1.2.0' }, appCapabilities: {} });
   if (!disposed) {
     applyHostContext(result?.hostContext); connected = true;
     window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized' }, '*');

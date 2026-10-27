@@ -19,6 +19,13 @@ namespace QuotaOverlay {
       {"dismiss",new[]{"Закрыть","Close"}},
       {"openReleaseError",new[]{"Не удалось открыть страницу релиза.","Could not open the release page."}},
       {"view",new[]{"Вид панели","Panel view"}},
+      {"taskbar",new[]{"Панель задач","Taskbar"}},
+      {"taskbarShow",new[]{"Показывать проценты","Show percentages"}},
+      {"taskbarLeft",new[]{"Слева","Left"}},
+      {"taskbarRight",new[]{"Справа","Right"}},
+      {"taskbarOff",new[]{"Выключено","Off"}},
+      {"taskbarActive",new[]{"Работает","Active"}},
+      {"taskbarWaiting",new[]{"Ожидание свободного места","Waiting for free space"}},
       {"full",new[]{"Полный","Full"}},
       {"compact",new[]{"Компактный","Compact"}},
       {"ultra",new[]{"Ультракомпактный","Ultracompact"}},
@@ -68,7 +75,7 @@ namespace QuotaOverlay {
     internal static string Period(string language,string original,int index) {
       if(index==1)return Text(language,"weekLabel");
       string candidate=(original??"").Replace(" ч"," h");
-      return language=="en"?candidate.Replace(" ч"," h"):candidate.Replace(" h"," ч");
+      return language=="en"?candidate.Replace(" ч"," h").Replace(" мин"," min"):candidate.Replace(" h"," ч").Replace(" min"," мин");
     }
   }
 }

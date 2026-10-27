@@ -14,20 +14,20 @@ function succeeded(result, stage) {
   assert.equal(result.stderr, '', `${stage} reported an exception: ${result.stderr}`);
 }
 
-test('native overlay renders and accepts updates using only isolated own controls and offscreen windows', { skip: process.platform !== 'win32', timeout: 45000 }, async t => {
+test('native overlay renders and accepts updates using only isolated own controls and offscreen windows', { skip: process.platform !== 'win32', timeout: 90000 }, async t => {
   const temporary = await mkdtemp(path.join(tmpdir(), 'quota native тест '));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const framework = path.join(process.env.WINDIR || 'C:/Windows', 'Microsoft.NET/Framework64/v4.0.30319');
   const executable = path.join(temporary, 'overlay-native-test.exe');
   const references = [
-    ...['PresentationCore', 'PresentationFramework', 'WindowsBase'].map(name => path.join(framework, 'WPF', `${name}.dll`)),
+    ...['PresentationCore', 'PresentationFramework', 'WindowsBase','UIAutomationClient','UIAutomationTypes'].map(name => path.join(framework, 'WPF', `${name}.dll`)),
     ...['System.Web.Extensions', 'System.Windows.Forms', 'System.Drawing', 'System.Xaml'].map(name => path.join(framework, `${name}.dll`)),
   ];
   const compilation = spawnSync(path.join(framework, 'csc.exe'), [
     '/nologo', '/codepage:65001', '/platform:x64', '/target:exe', '/main:OverlayNativeTest', `/out:${executable}`,
     `/win32manifest:${path.join(root, 'overlay', 'app.manifest')}`,
     ...references.map(reference => `/reference:${reference}`),
-    path.join(root, 'overlay', 'Layout.cs'), path.join(root, 'overlay', 'Progress.cs'), path.join(root, 'overlay', 'VisualHost.cs'), path.join(root, 'overlay', 'Theme.cs'), path.join(root, 'overlay', 'Preferences.cs'), path.join(root, 'overlay', 'Language.cs'), path.join(root, 'overlay', 'Overlay.cs'), path.join(root, 'tests', 'overlay-native.cs'),
+    path.join(root, 'overlay', 'Layout.cs'),path.join(root,'overlay','TaskbarLayout.cs'),path.join(root,'overlay','TaskbarWindow.cs'), path.join(root, 'overlay', 'Progress.cs'), path.join(root, 'overlay', 'VisualHost.cs'), path.join(root, 'overlay', 'Theme.cs'), path.join(root, 'overlay', 'Preferences.cs'), path.join(root, 'overlay', 'Language.cs'), path.join(root, 'overlay', 'Overlay.cs'), path.join(root, 'tests', 'overlay-native.cs'),
   ], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
   succeeded(compilation, 'native test compilation');
 
@@ -63,6 +63,7 @@ test('native overlay renders and accepts updates using only isolated own control
     ['motion', 'rapid movement aligns in the native callback, avoids disk/render work and fills event gaps at frame rate'],
     ['motion-hook', 'real cross-process WinEvent delivery follows an isolated external target without activation'],
     ['updates','manual update controls show localized themed results without changing quotas or opening arbitrary links'],
+    ['taskbar-settings','independent taskbar toggle and side persist with language, theme and view preserved'],
     ['combined-zero', 'combined mode persists and known zero draws full red warnings distinct from off and unknown'],
     ['resize-aspect', 'mode transitions preserve proportions while the viewport still has the previous height'],
     ['resize-native', 'content changes do not issue a separate live HWND resize before native placement'],
