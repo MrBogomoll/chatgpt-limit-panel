@@ -51,10 +51,26 @@ internal static class TaskbarTransientTest {
     foreach(string image in new[]{@"C:\Temp\Start10_64.dll",@"C:\Program Files (x86)\Stardock\Start11Fake\Start10_64.dll",@"C:\Program Files (x86)\Stardock\Start10\Start10_64.dll",@"C:\Program Files (x86)\Stardock\Start11\Start10_64.dll:stream",@"C:\Program Files (x86)\Stardock\Start11\Start10_64.dll.bak",@"Stardock\Start11\Start10_64.dll","",null,"\0"})Check(!TaskbarTransient.IsTrustedStart11ModuleIdentity(image,instance,instance,root),"fake, relative and invalid Start11 module paths are rejected");
     foreach(string image in new[]{@"C:\Temp\Start11_64.exe",@"C:\Program Files (x86)\Stardock\Start11\Start11.exe",@"C:\Program Files (x86)\Stardock\Start11Fake\Start11_64.exe",@"C:\Program Files (x86)\Stardock\Start11\Start11_64.exe:stream","",null})Check(!TaskbarTransient.IsTrustedStart11ImagePath(image,root),"a filename alone cannot establish standalone Start11 provenance");
   }
+  static bool Modal(long style,long extended,bool[] guards){return TaskbarTransient.IsTaskbarModalDialog("#32770",style,extended,guards[0],guards[1],guards[2],guards[3],guards[4],guards[5],guards[6],guards[7],guards[8]);}
+  static void NullInstanceModalPolicy(){
+    const long style=0x96000001L,extended=0x00080088L;var valid=new[]{true,true,true,true,true,true,true,true,true};
+    Check(Modal(style,extended,valid),"the exact observed foreground taskbar-thread Start11 modal signature is eligible only for position retention");
+    Check(Modal(unchecked((int)0x96000001),extended,valid),"native signed and unsigned representations of the observed window style are equivalent");
+    for(int i=0;i<valid.Length;i++){var changed=(bool[])valid.Clone();changed[i]=false;Check(!Modal(style,extended,changed),"each live modal provenance or geometry guard is independently required: "+i);}
+    foreach(long bit in new long[]{0x80000000L,0x10000000L,0x04000000L,0x02000000L,1})Check(!Modal(style&~bit,extended,valid),"each observed popup style bit is required");
+    foreach(long bit in new long[]{0x40000000L,0x08000000L,0x00C00000L,0x00040000L,0x00080000L})Check(!Modal(style|bit,extended,valid),"child, disabled, captioned, resizable and system-menu dialogs are not the taskbar modal");
+    foreach(long bit in new long[]{0x00080000L,0x80L,8L})Check(!Modal(style,extended&~bit,valid),"layered, tool-window and topmost extended styles are independently required");
+    foreach(long bit in new long[]{0x00040000L,0x08000000L})Check(!Modal(style,extended|bit,valid),"app-window and no-activate shapes do not borrow the active-modal signature");
+    Check(!TaskbarTransient.IsTaskbarModalDialog("NetWorxDeskband",style,extended,true,true,true,true,true,true,true,true,true),"a class name mismatch cannot borrow shell thread and module evidence");
+    string root=@"C:\Program Files (x86)";
+    foreach(string name in new[]{"Start10_64.dll","Start11_64.dll"})Check(TaskbarTransient.IsLoadedStart11ModulePath(Path.Combine(root,"Stardock","Start11",name),root),"the independent loaded-module guard accepts the exact protected Start11 DLL");
+    foreach(string image in new[]{@"C:\Temp\Start10_64.dll",@"C:\Program Files (x86)\Stardock\Start11Fake\Start10_64.dll",@"C:\Program Files (x86)\Stardock\Start11\Start10_64.dll:stream",null,""})Check(!TaskbarTransient.IsLoadedStart11ModulePath(image,root),"a fake or missing module cannot establish loaded Start11 presence");
+  }
   [STAThread] static int Main() {
     try {
       FullscreenTransitions();
       TaskbarDialogPolicy();
+      NullInstanceModalPolicy();
       Check(!TaskbarTransient.MaySuppressForFullscreen(IntPtr.Zero),"null foreground during a menu activation transition is not confirmed fullscreen");
       string windows=@"C:\Windows";
       foreach(string package in new[]{"MicrosoftWindows.Client.Core_cw5n1h2txyewy","MicrosoftWindows.Client.CBS_cw5n1h2txyewy","Microsoft.Windows.ShellExperienceHost_cw5n1h2txyewy"}) {

@@ -386,3 +386,49 @@ SHA256:25b792ef05dee29a1fd6bdb3d174c002b605f58a50a8b2252573462370787772
 Public stable remains1.1.0. No public publication or universal Win10/11/Start11
 compatibility claim. One real Start11 repro requested asynchronously remains
 pending; at last inspection the log contains startup/visible transitions only.
+## 1.3.3 private preview — actual Start11 menu activation
+
+The requested real GUI repro finally captured the exact failing branch in1.3.2.
+At13:25:50Z actualGUI62932 concealed the widget as unavailable when the UIA
+source worker remained busy and its last measurement reached1613ms. Transient
+was false. Native widget visibility was false; this was explicitHide, not Z-order
+occlusion. A second opening at13:26:51Z repeated the same signature and1653ms.
+
+Foreground menu was ExplorerPID17040, thread17224 identical to Shell_TrayWnd,
+class#32770, owner0, HINSTANCE0, style96000001, ex00080088. Bounds were354x372px,
+12px above the bar; the previous hidden Start11 instance-proven dialog was a
+different window. The actual popup was destroyed after closing. Readonly checks
+verified the protected Start10_64.dll loaded in the same liveExplorer. Existing
+hidden controls distinguish genuine nullHINSTANCE/error0 from WndProc/DlgProc
+access-denied5; they are not substituted for the actual popup's identity.
+
+New fallback activates only the existing fixed-footprint lease through IsActive.
+It does not alter IsMenuWindow, fullscreen exceptions or collision/occupancy
+exemptions. Required: actual visible/uncloaked foreground, genuine zero instance,
+unowned #32770, observed toolpopup style bits, same live shellPID and UIthread,
+valid nearbar geometry entirely outside the bar, protected loadedStart11module.
+Loaded-only cache decisions expire within1sec with live held process handles.
+Foreground, shell handle, PID and thread are rechecked after module enumeration.
+Module presence is constrained observational evidence, not per-HWNDcreatorproof.
+Native footprint/fingerprint checks still make the final retention decision.
+
+Targeted policy RED/GREEN recorded; finalpolicy140assertions. Fullnativebuild and
+combinedsuite145/145 passed. Independent read-only review found no blocker.
+TaskbarDiagnostics additionally records instanceReadError to distinguish genuine
+zero values from native read errors on the next real opening.
+
+Installed through registered source and CLI with ownedtask1.3.2→1.3.3 migration,
+backup dist/v133-upgrade-backup. All24stage/source/cache payload hashes match.
+ActualGUI59288 startup is visible and abovebar. LanguageRU, Auto/dark, fullmode,
+bothindicators, shortcontour, taskbar-on/right, autostarton and pausedfalse match.
+Transparency now56 versus the old1.3.2 first30updates snapshot29; that oldstartup
+is not a fresh preference baseline. No migration/code path writes transparency;
+newGUI reads the persisted current value. Do not restore29 from that stalefile.
+MCP5tools current1.3.3; realGitHubcheckaheadvs1.1.0 changed no lifecycle.
+
+Package: quota-panel-1.3.3-windows-x64.zip
+SHA256:9a741ac92ee09c1890b190bbaa0695406ed97f0aa794d4afcabbfc49001bcdc5
+
+One async post-install Start11 acceptance question is pending. Do not claim the
+live failure fixed solely from purepolicy/nativelease tests. Publicstable1.1.0
+and existing Win10/monitor/sleep/fullscreen limitations remain unchanged.

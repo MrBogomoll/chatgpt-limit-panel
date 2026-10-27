@@ -1,5 +1,9 @@
 # Quota Panel
 
+Предварительная 1.3.3: уточнено распознавание активного меню Start11 для удержания уже показанного индикатора. Проверки размеров, масштаба и перекрытий продолжают работать.
+
+**English:** Preview 1.3.3 refines active Start11 context-menu detection to retain an already visible indicator while continuing geometry, DPI and overlap checks.
+
 Предварительная 1.3.2: обновлён ползунок прозрачности и сохранена возможность нажать ПКМ по пустой области индикатора даже при прозрачном фоне. Исправлена ошибка определения возраста свежего снимка панели задач. Совместимость с меню Start11 продолжает проверяться.
 
 **English:** Preview 1.3.2 refreshes the transparency slider and keeps the empty indicator area clickable even with a fully clear background. A snapshot-age race has been corrected. Start11 context-menu compatibility is still under investigation.

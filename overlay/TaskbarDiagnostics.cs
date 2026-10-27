@@ -117,7 +117,7 @@ namespace QuotaOverlay {
         bool exists=hwnd!=IntPtr.Zero&&IsWindow(hwnd);data["exists"]=exists;
         if(!exists)return data;
         string cls=Class(hwnd);uint pid;uint thread=GetWindowThreadProcessId(hwnd,out pid);
-        IntPtr owner=GetWindow(hwnd,4),instance=Long(hwnd,-6);
+        IntPtr owner=GetWindow(hwnd,4);SetLastError(0);IntPtr instance=Long(hwnd,-6);int instanceError=Marshal.GetLastWin32Error();
         RECT rect;bool hasRect=GetWindowRect(hwnd,out rect);
         data["visible"]=IsWindowVisible(hwnd);data["iconic"]=IsIconic(hwnd);data["class"]=cls;
         data["processId"]=pid;data["threadId"]=thread;data["rect"]=hasRect?(object)Area(rect):null;
@@ -126,6 +126,7 @@ namespace QuotaOverlay {
         uint ownerPid=0;if(owner!=IntPtr.Zero)GetWindowThreadProcessId(owner,out ownerPid);
         data["owner"]=new {handle=Hex(owner),@class=Class(owner),processId=ownerPid};
         data["instance"]=Hex(instance);
+        data["instanceReadError"]=instance==IntPtr.Zero?instanceError:0;
         IntPtr bar=FindWindow("Shell_TrayWnd",null);data["aboveTaskbar"]=Above(hwnd,bar);
         try {
           RECT frame;int cloaked;
@@ -212,8 +213,9 @@ namespace QuotaOverlay {
     [DllImport("user32.dll")]static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="FindWindowW")]static extern IntPtr FindWindow(string cls,string name);
     [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="GetClassNameW")]static extern int GetClassName(IntPtr hwnd,StringBuilder value,int length);
-    [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")]static extern IntPtr GetWindowLongPtr(IntPtr hwnd,int index);
-    [DllImport("user32.dll",EntryPoint="GetWindowLongW")]static extern int GetWindowLong(IntPtr hwnd,int index);
+    [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW",SetLastError=true)]static extern IntPtr GetWindowLongPtr(IntPtr hwnd,int index);
+    [DllImport("user32.dll",EntryPoint="GetWindowLongW",SetLastError=true)]static extern int GetWindowLong(IntPtr hwnd,int index);
+    [DllImport("kernel32.dll")]static extern void SetLastError(uint error);
     [DllImport("dwmapi.dll")]static extern int DwmGetWindowAttribute(IntPtr hwnd,int attribute,out RECT value,int size);
     [DllImport("dwmapi.dll",EntryPoint="DwmGetWindowAttribute")]static extern int DwmGetWindowAttributeInt(IntPtr hwnd,int attribute,out int value,int size);
   }

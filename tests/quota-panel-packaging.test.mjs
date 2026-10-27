@@ -13,8 +13,8 @@ test('portable and compatibility manifests resolve the same local server without
   assert.equal(portable.name, 'quota-panel');
   assert.equal(portable.extensions['com.openai'].interface.displayName, 'Quota Panel');
   assert.equal(compatibility.interface.displayName, 'Quota Panel');
-  assert.equal(portable.version, '1.3.2');
-  assert.equal(compatibility.version, '1.3.2');
+  assert.equal(portable.version, '1.3.3');
+  assert.equal(compatibility.version, '1.3.3');
   assert.equal(portable.extensions['com.openai'].requires_local_executor, true);
   assert.equal(compatibility.requires_local_executor, true);
   assert.match(portable.extensions['com.openai'].interface.longDescription, /Windows x64/);

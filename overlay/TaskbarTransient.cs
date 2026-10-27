@@ -82,6 +82,34 @@ namespace QuotaOverlay {
     internal static bool IsTrustedStart11ModuleIdentity(string image,IntPtr instance,IntPtr moduleBase,string programFilesX86) {
       return instance!=IntPtr.Zero&&instance==moduleBase&&IsProtectedStart11File(image,programFilesX86,"Start10_64.dll","Start11_64.dll");
     }
+    internal static bool IsLoadedStart11ModulePath(string image,string programFilesX86) {return IsProtectedStart11File(image,programFilesX86,"Start10_64.dll","Start11_64.dll");}
+    internal static bool IsTaskbarModalDialog(string name,long style,long exStyle,bool visible,bool foreground,bool sameShellProcess,bool sameShellThread,bool noInstance,bool unowned,bool nearBar,bool outsideBar,bool start11Loaded) {
+      const long requiredStyle=0x96000001L,forbiddenStyle=0x69CF0000L,requiredExtended=0x00080088L,forbiddenExtended=0x08040000L;
+      return String.Equals(name,"#32770",StringComparison.Ordinal)&&(style&requiredStyle)==requiredStyle&&(style&forbiddenStyle)==0&&(exStyle&requiredExtended)==requiredExtended&&(exStyle&forbiddenExtended)==0&&visible&&foreground&&sameShellProcess&&sameShellThread&&noInstance&&unowned&&nearBar&&outsideBar&&start11Loaded;
+    }
+    // This weaker provenance is deliberately lease-activation-only. Loaded DLL
+    // presence does not prove who created a window and never grants it a
+    // fullscreen or collision exemption through IsMenuWindow.
+    internal static bool IsActiveTaskbarModalWindow(IntPtr window) {
+      try {
+        if(window==IntPtr.Zero||GetForegroundWindow()!=window||!IsWindowVisible(window)||Cloaked(window))return false;
+        IntPtr shell=FindWindow("Shell_TrayWnd",null);if(shell==IntPtr.Zero||!IsWindowVisible(shell))return false;
+        uint shellProcess,windowProcess;uint shellThread=GetWindowThreadProcessId(shell,out shellProcess),windowThread=GetWindowThreadProcessId(window,out windowProcess);
+        if(shellThread==0||windowThread==0||shellProcess==0||windowProcess!=shellProcess||windowThread!=shellThread)return false;
+        var name=new StringBuilder(256);if(GetClassName(window,name,name.Capacity)<=0)return false;
+        long style,extended,instance;if(!TryLong(window,-16,out style)||!TryLong(window,-20,out extended)||!TryLong(window,-6,out instance))return false;
+        Rect popup,bar;if(!GetWindowRect(window,out popup)||!GetWindowRect(shell,out bar))return false;
+        bool outside=popup.Right<=bar.Left||popup.Left>=bar.Right||popup.Bottom<=bar.Top||popup.Top>=bar.Bottom;
+        bool near=NearTaskbar(popup,bar),unowned=GetWindow(window,4)==IntPtr.Zero;
+        if(!IsTaskbarModalDialog(name.ToString(),style,extended,true,true,true,true,instance==0,unowned,near,outside,true))return false;
+        if(!Start11Module(windowProcess,IntPtr.Zero,true))return false;
+        uint currentProcess,currentShellProcess;
+        return GetForegroundWindow()==window&&IsWindowVisible(window)&&FindWindow("Shell_TrayWnd",null)==shell&&GetWindowThreadProcessId(window,out currentProcess)==windowThread&&currentProcess==windowProcess&&GetWindowThreadProcessId(shell,out currentShellProcess)==shellThread&&currentShellProcess==shellProcess;
+      }catch{return false;}
+    }
+    static bool TryLong(IntPtr window,int index,out long value) {
+      NativeSetLastError(0);IntPtr result=GetWindowLongPtr(window,index);int error=Marshal.GetLastWin32Error();value=result.ToInt64();return result!=IntPtr.Zero||error==0;
+    }
     internal static bool IsMenuClass(string name) {return String.Equals(name,"#32768",StringComparison.Ordinal);}
     internal static bool IsMenuClass(string name,bool sameShellProcess) {return IsMenuClass(name)||(sameShellProcess&&String.Equals(name,"Xaml_WindowedPopupClass",StringComparison.Ordinal));}
     internal static bool IsMenuWindow(IntPtr window) {
@@ -141,10 +169,11 @@ namespace QuotaOverlay {
     }
     internal static bool IsActive(out IntPtr captureWindow) {
       captureWindow=IntPtr.Zero;
-      bool foregroundMenu=false;
+      bool foregroundMenu=false,taskbarModal=false;
       try {
         IntPtr foreground=GetForegroundWindow();
         foregroundMenu=IsWindowVisible(foreground)&&!Cloaked(foreground)&&IsMenuWindow(foreground);
+        taskbarModal=IsActiveTaskbarModalWindow(foreground);
         if(IsWindowVisible(foreground)&&!Cloaked(foreground)&&IsCaptureWindow(foreground))captureWindow=foreground;
         else {
           IntPtr remembered;uint expected;
@@ -154,7 +183,7 @@ namespace QuotaOverlay {
           else if(remembered!=IntPtr.Zero)lock(gate){if(lastCaptureWindow==remembered){lastCaptureWindow=IntPtr.Zero;lastCaptureProcess=0;}}
         }
       }catch{}
-      return captureWindow!=IntPtr.Zero||foregroundMenu||MenuActive()||VisibleRememberedMenu()||FindMenuAboveForegroundShell();
+      return captureWindow!=IntPtr.Zero||foregroundMenu||taskbarModal||MenuActive()||VisibleRememberedMenu()||FindMenuAboveForegroundShell();
     }
     static bool FindMenuAboveForegroundShell() {
       IntPtr shell=FindWindow("Shell_TrayWnd",null),foreground=GetForegroundWindow();
@@ -201,12 +230,13 @@ namespace QuotaOverlay {
         images.Add(process,identity);return start11?identity.Start11:identity.Capture;
       }
     }
-    static bool Start11Module(uint process,IntPtr instance) {
-      if(instance==IntPtr.Zero)return false;
+    static bool Start11Module(uint process,IntPtr instance) {return Start11Module(process,instance,false);}
+    static bool Start11Module(uint process,IntPtr instance,bool loadedOnly) {
+      if(instance==IntPtr.Zero&&!loadedOnly)return false;
       lock(gate) {
         long now=clock.ElapsedMilliseconds;var key=Tuple.Create(process,instance);ModuleIdentity identity;
         if(modules.TryGetValue(key,out identity)) {
-          if(identity.Process!=null&&WaitForSingleObject(identity.Process,0)==WaitTimeout&&(identity.Trusted||now-identity.CheckedAt<IdentityLifetimeMilliseconds))return identity.Trusted;
+          if(identity.Process!=null&&WaitForSingleObject(identity.Process,0)==WaitTimeout&&((!loadedOnly&&identity.Trusted)||now-identity.CheckedAt<IdentityLifetimeMilliseconds))return identity.Trusted;
           modules.Remove(key);identity.Dispose();
         }
         if(modules.Count>=64) {
@@ -218,8 +248,9 @@ namespace QuotaOverlay {
         if(raw!=IntPtr.Zero) {
           identity.Process=new SafeFileHandle(raw,true);
           try {
-            using(var owner=Process.GetProcessById((int)process))foreach(ProcessModule module in owner.Modules)if(module.BaseAddress==instance) {
-              identity.Trusted=IsTrustedStart11ModuleIdentity(module.FileName,instance,module.BaseAddress,Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));break;
+            using(var owner=Process.GetProcessById((int)process))foreach(ProcessModule module in owner.Modules) {
+              if(loadedOnly) {if(IsLoadedStart11ModulePath(module.FileName,Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86))){identity.Trusted=true;break;}}
+              else if(module.BaseAddress==instance){identity.Trusted=IsTrustedStart11ModuleIdentity(module.FileName,instance,module.BaseAddress,Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));break;}
             }
           }catch{}
           if(WaitForSingleObject(identity.Process,0)!=WaitTimeout)identity.Trusted=false;
@@ -243,7 +274,8 @@ namespace QuotaOverlay {
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window,out Rect rectangle);
     [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr window,uint command);
     [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr window,uint flags);
-    [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr window,int index);
+    [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW",SetLastError=true)] static extern IntPtr GetWindowLongPtr(IntPtr window,int index);
+    [DllImport("kernel32.dll",EntryPoint="SetLastError")] static extern void NativeSetLastError(uint error);
     [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window,StringBuilder name,int capacity);
     [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern IntPtr FindWindow(string className,string title);
     [DllImport("kernel32.dll",SetLastError=true)] static extern IntPtr OpenProcess(uint desiredAccess,bool inheritHandle,uint process);
