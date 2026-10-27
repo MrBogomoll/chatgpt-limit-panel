@@ -42,5 +42,12 @@ class TaskbarDiagnosticSpoolTest {
       }finally{release.Set();}
     }
   }
-  static int Main(){try{BoundedQueue();CoalescingAndErrors();RealBackgroundWorker();Console.WriteLine("PASS bounded background diagnostics spool ("+assertions+" assertions)");return 0;}catch(Exception error){Console.Error.WriteLine(error);return 1;}}
+  static void ReleaseDiagnosticsGate(){
+    string previous=Environment.GetEnvironmentVariable("QUOTA_PANEL_DIAGNOSTICS");
+    try {
+      foreach(string value in new string[]{null,"","0","true","yes"}){Environment.SetEnvironmentVariable("QUOTA_PANEL_DIAGNOSTICS",value);Check(!TaskbarDiagnostics.Enabled,"release diagnostics must require explicit opt-in");}
+      Environment.SetEnvironmentVariable("QUOTA_PANEL_DIAGNOSTICS","1");Check(TaskbarDiagnostics.Enabled,"explicit diagnostic opt-in remains available for troubleshooting");
+    }finally{Environment.SetEnvironmentVariable("QUOTA_PANEL_DIAGNOSTICS",previous);}
+  }
+  static int Main(){try{ReleaseDiagnosticsGate();BoundedQueue();CoalescingAndErrors();RealBackgroundWorker();Console.WriteLine("PASS bounded background diagnostics spool ("+assertions+" assertions)");return 0;}catch(Exception error){Console.Error.WriteLine(error);return 1;}}
 }

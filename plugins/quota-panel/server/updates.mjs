@@ -1,18 +1,29 @@
-export const CURRENT_VERSION='1.3.3';
+export const CURRENT_VERSION='1.2.0';
 export const RELEASE_ORIGIN='https://github.com/MrBogomoll/quota-panel-chatgpt';
 // Repository names can change. The verified public repository ID stays stable.
 const endpoint='https://api.github.com/repositories/1433486830/releases/latest';
-function version(value) {
-  if(typeof value!=='string'||value.length>64||!/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(value))throw new Error('Invalid stable version');
+function version(value,allowPrerelease=false) {
+  if(typeof value!=='string'||value.length>64)throw new Error('Invalid version');
+  const parsed=/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(value);
+  if(!parsed||parsed[0]!==value||parsed[4]&&(!allowPrerelease||parsed[4].split('.').some(id=>/^\d+$/.test(id)&&id.length>1&&id[0]==='0')))throw new Error('Invalid version');
   return value.replace(/^v/,'');
 }
 export function compareVersions(left,right) {
-  const a=version(left).split('.').map(BigInt),b=version(right).split('.').map(BigInt);
-  for(let i=0;i<3;i++)if(a[i]!==b[i])return a[i]>b[i]?1:-1;
-  return 0;
+  const parts=value=>{const normalized=version(value,true),dash=normalized.indexOf('-');return {core:(dash<0?normalized:normalized.slice(0,dash)).split('.').map(BigInt),pre:dash<0?null:normalized.slice(dash+1).split('.')};};
+  const a=parts(left),b=parts(right);
+  for(let i=0;i<3;i++)if(a.core[i]!==b.core[i])return a.core[i]>b.core[i]?1:-1;
+  if(a.pre===null||b.pre===null)return a.pre===b.pre?0:a.pre===null?1:-1;
+  for(let i=0;i<Math.min(a.pre.length,b.pre.length);i++) {
+    if(a.pre[i]===b.pre[i])continue;
+    const numericA=/^\d+$/.test(a.pre[i]),numericB=/^\d+$/.test(b.pre[i]);
+    if(numericA&&numericB)return BigInt(a.pre[i])>BigInt(b.pre[i])?1:-1;
+    if(numericA!==numericB)return numericA?-1:1;
+    return a.pre[i]>b.pre[i]?1:-1;
+  }
+  return Math.sign(a.pre.length-b.pre.length);
 }
 export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=globalThis.fetch,timeoutMs=8000,cooldownMs=15000,now=Date.now}={}) {
-  currentVersion=version(currentVersion);
+  currentVersion=version(currentVersion,true);
   let pending,cached,cancelPending,activeAbort,expires=0;
   function check() {
     if(pending)return pending;

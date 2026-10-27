@@ -86,7 +86,7 @@ namespace QuotaOverlay {
     void ApplyPalette() {Background=TaskbarAppearance.InputSurface(backgroundTransparency);surface.Background=Color(palette.Background(backgroundTransparency));upper.Foreground=Color(palette.Tone(upperTone));lower.Foreground=Color(palette.Tone(lowerTone));upper.Opacity=lower.Opacity=stale?0.55:1;}
     void Conceal(string reason) {PlacementStatus=reason;if(IsVisible)Hide();TracePlacement(null);}
     void TracePlacement(string message) {
-      if(source==null)return;
+      if(source==null||!TaskbarDiagnostics.Enabled)return;
       try {
         bool above=TaskbarDiagnostics.AboveTaskbar(hwnd);
         string key=PlacementStatus+"|"+diagnosticTransient+"|"+menuLease.LastReason+"|"+above+"|"+message+"|"+(diagnosticTransient?(diagnosticCandidate==null?"null":"candidate"):"");

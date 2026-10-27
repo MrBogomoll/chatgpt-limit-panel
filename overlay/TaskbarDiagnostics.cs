@@ -73,13 +73,14 @@ namespace QuotaOverlay {
   // Temporary metadata-only diagnostics for the actual widget. No window titles,
   // accessibility queries, classification state, hooks or input are involved.
   internal static class TaskbarDiagnostics {
+    internal static bool Enabled {get{return Environment.GetEnvironmentVariable("QUOTA_PANEL_DIAGNOSTICS")=="1";}}
     const int MaximumFileBytes=1024*1024,MaximumLineBytes=64*1024;
     static readonly object gate=new object();
     static string lastKey;
     static long sequence;
     static readonly TaskbarDiagnosticSpool spool=new TaskbarDiagnosticSpool(delegate(string key,IntPtr widget,Dictionary<string,object> state){state["desktop"]=Desktop(widget);Write(key,state);});
 
-    internal static void Enqueue(string key,IntPtr widget,Dictionary<string,object> state) {spool.Enqueue(key,widget,state);}
+    internal static void Enqueue(string key,IntPtr widget,Dictionary<string,object> state) {if(Enabled)spool.Enqueue(key,widget,state);}
 
     internal static void Write(string key,object payload) {
       lock(gate) {

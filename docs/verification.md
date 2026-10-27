@@ -449,3 +449,43 @@ This closes the reported Start11 context-menu disappearance on this machine.
 No code/build/install/version change followed acceptance;1.3.3 stays installed.
 Win+Shift+S, other Start11 versions and Windows10 are not newly desktop-validated
 by this check. Public release policy and experimental compatibility limits stand.
+## Consolidated 1.2.0 release build (2026-10-27)
+
+User explicitly requested build1.2.0 after choosing shared release numbering.
+All private1.2.x/1.3.x previews consolidate into this first public successor to1.1.0.
+Source prepared on codex/release-1.2.0; no public release or visibility changes.
+
+Metadata now consistently1.2.0 in package/manifests/MCP/controlcard/updater/archive.
+Installed prerelease comparison supports beta.N with numeric core and SemVer
+identifier precedence. Public latest-feed validation stays stable-only; drafts,
+beta tags, malformed versions and unverified URLs/assets remain rejected. No
+special case lies about genuine1.3.3 precedence; the local preview transition
+is an explicit one-time migration. Beta parser RED/GREEN inherited from partial
+agent work was inspected and rerun (10update tests). Combinedsuite147/147 passes.
+Nativebuild and package entry integrity checks passed.
+
+Temporary taskbar diagnostics are opt-in via QUOTA_PANEL_DIAGNOSTICS=1; disabled
+by default in this build. This gates diagnostic work only, preserves the fixed
+Start11 placement behavior and has a focused RED/GREEN test. Newknown issue was
+recorded without investigating or changing fullscreen behavior: user reports
+indicator missing when opening Start over borderless Honkai:StarRail and Hollow
+Knight:Silksong. User explicitly prioritizes completing1.2.0 before that fix.
+
+Local migration1.3.3→1.2.0 completed through original registeredsource+CLI. All24
+stage/source/cache hashes match. Owned task migration backed up itsXML and source
+under dist/v120-final-upgrade-backup; autostart/logontrigger state preserved.
+
+Stronger settings proof: read-only ownWinexe snapshot via a temporary user-level
+manual task runs outside the MSIXshadow and resolves realsettingspath. Snapshot
+before/after compares ALL settings semantically; exactmatch. ActualGUIlanguageRU,
+Auto/dark, fullmode,bothindicators,shortcontour,right/taskbar-on,opacity100,pausedfalse
+preserved. The temporary snapshot tasks were removed. Oldshadowedsettings/state
+were never copied over real preferences; no system executionpolicy changed.
+Aftermigration actualMCP5tools current1.2.0, stableGitHub latest1.1.0 ->ahead, no
+lifecyclechanges. All checks are manual and installation remains manual.
+
+Archive: quota-panel-1.2.0-windows-x64.zip (33.6MiB), all24ZIPentries byte-identical
+to reviewed stage. SHA2565a38c46c5be302261bf5b2b3f65bff232e06e5ba186845aefb8a6f95b66efb4b.
+Metadata dist/v120-final-package.json /v120-final-installed.json /
+v120-final-installed-check.json; helpers rootdist/package-v120-final.mjs,
+migrate-v133-to-v120-final.mjs,capture-release-prefs.mjs. No public publication.

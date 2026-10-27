@@ -2,60 +2,75 @@
 
 [Русская документация](README.md)
 
-A Windows x64 quota monitor that shows the shared Codex / Work quota above the avatar in the ChatGPT desktop navigation rail. The panel is a separate native overlay window; it does not modify the ChatGPT client. The installed plugin provides a control card to start, stop and check the monitor.
+A Windows x64 monitor for the shared Codex / Work quota. The main panel appears above the avatar in the ChatGPT desktop navigation rail. An optional taskbar indicator shows two remaining percentages. Both displays use the same account quota.
 
-**Private preview: 1.3.3. Public stable release: 1.1.0.** Source remains private; Quota Panel has not been submitted to or approved for the OpenAI Plugin Directory.
+**Release candidate build: 1.2.0. Latest public stable release: 1.1.0.** Preparing the 1.2.0 archive does not publish it. Source remains private; Quota Panel has not been published in the OpenAI Plugin Directory.
 
-Version 1.3.3 refines Start11 menu detection to retain an already visible
-indicator. [1.3.3 preview notes](docs/PREVIEW-1.3.3.md).
+## New in 1.2.0
 
-Version 1.3.2 refreshes the slider, keeps the transparent panel area clickable,
-and corrects a taskbar snapshot-age race. Start11 menu handling was refined in
-1.3.3. [1.3.2 preview notes](docs/PREVIEW-1.3.2.md).
+- An optional two-row indicator in a verified free area of the primary Windows taskbar: 5-hour remaining percentage above weekly remaining percentage. Choose a preferred left or right placement among safe gaps.
+- Quota polling continues with the ChatGPT window closed while the taskbar indicator is enabled. The Quota Panel tray icon provides controls with the main panel hidden.
+- A shared 0–100% background-transparency slider in the taskbar indicator menu. Text and graphics retain their opacity; the empty indicator area remains available for right-clicks with a fully clear background.
+- Refined handling of the active Start11 context menu: an already visible indicator retains its verified position while the menu blocks taskbar-button geometry queries.
+- A corrected race that could incorrectly mark a fresh taskbar measurement as expired.
 
-Version 1.3.1 adds experimental support for the primary taskbar at any of the four screen edges: bottom, top, left or right. Right-click the taskbar indicator → **Background transparency** to use the 0–100% slider. This shared setting immediately changes the main Quota Panel and taskbar indicator backgrounds, persists across restarts and defaults to 50%. It works in dark, light and automatic themes; text, bars, outlines and menus retain their previous opacity. See the [1.3.1 preview notes](docs/PREVIEW-1.3.1.md).
+[Russian and English release notes](docs/RELEASE-1.2.0.md).
 
-The 1.3.1 preview includes a two-row percentage display in a measured free taskbar gap: short-window quota above weekly quota. Right-click → **Taskbar → Show percentages**, then choose the placement side. It defaults off. The tray icon provides the same controls with ChatGPT closed; enabled taskbar mode keeps quota polling independent of the chat window.
+## Features and controls
 
-This is a separate window in measured free space, not a shell-reserved slot. It hides instead of covering occupied or uncertain regions. Four-edge support applies only to the primary taskbar and remains experimental; the plugin does not move the Windows taskbar itself. See the [Windows 10/11 comparison](docs/research/2026-10-27-windows-taskbar-research.md). Windows 10 has not received live acceptance testing.
+The shared 5-hour and weekly quota is available across supported ChatGPT window modes, including Instant. The plugin does not request a separate Instant quota. It reads remaining percentages and server reset timestamps through the normal Codex App Server, refreshing about every 30 seconds.
 
-Public-submission requirements and remaining steps: [Russian publishing guide](docs/PUBLISHING-RU.md).
+Open **Quota Panel** from the plugin menu and open its control card to start, stop or check the monitor, or manually check for a new version. Closing the card does not stop the monitor.
 
-Version 1.1.0 adds manual update checks. In the current context menu, choose **Check for a new version**, or select **Check for updates** in the control card. When a newer stable release is available, choose **Open release**. Git and GitHub sign-in are not required; updates are not installed automatically.
+Left-click cycles **Full → Compact → Ultracompact**. Right-click provides direct view selection, theme, language, indicator style, outline source and autostart. The upper row is the 5-hour limit; the lower row is weekly. Compact view keeps the 5-hour percentage and reset time, then the weekly percentage and reset date. Ultracompact view always shows two bars without text.
 
-## Language and controls
+Choose bars, an outline, both, or no graphics. The same 5-hour or weekly outline source applies to all views. In ultracompact view the bars remain visible and the shared setting controls the additional coloured outline. A known zero uses a fully red enabled indicator; unknown values remain unfilled and use a dash. Quota at or below 30% uses muted orange, and at or below 10% muted red. Stale known values are dimmed and marked **stale**.
 
-Right-click the panel → **Language / Язык → English**. The choice persists across restarts and translates the period labels, stale markers, panel and tray menus, launcher messages and plugin control card. The card picks up a change on its next status refresh, normally within 5 seconds. ChatGPT's own language is left unchanged. Russian is the default.
+For the taskbar, use **Taskbar → Show percentages**, then **Left** or **Right**. It defaults off. Right-click the indicator → **Background transparency** to change both display backgrounds; the default is 50%. Equivalent controls are available through the tray icon.
 
-Left-click cycles **Full → Compact → Ultracompact**. Right-click opens settings for the view, theme, indicators, outline source and autostart. Themes are Dark, Light and Auto. Auto follows the saved app theme and falls back to the Windows app theme when appropriate.
+Themes are **Dark**, **Light** and **Auto**. Auto follows the saved ChatGPT theme and the Windows app theme when appropriate. Right-click → **Language / Язык → English / Русский** translates panel, tray, card and messages. Settings persist without changing ChatGPT itself. The card picks up language changes on its next status refresh, normally within 5 seconds. Dates use **DD.MM**, times use local **24-hour HH:mm**. Russian is the default.
 
-The upper row is the 5-hour limit; the lower row is the weekly limit. Compact view keeps the 5-hour percentage and reset time, followed by the weekly percentage and reset date. Ultracompact view always shows two bars without text. Bars and the outline can be enabled together; the same 5-hour or weekly outline source applies to all views.
-
-Remaining quota at or below 30% uses a muted orange warning; at or below 10% it uses muted red. A known zero is a fully red enabled indicator, while the numeric value remains 0%. Unknown data is not filled in. Stale known data is dimmed and marked **stale** in the text views.
-
-Reset dates use **DD.MM** and reset times use **24-hour HH:mm**, in the local timezone. Changing language does not change the quota, the reset timestamps or the numeric display format.
+**Check for a new version** checks stable public GitHub releases; **Pause quota refresh** pauses quota polling. When a newer version is available, **Open release** opens its download page. Installation remains manual. Checking does not require Git or GitHub sign-in.
 
 ## Requirements and installation
 
-Requires Windows x64, the ChatGPT desktop app with a local executor, and installed local Codex signed in to the account whose limits you want to see. No API key is needed. The local Codex account must match the intended ChatGPT account.
+Requires Windows x64, the ChatGPT desktop app with a local executor, and local Codex signed in to the intended account. The local Codex account must match the account whose limits you want to see. No API key is needed.
 
-Download the built Windows ZIP and SHA-256 from this private repository's [Releases](https://github.com/MrBogomoll/quota-panel/releases). The built plugin ZIP includes Node.js and its license. GitHub's automatic Source code ZIP is a different archive and does not contain the compiled runtime.
+Published built archives and SHA-256 files are available from [public Releases](https://github.com/MrBogomoll/quota-panel-chatgpt/releases). Use the separately prepared 1.2.0 build archive until that release is published. The complete ZIP bundles the monitor, Node.js and its license; recipients do not need a separate Node installation. GitHub's automatic **Source code** archive is different from the built plugin ZIP.
 
-From a source checkout, install an extracted built package with:
+Use the supported local-plugin ZIP import in a compatible desktop client. From a source checkout, an extracted complete package can also be installed with:
 
 ```powershell
 node overlay/install-plugin.mjs "<extracted complete plugin package>"
 ```
 
-The installer uses the native Codex CLI from PATH, registers a separate local marketplace and backs up the existing configuration before installation. The built package also includes a compatibility manifest for clients that support ZIP import. Do not copy the authoring-only root plugin.json into the built package; the current desktop parser uses .codex-plugin/plugin.json.
+The installer uses the Codex CLI from PATH, registers a separate local marketplace and backs up the existing configuration. The built package uses `.codex-plugin/plugin.json`; do not manually copy the authoring-only root `plugin.json` into it.
 
-Open **Quota Panel** from the plugin menu, open its control card and click **Start** once. This configures a per-user Windows logon task without administrator credentials. Importing the ZIP alone does not configure Windows. After activation, the monitor starts at Windows sign-in. The navigation-rail panel appears about 3 seconds after ChatGPT opens. If the taskbar indicator is enabled, quota polling continues without an open ChatGPT window; otherwise the monitor waits for that window. Closing the control card does not stop the monitor.
+Open **Quota Panel** and click **Start** once. This configures its own per-user Windows logon task without administrator credentials or a password. Importing a ZIP alone does not configure Windows. After activation, the monitor starts at Windows sign-in. The main panel appears about 3 seconds after ChatGPT opens. Enabled taskbar mode keeps quota polling independent of an open ChatGPT window; otherwise the monitor waits for the window.
 
-Right-click → **Start with ChatGPT** disables or enables future autostart. **Stop panel** closes the current monitor; it preserves the autostart setting. Disable autostart as well if you want it to stay disabled after the next Windows sign-in.
+**Start with ChatGPT** controls future autostart. **Stop panel** closes the current monitor. Disable autostart as well if it should remain stopped after the next Windows sign-in.
 
-## Development
+## Limitations and data
 
-Use Node.js 24 x64 and the .NET Framework 4.x compiler included with Windows. The control-card browser test uses Playwright 1.62.1 and installed Microsoft Edge.
+Known issue in 1.2.0: opening Start over a borderless game can hide the taskbar
+indicator, observed with Honkai: Star Rail and Hollow Knight: Silksong. A fix is
+planned separately for a subsequent patch.
+
+The panels are separate Windows overlay windows. They do not change ChatGPT files or inject code into Explorer. The main panel follows a visible ChatGPT window, its scale and its Z-order; it hides when that window is minimized, closed or cloaked.
+
+The taskbar indicator uses measured free space on the **primary** taskbar and does not reserve a shell slot. It hides when there is insufficient space, fullscreen activity or uncertain geometry. Support for bottom, top, left and right taskbar edges is experimental. Compatibility with every taskbar modifier, other widget, monitor arrangement and scaling configuration is not guaranteed. Windows 10 has not been tested on a separate computer. See the [Windows 10/11 comparison](docs/research/2026-10-27-windows-taskbar-research.md).
+
+This build covers the currently recognised Windows desktop client with a local executor. Browser ChatGPT and macOS are not supported. Future client layout changes may require placement updates.
+
+Settings, state and bounded local diagnostics are stored under `%LOCALAPPDATA%\ChatGPTQuotaOverlay`. Panel renders contain only the panel itself; no desktop screenshots are taken. No author authentication, tokens, conversations or private account configuration are distributed. Each recipient uses their own local Codex account. Automatic cleanup of the Windows task when uninstalling the plugin still needs separate verification.
+
+## Development and versioning
+
+The private `quota-panel-code` repository is the source project. Public `quota-panel-chatgpt` holds user materials and built releases. A finished version uses the same number in source, manifest, archive and public release.
+
+Earlier `1.2.x` and `1.3.x` labels were private intermediate builds. Their changes are consolidated into the upcoming 1.2.0. Historical notes remain available as development history. Future previews use labels such as `1.3.0-beta.1`, `beta.2`, then the finished `1.3.0`; this naming policy does not automatically enable a separate beta-delivery channel. See the [release rules](docs/RELEASE_NOTES.md).
+
+Build with Node.js 24 x64 and the Windows .NET Framework 4.x compiler. Control-card browser checks use Playwright 1.62.1 and installed Microsoft Edge.
 
 ```powershell
 npm install
@@ -64,16 +79,8 @@ npm run build:overlay
 npm run package:plugin
 ```
 
-The package bundles the Node executable used to run packaging. This release uses Node.js 24.22.1 x64. If changing Node versions, also update third-party/NODE-LICENSE.txt. Build output goes to dist/overlay, and versioned package output goes to dist/releases. Existing archives are not overwritten.
+Native output goes to `dist/overlay`; the package ZIP and checksum go to `dist/releases`. Packaging bundles the Node executable used to run it. Update `third-party/NODE-LICENSE.txt` when changing that runtime. Existing archives are not overwritten.
 
-Native tests use their own windows offscreen and do not operate ChatGPT. A separate installed-package smoke check starts and stops this monitor and reads real quota data; it is not part of the ordinary test suite.
+Tests use temporary directories, a substituted quota source and their own offscreen windows. The separate `overlay/smoke-package.mjs` starts and stops the installed monitor and is not part of the ordinary test suite.
 
-## Known limitations and data
-
-Only the supported Windows desktop client is covered. Browser ChatGPT and macOS are not supported. The panel stays on a visible ChatGPT window when focus moves elsewhere and follows its Z-order, so other applications can cover it normally. It hides when ChatGPT is minimized, closed or cloaked. Future client layout changes may require placement updates. Physical monitor switching and every client zoom combination have not been validated.
-
-Migration of the Windows task to a future installed version/path and automatic task cleanup on uninstall still need work before public release. The task definition, trigger toggling and actual installed startup have been checked; a real Windows reboot was not performed in the latest acceptance check.
-
-Quota comes from the normal Codex App Server account/rateLimits/read response, refreshed every 30 seconds. The monitor uses the local user's own signed-in account; no author credentials, conversation history or private account configuration are distributed. Settings and diagnostic images of the panel itself are stored under %LOCALAPPDATA%\ChatGPTQuotaOverlay. The monitor does not take desktop screenshots.
-
-The source is not offered under a public license yet. Bundled third-party components retain their own license notices.
+The source is not offered under a public license yet. Third-party components retain their own license notices. Public-submission requirements: [Russian publishing guide](docs/PUBLISHING-RU.md).

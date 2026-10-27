@@ -9,11 +9,28 @@ function checker(options={}) {assert.equal(typeof api.createUpdateChecker,'funct
 test('stable numeric versions compare correctly without treating a development version as outdated',async()=>{
   assert.equal(typeof api.compareVersions,'function');
   for(const [a,b,result] of [['1.10.0','1.9.0',1],['1.1.0','1.1.0',0],['1.0.9','1.1.0',-1],['v2.0.0','1.99.99',1]])assert.equal(api.compareVersions(a,b),result);
-  for(const bad of ['1.1','1.01.0','1.1.0-beta.1','1.1.0+dev','x1.1.0','1.1.0/evil'])assert.throws(()=>api.compareVersions(bad,'1.1.0'));
+  for(const bad of ['1.1','1.01.0','1.1.0+dev','x1.1.0','1.1.0/evil'])assert.throws(()=>api.compareVersions(bad,'1.1.0'));
   for(const [latest,state] of [['1.2.0','available'],['1.1.0','current'],['1.0.1','ahead']]) {
     const value=await checker({fetchImpl:async()=>reply(release(latest))}).check();
     assert.equal(value.state,state);assert.equal(value.currentVersion,'1.1.0');assert.equal(value.latestVersion,latest);
     assert.equal(value.url,state==='available'?origin+'/releases/tag/v'+latest:null);
+  }
+});
+test('installed prereleases compare by numeric core and SemVer identifier precedence',()=>{
+  const ordered=['1.2.0-alpha','1.2.0-alpha.1','1.2.0-alpha.beta','1.2.0-beta','1.2.0-beta.2','1.2.0-beta.11','1.2.0-rc.1','1.2.0'];
+  for(let i=0;i<ordered.length;i++)for(let j=0;j<ordered.length;j++)assert.equal(api.compareVersions(ordered[i],ordered[j]),Math.sign(i-j),`${ordered[i]} versus ${ordered[j]}`);
+  for(const [a,b,result] of [['v1.2.0-beta.1','1.2.0-beta.1',0],['1.2.0-beta.2','1.2.0-beta.10',-1],['1.2.0-beta.9007199254740993','1.2.0-beta.9007199254740992',1],['1.2.0-beta.1','1.1.99',1],['1.2.0-beta.1','1.2.1-alpha',-1],['1.2.0-1','1.2.0-alpha',-1],['1.2.0-Beta','1.2.0-beta',-1],['1.2.0-beta-1','1.2.0-beta-1',0],['1.3.3','1.2.0',1]])assert.equal(api.compareVersions(a,b),result);
+  for(const bad of ['1.2.0-','1.2.0-beta.','1.2.0-.beta','1.2.0-beta..1','1.2.0-01','1.2.0-beta.01','1.2.0-beta_1','1.2.0-béta.1','1.2.0-beta.1+build','1.2.0-beta.1/evil','1.2.0-beta.1\n','1.2.0\n','1.2.0-beta.'+'x'.repeat(55),null,120])assert.throws(()=>api.compareVersions(bad,'1.2.0'));
+});
+test('a beta installation can find its stable release while the public feed remains stable-only',async()=>{
+  for(const [current,latest,state] of [['1.2.0-beta.1','1.2.0','available'],['1.2.0-beta.11','1.1.0','ahead'],['1.2.0','1.2.0','current'],['1.3.3','1.2.0','ahead']]) {
+    const value=await checker({currentVersion:current,fetchImpl:async()=>reply(release(latest))}).check();
+    assert.equal(value.state,state);assert.equal(value.currentVersion,current);assert.equal(value.latestVersion,latest);assert.equal(value.url,state==='available'?origin+'/releases/tag/v'+latest:null);
+  }
+  for(const currentVersion of ['1.2.0-beta.01','1.2.0-beta.1+build','1.2.0-beta.1\n'])assert.throws(()=>checker({currentVersion}));
+  for(const [tag,markedPrerelease] of [['1.2.0-beta.1',false],['1.2.0-rc.1',false],['1.2.0-beta.1',true],['1.2.0',true]]) {
+    const data=release(tag);data.prerelease=markedPrerelease;
+    const value=await checker({currentVersion:'1.2.0-beta.1',fetchImpl:async()=>reply(data)}).check();assert.equal(value.state,'error');assert.equal(value.reason,'invalid');assert.equal(value.url,null);
   }
 });
 test('checks are explicit, public, coalesced and briefly cached without lifecycle or authentication',async()=>{
