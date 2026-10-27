@@ -10,8 +10,8 @@ Version 1.3.3 refines Start11 menu detection to retain an already visible
 indicator. [1.3.3 preview notes](docs/PREVIEW-1.3.3.md).
 
 Version 1.3.2 refreshes the slider, keeps the transparent panel area clickable,
-and corrects a taskbar snapshot-age race. Disappearance with Start11's context
-menu is still being investigated. [1.3.2 preview notes](docs/PREVIEW-1.3.2.md).
+and corrects a taskbar snapshot-age race. Start11 menu handling was refined in
+1.3.3. [1.3.2 preview notes](docs/PREVIEW-1.3.2.md).
 
 Version 1.3.1 adds experimental support for the primary taskbar at any of the four screen edges: bottom, top, left or right. Right-click the taskbar indicator → **Background transparency** to use the 0–100% slider. This shared setting immediately changes the main Quota Panel and taskbar indicator backgrounds, persists across restarts and defaults to 50%. It works in dark, light and automatic themes; text, bars, outlines and menus retain their previous opacity. See the [1.3.1 preview notes](docs/PREVIEW-1.3.1.md).
 

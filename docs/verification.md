@@ -432,3 +432,20 @@ SHA256:9a741ac92ee09c1890b190bbaa0695406ed97f0aa794d4afcabbfc49001bcdc5
 One async post-install Start11 acceptance question is pending. Do not claim the
 live failure fixed solely from purepolicy/nativelease tests. Publicstable1.1.0
 and existing Win10/monitor/sleep/fullscreen limitations remain unchanged.
+## 1.3.3 Start11 desktop acceptance completed
+
+User reports that the indicator stays visible throughout the post-install
+Start11 menu check. ActualGUI59288 log corroborates active#32770 menu-held/held,
+transienttrue, native+WPFvisibletrue, widgetabovetaskbartrue, HINSTANCE0/error0.
+Records14:09:31.511/32.843 and35.949/37.236 cross the1600ms source lifetime while
+holding unchanged native evidence. The second opening's recorded boundaries
+span17.308seconds (user described20seconds separately). Source age reaches17126ms
+and leaseage18048ms while visibility remains true. No conceal/unavailable/hidden
+record or dropped/coalesced diagnostic entry occurs during the active-menu span.
+At14:09:53.465 ordinary fresh visible/recorded placement resumes after closure.
+A single belowbar frame belongs after the first menuclosed, not an activemenu.
+
+This closes the reported Start11 context-menu disappearance on this machine.
+No code/build/install/version change followed acceptance;1.3.3 stays installed.
+Win+Shift+S, other Start11 versions and Windows10 are not newly desktop-validated
+by this check. Public release policy and experimental compatibility limits stand.
