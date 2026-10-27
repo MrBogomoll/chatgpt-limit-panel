@@ -1,5 +1,7 @@
 # Quota Panel
 
+Локальная тестовая сборка **1.2.1-beta.1**: узкое исправление размещения индикатора, когда после игры без рамки остаётся пассивный слой NVIDIA Overlay. Поведение при переключении из игр ещё проверяется. Готовый архив 1.2.0 сохранён.
+
 [English documentation](README.en.md)
 
 <img src="plugins/quota-panel/assets/quota.svg" width="80" height="80" alt="Quota Panel">

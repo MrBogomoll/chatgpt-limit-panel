@@ -27,7 +27,7 @@ test('native overlay renders and accepts updates using only isolated own control
     '/nologo', '/codepage:65001', '/platform:x64', '/target:exe', '/main:OverlayNativeTest', `/out:${executable}`,
     `/win32manifest:${path.join(root, 'overlay', 'app.manifest')}`,
     ...references.map(reference => `/reference:${reference}`),
-    path.join(root, 'overlay', 'Layout.cs'),path.join(root,'overlay','TaskbarLayout.cs'),path.join(root,'overlay','TaskbarWindow.cs'),path.join(root,'overlay','TaskbarTransient.cs'),path.join(root,'overlay','TaskbarMenuLease.cs'),path.join(root,'overlay','TaskbarDiagnostics.cs'),path.join(root,'overlay','TaskbarAppearance.cs'), path.join(root, 'overlay', 'Progress.cs'), path.join(root, 'overlay', 'VisualHost.cs'), path.join(root, 'overlay', 'Theme.cs'), path.join(root, 'overlay', 'Preferences.cs'), path.join(root, 'overlay', 'Language.cs'), path.join(root, 'overlay', 'Overlay.cs'), path.join(root, 'tests', 'overlay-native.cs'),
+    path.join(root, 'overlay', 'Layout.cs'),path.join(root,'overlay','TaskbarLayout.cs'),path.join(root,'overlay','TaskbarWindow.cs'),path.join(root,'overlay','TaskbarTransient.cs'),path.join(root,'overlay','TaskbarMenuLease.cs'),path.join(root,'overlay','TaskbarDiagnostics.cs'),path.join(root,'overlay','TaskbarAppearance.cs'),path.join(root,'overlay/TaskbarPassiveOverlay.cs'), path.join(root, 'overlay', 'Progress.cs'), path.join(root, 'overlay', 'VisualHost.cs'), path.join(root, 'overlay', 'Theme.cs'), path.join(root, 'overlay', 'Preferences.cs'), path.join(root, 'overlay', 'Language.cs'), path.join(root, 'overlay', 'Overlay.cs'), path.join(root, 'tests', 'overlay-native.cs'),
   ], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
   succeeded(compilation, 'native test compilation');
 

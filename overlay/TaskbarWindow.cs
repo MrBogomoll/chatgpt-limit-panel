@@ -20,6 +20,7 @@ namespace QuotaOverlay {
     readonly TaskbarMenuLease menuLease=new TaskbarMenuLease();
     readonly Func<bool> readTransient;
     readonly Func<TaskbarSnapshot,TaskbarArea,string> readLeaseFingerprint;
+    readonly Func<TaskbarSnapshot,TaskbarArea,bool,IntPtr?> readPlacementAnchor;
     readonly Func<long> placementMilliseconds;
     TaskbarSnapshot leaseSnapshot;
     TaskbarPlacement lastShown;
@@ -42,10 +43,11 @@ namespace QuotaOverlay {
     public bool IsVertical {get;private set;}
     public Func<bool> IsOtherMenuOpen {get;set;}
 
-    public TaskbarWindow(Func<TaskbarSnapshot> readSnapshot=null,Func<bool> readTransient=null,Func<TaskbarSnapshot,TaskbarArea,string> readLeaseFingerprint=null,Func<long> nowMilliseconds=null) {
+    public TaskbarWindow(Func<TaskbarSnapshot> readSnapshot=null,Func<bool> readTransient=null,Func<TaskbarSnapshot,TaskbarArea,string> readLeaseFingerprint=null,Func<long> nowMilliseconds=null,Func<TaskbarSnapshot,TaskbarArea,bool,IntPtr?> readPlacementAnchor=null) {
       if(readSnapshot==null){source=new TaskbarSnapshotSource();this.readSnapshot=source.Read;}else this.readSnapshot=readSnapshot;
       this.readTransient=readTransient??delegate{IntPtr capture;return TaskbarTransient.IsActive(out capture);};
       this.readLeaseFingerprint=readLeaseFingerprint??delegate(TaskbarSnapshot value,TaskbarArea bounds){return TaskbarNative.LeaseFingerprint(value,bounds,hwnd);};
+      this.readPlacementAnchor=readPlacementAnchor??delegate(TaskbarSnapshot value,TaskbarArea bounds,bool preserve){return source==null?(IntPtr?)new IntPtr(-1):TaskbarNative.PlacementAnchor(value,bounds,hwnd,preserve);};
       placementMilliseconds=nowMilliseconds??delegate{return placementClock.ElapsedMilliseconds;};
       Width=TaskbarLayout.Width;Height=TaskbarLayout.Height;WindowStartupLocation=WindowStartupLocation.Manual;
       WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;Background=Brushes.Transparent;
@@ -123,7 +125,11 @@ namespace QuotaOverlay {
         if(showing){Opacity=0;Show();}
         TaskbarArea bounds=placement.Bounds;
         IntPtr captureWindow;uint flags=0x0010;if(hold||(ContextMenu!=null&&ContextMenu.IsOpen)||(IsOtherMenuOpen!=null&&IsOtherMenuOpen())||TaskbarTransient.IsActive(out captureWindow))flags|=0x0004;
-        if(!TaskbarNative.SetWindowPos(hwnd,new IntPtr(-1),(int)bounds.X,(int)bounds.Y,(int)bounds.Width,(int)bounds.Height,flags)) {Conceal("position-failed");return;}
+        TaskbarSnapshot orderSnapshot=retainedPosition?leaseSnapshot:snapshot;
+        IntPtr? anchor=readPlacementAnchor(orderSnapshot,bounds,(flags&0x0004)!=0);
+        if(!anchor.HasValue){Conceal("overlay-order-unverified");return;}
+        if(!TaskbarNative.SetWindowPos(hwnd,anchor.Value,(int)bounds.X,(int)bounds.Y,(int)bounds.Width,(int)bounds.Height,flags)) {Conceal("position-failed");return;}
+        if(!readPlacementAnchor(orderSnapshot,bounds,true).HasValue){Conceal("overlay-order-changed");return;}
         PlacementStatus=placement.Reason;Opacity=1;
         if(!hold) {
           string evidence=readLeaseFingerprint(snapshot,bounds);
@@ -259,6 +265,37 @@ namespace QuotaOverlay {
         return GetMonitorInfo(monitor,ref information)&&IsTaskbarFullyRevealed(area,information.Monitor.Area(),snapshot.Scale)&&!Fullscreen(own,monitor,information.Monitor);
       }catch{return false;}
     }
+    internal static IntPtr? PlacementAnchor(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own,bool preserve,Func<IntPtr,bool> passive=null) {
+      try {
+        if(snapshot==null||snapshot.Handle==IntPtr.Zero||!IsWindowVisible(snapshot.Handle)||!TaskbarLayout.Valid(snapshot.Bounds)||!TaskbarLayout.Valid(footprint))return null;
+        Rect current;if(!GetWindowRect(snapshot.Handle,out current))return null;TaskbarArea bar=current.Area();
+        if(bar.X!=snapshot.Bounds.X||bar.Y!=snapshot.Bounds.Y||bar.Width!=snapshot.Bounds.Width||bar.Height!=snapshot.Bounds.Height)return null;
+        if(passive==null)passive=TaskbarPassiveOverlay.IsPassiveCanvas;
+        double margin=Math.Ceiling(TaskbarLayout.Clearance*snapshot.Scale);
+        var protectedFootprint=new TaskbarArea{X=footprint.X-margin,Y=footprint.Y-margin,Width=footprint.Width+2*margin,Height=footprint.Height+2*margin};
+        IntPtr anchor=new IntPtr(-1);bool found=false,safe=true;int count=0;uint ownProcess=(uint)Process.GetCurrentProcess().Id;
+        EnumWindows(delegate(IntPtr window,IntPtr unused){
+          if(window==snapshot.Handle){found=true;return false;}
+          if(++count>1024){safe=false;return false;}
+          if(window==own||!IsWindowVisible(window)||IsIconic(window)||Cloaked(window)||BackgroundClass(ClassName(window)))return true;
+          uint process;GetWindowThreadProcessId(window,out process);if(process==0){safe=false;return false;}
+          Rect rect;if(!WindowBounds(window,out rect)){safe=false;return false;}TaskbarArea area=rect.Area();
+          if(!TaskbarLayout.Valid(area)||!Intersects(area,protectedFootprint))return true;
+          if(passive(window)) {
+            anchor=window;
+            if(preserve&&!TaskbarPassiveOverlay.IsAbove(window,own)){safe=false;return false;}
+            return true;
+          }
+          if(process==ownProcess||TaskbarTransient.IsCaptureWindow(window)||TaskbarTransient.IsMenuWindow(window))return true;
+          safe=false;return false;
+        },IntPtr.Zero);
+        if(!found||!safe)return null;
+        // The bar can be raised between scans. Even if it now precedes every
+        // canvas, an old insertion anchor must not leave our HWND behind it.
+        if(preserve&&(!IsWindowVisible(own)||!TaskbarPassiveOverlay.IsAbove(own,snapshot.Handle)))return null;
+        return anchor;
+      }catch{return null;}
+    }
     internal static string LeaseFingerprint(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own) {
       LastFingerprintReason="running";LastFingerprintParts=null;
       var shellRows=new List<string>();var childRows=new List<string>();var appRows=new List<string>();
@@ -306,7 +343,12 @@ namespace QuotaOverlay {
           if(process==0){safe=false;unsafeReason="app-process-unavailable";blocker=new {handle=window.ToInt64(),@class=ClassName(window)};return false;}
           if(!WindowBounds(window,out rect)){safe=false;unsafeReason="app-bounds-unavailable";blocker=new {handle=window.ToInt64(),process=process,@class=ClassName(window)};return false;}
           TaskbarArea area=rect.Area();bool iconic=IsIconic(window);
-          if(above&&!iconic&&TaskbarLayout.Valid(area)&&Intersects(area,protectedFootprint)){safe=false;unsafeReason="above-taskbar-overlap";blocker=new {handle=window.ToInt64(),process=process,@class=ClassName(window),rect=area};return false;}
+          if(above&&!iconic&&TaskbarLayout.Valid(area)&&Intersects(area,protectedFootprint)){
+            if(TaskbarPassiveOverlay.IsPassiveCanvas(window)&&TaskbarPassiveOverlay.IsAbove(window,own)&&TaskbarPassiveOverlay.IsAbove(own,snapshot.Handle)){
+              string passiveRow=LeaseArea("passive-underlay|"+window.ToInt64()+"|"+process,area);rows.Add(passiveRow);appRows.Add(passiveRow);return true;
+            }
+            safe=false;unsafeReason="above-taskbar-overlap";blocker=new {handle=window.ToInt64(),process=process,@class=ClassName(window),rect=area};return false;
+          }
           long extended=GetWindowLongPtr(window,-20).ToInt64();
           bool button=(extended&0x00040000L)!=0||((extended&0x80L)==0&&GetWindow(window,4)==IntPtr.Zero);
           if(button) {
@@ -346,7 +388,10 @@ namespace QuotaOverlay {
         if(window==own||!IsWindowVisible(window)||IsIconic(window)||Cloaked(window)||BackgroundClass(ClassName(window))||TaskbarTransient.IsCaptureWindow(window)||TaskbarTransient.IsMenuWindow(window))return;
         uint process;GetWindowThreadProcessId(window,out process);if(process==ownProcess)return;
         Rect bounds;if(!WindowBounds(window,out bounds)){consistent=false;return;}
-        TaskbarArea area=bounds.Area();if(TaskbarLayout.Valid(area)&&Intersects(area,result.Bounds))result.Occupied.Add(area);
+        // A trusted passive canvas may span the entire display. Its pixels are
+        // still protected by PlacementAnchor: our HWND must stay BELOW every
+        // overlapping canvas before opacity is restored, including menu holds.
+        TaskbarArea area=bounds.Area();if(TaskbarLayout.Valid(area)&&Intersects(area,result.Bounds)&&!TaskbarPassiveOverlay.IsPassiveCanvas(window))result.Occupied.Add(area);
       });
       EnumChildWindows(taskbar,delegate(IntPtr child,IntPtr unused) {
         if(!IsWindowVisible(child))return true;

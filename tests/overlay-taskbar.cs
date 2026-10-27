@@ -143,6 +143,45 @@ internal static class TaskbarNativeTest {
       window.Dispose();window.Configure(true,"right",ThemePalette.Dark);Check(!window.Enabled&&!window.IsVisible,"disposed indicator cannot be revived");
     } finally {window.Dispose();}
   }
+  static void PassiveAnchorRenderer() {
+    var sample=Snapshot();sample.Bounds=Area(-20000,-20000,1920,48);TaskbarSnapshot current=sample;
+    bool menu=false;long now=0;int calls=0;string mode="deny-before";
+    bool firstShown=false,firstTransparent=false,postTransparent=false,postPreserved=false,heldSnapshot=true,heldPreserved=true;
+    TaskbarWindow window=null;
+    Func<TaskbarSnapshot,TaskbarArea,bool,IntPtr?> anchor=delegate(TaskbarSnapshot value,TaskbarArea bounds,bool preserve) {
+      calls++;
+      if(calls==1){firstShown=window.IsVisible;firstTransparent=Near(window.Opacity,0);}
+      if(mode=="deny-before")return null;
+      if(mode=="deny-after"&&calls==2){postTransparent=Near(window.Opacity,0);postPreserved=preserve;return null;}
+      if(menu){heldSnapshot=heldSnapshot&&Object.ReferenceEquals(value,sample);heldPreserved=heldPreserved&&preserve;}
+      return new IntPtr(-1);
+    };
+    window=new TaskbarWindow(delegate{return current;},delegate{return menu;},delegate{return "passive-evidence";},delegate{return now;},anchor);
+    try {
+      IntPtr foreground=GetForegroundWindow();
+      window.Configure(true,"right",ThemePalette.Dark);
+      // Drive the refresh phases explicitly; Pump must not add timer ticks.
+      ((DispatcherTimer)typeof(TaskbarWindow).GetField("timer",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(window)).Stop();
+      Check(calls==1&&firstShown&&firstTransparent,"first anchor proof runs only after the own HWND exists at zero opacity");
+      Check(!window.IsVisible&&Near(window.Opacity,0)&&window.PlacementStatus=="overlay-order-unverified","missing pre-placement order proof hides without exposing pixels");
+      calls=0;mode="deny-after";Refresh(window);
+      Check(calls==2&&postTransparent&&postPreserved,"post-placement proof preserves order and runs before the first opaque frame");
+      Check(!window.IsVisible&&Near(window.Opacity,0)&&window.PlacementStatus=="overlay-order-changed","a failed post-placement order proof conceals the still-transparent own window");
+      calls=0;mode="allow";Refresh(window);
+      Check(calls==2&&window.IsVisible&&Near(window.Opacity,1),"successful pre/post order proofs allow the own window to become opaque");
+      menu=true;current=null;now=1000;calls=0;Refresh(window);
+      Check(calls==2&&heldSnapshot&&heldPreserved&&window.IsVisible&&window.PlacementStatus=="menu-held","menu retention verifies the leased snapshot and preserves native order when fresh geometry is absent");
+      now=15000;calls=0;Refresh(window);
+      Check(calls==2&&heldSnapshot&&heldPreserved&&window.IsVisible,"an already active menu keeps using leased geometry beyond the accessibility cache lifetime");
+      mode="deny-before";Refresh(window);
+      Check(!window.IsVisible&&window.PlacementStatus=="overlay-order-unverified","loss of underlay-order proof revokes a visible menu-held widget");
+      mode="allow";calls=0;Refresh(window);
+      Check(calls==0&&!window.IsVisible,"a hidden widget cannot be revived while its menu is still active");
+      menu=false;current=sample;now=16000;Refresh(window);
+      Check(window.IsVisible&&Near(window.Opacity,1),"fresh normal geometry can restore placement after the menu ends");
+      Check(foreground==GetForegroundWindow(),"transparent order checks and all recovery paths preserve the real foreground");
+    }finally{window.Dispose();}
+  }
   static void SnapshotLifecycle() {
     long now=0;bool safe=true;int scans=0;var started=new ManualResetEvent(false);var release=new ManualResetEvent(false);
     var source=new TaskbarSnapshotSource(delegate{Interlocked.Increment(ref scans);started.Set();release.WaitOne();return Snapshot();},delegate{return Interlocked.Read(ref now);},delegate(TaskbarSnapshot value){return safe;});
@@ -220,5 +259,5 @@ internal static class TaskbarNativeTest {
       Check(source.SnapshotAge((TaskbarSnapshotSource.Measurement)null)>1600,"missing receipts must fail closed");
     }finally{release.Set();source.Dispose();}
   }
-  [STAThread] static int Main() {try {Allocation();FailClosed();NativeWidgetClassification();AutoHideGeometry();SnapshotLifecycle();SnapshotMeasurementRace();OwnWindow();MenuWhileProviderStalls();Console.WriteLine("PASS taskbar allocation and offscreen indicator ("+assertions+" assertions)");return 0;}catch(Exception ex){Console.Error.WriteLine(ex);return 1;}}
+  [STAThread] static int Main() {try {Allocation();FailClosed();NativeWidgetClassification();AutoHideGeometry();SnapshotLifecycle();SnapshotMeasurementRace();OwnWindow();MenuWhileProviderStalls();PassiveAnchorRenderer();Console.WriteLine("PASS taskbar allocation and offscreen indicator ("+assertions+" assertions)");return 0;}catch(Exception ex){Console.Error.WriteLine(ex);return 1;}}
 }

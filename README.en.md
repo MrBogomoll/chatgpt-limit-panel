@@ -1,5 +1,7 @@
 # Quota Panel
 
+Private preview **1.2.1-beta.1**: a targeted fix for taskbar placement after a borderless game leaves a passive NVIDIA Overlay canvas on screen. Actual game transitions are still being verified. The prepared 1.2.0 archive is unchanged.
+
 [Русская документация](README.md)
 
 A Windows x64 monitor for the shared Codex / Work quota. The main panel appears above the avatar in the ChatGPT desktop navigation rail. An optional taskbar indicator shows two remaining percentages. Both displays use the same account quota.

@@ -6,6 +6,12 @@ function release(version='1.2.0',slug='quota-panel-releases') {const base='https
 const reply=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers});
 function checker(options={}) {assert.equal(typeof api.createUpdateChecker,'function');return api.createUpdateChecker({currentVersion:'1.1.0',cooldownMs:0,...options});}
 
+test('the local beta reports its own version and does not offer the older stable release',async()=>{
+  const value=await api.createUpdateChecker({fetchImpl:async()=>reply(release('1.2.0')),cooldownMs:0}).check();
+  assert.equal(value.currentVersion,'1.2.1-beta.1');assert.equal(value.latestVersion,'1.2.0');
+  assert.equal(value.state,'ahead');assert.equal(value.url,null);
+});
+
 test('stable numeric versions compare correctly without treating a development version as outdated',async()=>{
   assert.equal(typeof api.compareVersions,'function');
   for(const [a,b,result] of [['1.10.0','1.9.0',1],['1.1.0','1.1.0',0],['1.0.9','1.1.0',-1],['v2.0.0','1.99.99',1]])assert.equal(api.compareVersions(a,b),result);

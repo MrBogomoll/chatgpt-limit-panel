@@ -489,3 +489,51 @@ to reviewed stage. SHA2565a38c46c5be302261bf5b2b3f65bff232e06e5ba186845aefb8a6f9
 Metadata dist/v120-final-package.json /v120-final-installed.json /
 v120-final-installed-check.json; helpers rootdist/package-v120-final.mjs,
 migrate-v133-to-v120-final.mjs,capture-release-prefs.mjs. No public publication.
+
+## NVIDIA passive canvas fix — private 1.2.1-beta.1 (2026-10-28)
+
+Root cause was measured after game -> Alt+Tab -> ChatGPT: normal ChatGPT was
+foreground, the physical GUI had taskbar enabled and reported no-space. Exact
+reader instrumentation recorded45 occupied regions. Only removing the full-screen
+CEF-OSC-WIDGET from the protected NVIDIA App/CEF/NVIDIA Overlay.exe process made
+placement possible; the remaining44 areas, including shell/widgets, stayed intact.
+GetLayeredWindowAttributes(alpha0,flags0) and no explicit window region did not
+establish invisible pixels, so no general layered/transparent exemption was used.
+
+The classifier guards class, styles, disabled state, unowned visible/uncloaked
+state, trusted protected executable path, liveness and foreground identity. A
+bounded one-second identity cache retains process handles to avoid PID reuse.
+Placement omits only that passive canvas and anchors our HWND below all overlapping
+canvases and above taskbar. Initial creation stays opacity0 through pre/post order
+proof. Menu retention preserves existing Z order, with no hidden-widget revival.
+A deterministic regression covers taskbar raising above an old canvas anchor
+between scans. Foreign widgets and active NVIDIA UI remain protected blockers.
+
+Verification: native build and combined suite150/150 passed, with no skips.
+Focused classifier63, own native order56 and renderer174 assertions passed.
+Renderer pre/post proof mutation failed its intended new regression. The ordering
+fixture embeds production PerMonitorV2 manifest, avoiding mismatched DWM/native
+coordinates at150%. Independent read-only review found no remaining actionable
+regression. Historical fullscreen suppression remains unchanged.
+
+Local archive: quota-panel-1.2.1-beta.1-windows-x64.zip,35231455bytes.
+SHA256 1e2bcd5b391cc46b200df3d25b25f94a58a7eae1bc62b7819694a351a76bc287.
+Installed through original registered source and Codex plugin CLI, all24 staged,
+registered and cached payload files hash-identical. Source/task backups saved in
+rootdist/v121-beta1-upgrade-backup. All actual physical AppData settings preserved:
+RU, automatic theme, full preferred view, both indicators, short contour, right
+taskbar, transparency100, autostart enabled, not paused. Launcher MSIX-shadow English
+is not the actual GUI language and was not used to restore preferences.
+
+Actual installed GUI122860 and taskbar HWND8A0CA8 visible above Shell_TrayWnd3001A,
+rect1843,1380,72x48 at144DPI. Physical state reports visible, and quota polling with
+ChatGPT closed yields92/67remaining. Actual MCP exposes5tools/currentbeta; real
+public check reports ahead versus stable1.1.0, no downgrade URL or lifecycle changes.
+The ready1.2.0 archive hash remains unchanged; no public release/tag was created.
+
+Acceptance remaining: at post-install capture, NVIDIA canvas was no longer above
+taskbar and foreground was desktop. This proves ordinary current visibility and
+background polling, NOT a fresh game replay or live canvas>own>bar ordering. User
+must repeat game->Alt+Tab and Start-over-game. Do not call all game cases fixed
+before that replay. A direct Start-over-game case may expose the separate unchanged
+fullscreen/transient hold-only policy and must be diagnosed from fresh evidence.
