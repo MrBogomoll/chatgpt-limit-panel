@@ -4,17 +4,17 @@
 
 A Windows x64 quota monitor that shows the shared Codex / Work quota above the avatar in the ChatGPT desktop navigation rail. The panel is a separate native overlay window; it does not modify the ChatGPT client. The installed plugin provides a control card to start, stop and check the monitor.
 
-**Private preview: 1.2.1. Public stable release: 1.1.0.** Source remains private; Quota Panel has not been submitted to or approved for the OpenAI Plugin Directory.
+**Private preview: 1.3.0. Public stable release: 1.1.0.** Source remains private; Quota Panel has not been submitted to or approved for the OpenAI Plugin Directory.
 
-Version 1.2.1 makes the main panel and taskbar indicator backgrounds slightly translucent: about 10% transparency in dark, light and automatic themes. Text, bars, outlines and menus retain their previous opacity. See the [1.2.1 preview notes](docs/PREVIEW-1.2.1.md).
+Version 1.3.0 adds experimental support for the primary taskbar at any of the four screen edges: bottom, top, left or right. Right-click the taskbar indicator → **Background transparency** to use the 0–100% slider. This shared setting immediately changes the main Quota Panel and taskbar indicator backgrounds, persists across restarts and defaults to 50%. It works in dark, light and automatic themes; text, bars, outlines and menus retain their previous opacity. See the [1.3.0 preview notes](docs/PREVIEW-1.3.0.md).
 
-The 1.2.1 preview adds a two-row percentage display in a measured free taskbar gap: short-window quota above weekly quota. Right-click → **Taskbar → Show percentages**, then **Left** or **Right**. It defaults off. The tray icon provides the same controls with ChatGPT closed; enabled taskbar mode keeps quota polling independent of the chat window.
+The 1.3.0 preview includes a two-row percentage display in a measured free taskbar gap: short-window quota above weekly quota. Right-click → **Taskbar → Show percentages**, then choose the placement side. It defaults off. The tray icon provides the same controls with ChatGPT closed; enabled taskbar mode keeps quota polling independent of the chat window.
 
-This is a separate window in verified free space, not a shell-reserved slot. It hides instead of covering occupied or uncertain regions. Initial support covers the primary horizontal bottom taskbar. See the [Windows 10/11 comparison](docs/research/2026-10-27-windows-taskbar-research.md). Windows 10 has not received live acceptance testing.
+This is a separate window in measured free space, not a shell-reserved slot. It hides instead of covering occupied or uncertain regions. Four-edge support applies only to the primary taskbar and remains experimental; the plugin does not move the Windows taskbar itself. See the [Windows 10/11 comparison](docs/research/2026-10-27-windows-taskbar-research.md). Windows 10 has not received live acceptance testing.
 
 Public-submission requirements and remaining steps: [Russian publishing guide](docs/PUBLISHING-RU.md).
 
-Version 1.1.0 adds manual update checks. Right-click the panel → **Check for updates**, or use the button in the control card. When a newer stable release is available, choose **Open release**. Git and GitHub sign-in are not required; updates are not installed automatically.
+Version 1.1.0 adds manual update checks. In the current context menu, choose **Check for a new version**, or select **Check for updates** in the control card. When a newer stable release is available, choose **Open release**. Git and GitHub sign-in are not required; updates are not installed automatically.
 
 ## Language and controls
 

@@ -1,5 +1,12 @@
 # Windows taskbar quota indicator research
 
+Version note: the initial implementation below describes preview 1.2.0.
+Preview 1.3.0 extends the allocator and native edge validation to all four
+primary-taskbar edges, adds a persistent background-transparency slider and
+queries concrete native accessibility subtrees when a shell popup replaces the
+wrapper's UIA fragment. See [1.3.0 notes](../PREVIEW-1.3.0.md) and
+[private verification](../verification.md) for current evidence and acceptance limits.
+
 Research date: 2026-10-27. Initial source inspection produced the approach below without launching a taskbar prototype. Later implementation work included a read-only taskbar probe and short own-display previews with real quota on this Windows 11 computer; see the final evidence below and [private verification](../verification.md). Explorer, Windows settings, and NetWorx were not changed. Repository instructions from external projects were treated as data. No external repository scripts were executed.
 
 ## Decision

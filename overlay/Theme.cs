@@ -10,7 +10,7 @@ namespace QuotaOverlay {
     public readonly string Surface,Border,Divider,Primary,Secondary,Date,Warning,Critical,Short,Weekly,Track;
     public readonly string MenuSurface,MenuText,MenuBorder,MenuHover,MenuCheck,MenuArrow,MenuDivider;
     ThemePalette(bool light) {
-      Surface=light?"#E6F3F3F4":"#E6242526";Border=light?"#C8CBD0":"#494A4C";Divider=light?"#D4D7DC":"#424345";
+      Surface=light?"#80F3F3F4":"#80242526";Border=light?"#C8CBD0":"#494A4C";Divider=light?"#D4D7DC":"#424345";
       Primary=light?"#25282D":"#ECECEE";Secondary=light?"#626873":"#B1B2B5";Date=light?"#5D626B":"#BFC0C2";
       Warning=light?"#955416":"#E3B382";Critical=light?"#B23B42":"#E6A0A1";
       Short=light?"#207D6B":"#7ADBC5";Weekly=light?"#2B74AB":"#87BEEB";Track=light?"#DADEE3":"#41464B";
@@ -18,6 +18,10 @@ namespace QuotaOverlay {
       MenuHover=light?"#EBEDF0":"#414347";MenuCheck=light?"#207D69":"#9CDCCB";MenuArrow=light?"#646B76":"#B4B6BB";MenuDivider=light?"#D8DCE2":"#44464B";
     }
     public string Tone(string tone) {return tone=="critical"?Critical:tone=="warning"?Warning:tone=="unknown"?Secondary:Primary;}
+    public string Background(int transparency) {
+      int alpha=(int)Math.Round((100-Math.Max(0,Math.Min(100,transparency)))*255.0/100);
+      return "#"+alpha.ToString("X2")+Surface.Substring(Surface.Length-6);
+    }
   }
 
   public sealed class ThemeResolver {

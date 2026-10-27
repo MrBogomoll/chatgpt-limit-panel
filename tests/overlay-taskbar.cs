@@ -58,7 +58,7 @@ internal static class TaskbarNativeTest {
     var invalid=Snapshot();invalid.Bounds.Width=Double.NaN;Check(!TaskbarLayout.Place(invalid,"right").Visible,"invalid taskbar bounds must hide");
     invalid=Snapshot();invalid.Occupied.Add(Area(Double.NaN,1032,10,48));Check(!TaskbarLayout.Place(invalid,"right").Visible,"invalid occupied geometry must hide");
     invalid=Snapshot();invalid.Occupied=null;Check(!TaskbarLayout.Place(invalid,"right").Visible,"missing occupancy list must hide");
-    invalid=Snapshot();invalid.Bounds=Area(0,0,48,1000);Check(!TaskbarLayout.Place(invalid,"right").Visible,"vertical bar is unsupported");
+    invalid=Snapshot();invalid.Bounds=Area(0,0,48,1000);Check(TaskbarLayout.Place(invalid,"right").Visible,"a readable verified vertical bar is supported");
     invalid=Snapshot();invalid.Bounds.Height=20;Check(!TaskbarLayout.Place(invalid,"right").Visible,"two readable rows must fit height");
     Check(!TaskbarLayout.Place(Snapshot(),"invalid").Visible,"invalid persisted side must hide rather than guess");
   }
@@ -76,6 +76,8 @@ internal static class TaskbarNativeTest {
   static void AutoHideGeometry() {
     TaskbarArea monitor=Area(0,0,2560,1440);TaskbarArea revealed=Area(0,1368,2560,72);
     Check(TaskbarNative.IsTaskbarFullyRevealed(revealed,monitor,1.5),"fully revealed taskbar has a complete readable row");
+    foreach(var edge in new[]{Area(0,0,2560,72),Area(0,0,72,1440),Area(2488,0,72,1440)})Check(TaskbarNative.IsTaskbarFullyRevealed(edge,monitor,1.5),"top and both vertical monitor edges are fully revealed");
+    foreach(var sliding in new[]{Area(0,-1,2560,72),Area(-1,0,72,1440),Area(2489,0,72,1440),Area(0,1,72,1440)})Check(!TaskbarNative.IsTaskbarFullyRevealed(sliding,monitor,1.5),"partially hidden or misaligned non-bottom edge must hide");
     Check(!TaskbarNative.IsAutoHideHidden(true,revealed,monitor,1.5),"enabled auto-hide may show indicator while fully revealed");
     foreach(TaskbarArea transitioning in new[]{Area(0,1400,2560,72),Area(0,1438,2560,72),Area(0,1438,2560,2),Area(0,1369,2560,72)}) {
       Check(!TaskbarNative.IsTaskbarFullyRevealed(transitioning,monitor,1.5),"offscreen or sliding row is not fully revealed");
@@ -112,6 +114,18 @@ internal static class TaskbarNativeTest {
       var cover=new Window{Left=-21000,Top=-21000,Width=32,Height=32,ShowInTaskbar=false,ShowActivated=false,WindowStyle=WindowStyle.None,Topmost=true};
       try{
         cover.Show();Pump();IntPtr coverHandle=new WindowInteropHelper(cover).Handle;TaskbarNative.SetWindowPos(coverHandle,new IntPtr(-1),0,0,0,0,0x0013);Check(Above(coverHandle,handle),"isolated cover fixture must be above indicator");Refresh(window);Check(Above(coverHandle,handle),"tracker may not raise indicator while its own context menu is open");
+        Exception recoveryFailure=null;bool recoveredRoot=false,protectedUnreadable=false;var recoveryDone=new ManualResetEvent(false);
+        ThreadPool.QueueUserWorkItem(delegate {try {
+          var live=TaskbarNative.ReadAutomationElements(handle);var protectedAreas=new List<TaskbarArea>();
+          var recovered=TaskbarNative.ReadTaskbarAutomationElements(coverHandle,new[]{handle},protectedAreas,delegate(IntPtr root){if(root==coverHandle)throw new ElementNotAvailableException();return live;});
+          recoveredRoot=recovered!=null&&recovered.Count==live.Count&&protectedAreas.Count==0;
+          var readable=TaskbarNative.ReadTaskbarAutomationElements(handle,new[]{coverHandle},protectedAreas,delegate(IntPtr root){if(root==coverHandle)throw new ElementNotAvailableException();return live;});
+          protectedUnreadable=readable!=null&&protectedAreas.Count==1&&TaskbarLayout.Valid(protectedAreas[0]);
+        }catch(Exception error){recoveryFailure=error;}finally{recoveryDone.Set();}});
+        var recoveryWait=System.Diagnostics.Stopwatch.StartNew();while(!recoveryDone.WaitOne(0)&&recoveryWait.ElapsedMilliseconds<3000){Pump();Thread.Sleep(5);}
+        Check(recoveryDone.WaitOne(0)&&recoveryFailure==null,"independent native accessibility subtrees must be queried safely: "+recoveryFailure);
+        Check(recoveredRoot,"a failed wrapper provider must recover fresh descendants from the real native subtree");
+        Check(protectedUnreadable,"an unreadable concrete subtree must reserve its full current native bounds");recoveryDone.Dispose();
         var visited=new List<IntPtr>();Check(TaskbarNative.ForEachWindowAbove(handle,delegate(IntPtr item){visited.Add(item);})&&visited.Contains(coverHandle)&&!visited.Contains(handle),"occupancy enumeration visits own fixture above boundary only");
         TaskbarNative.SetWindowPos(coverHandle,handle,0,0,0,0,0x0013);visited.Clear();Check(TaskbarNative.ForEachWindowAbove(handle,delegate(IntPtr item){visited.Add(item);})&&!visited.Contains(coverHandle),"background windows below taskbar boundary cannot block free gaps");
         window.ContextMenu.IsOpen=false;window.IsOtherMenuOpen=delegate{return true;};TaskbarNative.SetWindowPos(coverHandle,new IntPtr(-1),0,0,0,0,0x0013);Refresh(window);Check(Above(coverHandle,handle),"other own tray/main menu must also prevent tracker raising");

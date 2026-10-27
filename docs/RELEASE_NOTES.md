@@ -7,3 +7,25 @@
 Не включать количество пройденных тестов, фразы «пользователь подтвердил»,
 пересказ общения с автором и служебный отчёт о ходе разработки. Технические
 результаты проверок хранить отдельно в приватном docs/verification.md.
+
+## Выбор номера версии
+
+Номер следующей версии выбирать самостоятельно по масштабу изменения:
+
+- Исправления и настройка существующего поведения повышают последнюю цифру:
+  например, 1.2.1 → 1.2.2.
+- Новая возможность повышает среднюю цифру и обнуляет последнюю:
+  например, 1.2.2 → 1.3.0.
+- Большое изменение повышает первую цифру и обнуляет две младшие:
+  например, 1.3.0 → 2.0.0.
+
+## Version selection
+
+Choose the next version independently according to the scope of the change:
+
+- Fixes and adjustments to existing behaviour increment the patch number:
+  for example, 1.2.1 → 1.2.2.
+- A new feature increments the minor number and resets the patch number:
+  for example, 1.2.2 → 1.3.0.
+- A large change increments the major number and resets both lower numbers:
+  for example, 1.3.0 → 2.0.0.

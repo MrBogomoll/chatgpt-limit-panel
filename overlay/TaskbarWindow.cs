@@ -21,9 +21,11 @@ namespace QuotaOverlay {
     ThemePalette palette=ThemePalette.Dark;
     string side="right",upperTone="unknown",lowerTone="unknown";
     bool stale,disposed,closed;
+    int backgroundTransparency=50;
     IntPtr hwnd;
     public bool Enabled {get;private set;}
     public string PlacementStatus {get;private set;}
+    public bool IsVertical {get;private set;}
     public Func<bool> IsOtherMenuOpen {get;set;}
 
     public TaskbarWindow(Func<TaskbarSnapshot> readSnapshot=null) {
@@ -53,9 +55,9 @@ namespace QuotaOverlay {
       double numeric;if(!Double.TryParse(value.Substring(0,value.Length-1).Replace(',','.'),NumberStyles.AllowDecimalPoint,CultureInfo.InvariantCulture,out numeric)||!TaskbarLayout.Finite(numeric)||numeric<0||numeric>100)return "—";
       return Math.Round(numeric).ToString("0",CultureInfo.InvariantCulture)+"%";
     }
-    public void Configure(bool enabled,string side,ThemePalette palette) {
+    public void Configure(bool enabled,string side,ThemePalette palette,int transparency=50) {
       if(disposed||closed)return;
-      this.side=side;this.palette=palette??ThemePalette.Dark;ApplyPalette();Enabled=enabled;
+      this.side=side;this.palette=palette??ThemePalette.Dark;backgroundTransparency=Math.Max(0,Math.Min(100,transparency));ApplyPalette();Enabled=enabled;
       if(!enabled){timer.Stop();if(source!=null)source.Invalidate();Conceal("disabled");return;}
       timer.Start();RefreshPlacement();
     }
@@ -63,17 +65,18 @@ namespace QuotaOverlay {
       if(disposed||closed)return;
       this.upper.Text=Percentage(upper);this.lower.Text=Percentage(lower);this.upperTone=upperTone;this.lowerTone=lowerTone;this.stale=stale;ApplyPalette();
     }
-    void ApplyPalette() {surface.Background=Color(palette.Surface);upper.Foreground=Color(palette.Tone(upperTone));lower.Foreground=Color(palette.Tone(lowerTone));upper.Opacity=lower.Opacity=stale?0.55:1;}
+    void ApplyPalette() {surface.Background=Color(palette.Background(backgroundTransparency));upper.Foreground=Color(palette.Tone(upperTone));lower.Foreground=Color(palette.Tone(lowerTone));upper.Opacity=lower.Opacity=stale?0.55:1;}
     void Conceal(string reason) {PlacementStatus=reason;if(IsVisible)Hide();}
     void RefreshPlacement() {
       if(disposed||closed||!Enabled)return;
       try {
-        TaskbarPlacement placement=TaskbarLayout.Place(readSnapshot(),side);
+        TaskbarSnapshot snapshot=readSnapshot();if(snapshot!=null&&TaskbarLayout.Valid(snapshot.Bounds))IsVertical=snapshot.Bounds.Height>snapshot.Bounds.Width;
+        TaskbarPlacement placement=TaskbarLayout.Place(snapshot,side);
         if(!placement.Visible){Conceal(placement.Reason);return;}
         bool showing=!IsVisible;
         if(showing){Opacity=0;Show();}
         TaskbarArea bounds=placement.Bounds;
-        uint flags=0x0010;if((ContextMenu!=null&&ContextMenu.IsOpen)||(IsOtherMenuOpen!=null&&IsOtherMenuOpen()))flags|=0x0004;
+        IntPtr captureWindow;uint flags=0x0010;if((ContextMenu!=null&&ContextMenu.IsOpen)||(IsOtherMenuOpen!=null&&IsOtherMenuOpen())||TaskbarTransient.IsActive(out captureWindow))flags|=0x0004;
         if(!TaskbarNative.SetWindowPos(hwnd,new IntPtr(-1),(int)bounds.X,(int)bounds.Y,(int)bounds.Width,(int)bounds.Height,flags)) {Conceal("position-failed");return;}
         PlacementStatus="visible";Opacity=1;
       }catch {Conceal("provider-error");}
@@ -134,6 +137,7 @@ namespace QuotaOverlay {
     [StructLayout(LayoutKind.Sequential)] struct AppbarData {public uint Size;public IntPtr Window;public uint Callback,Edge;public Rect Bounds;public IntPtr Parameter;}
     delegate bool EnumWindowProc(IntPtr window,IntPtr parameter);
     const uint MonitorNearest=2;
+    static readonly TaskbarFullscreenMemory fullscreenMemory=new TaskbarFullscreenMemory();
     static bool Intersects(TaskbarArea a,TaskbarArea b){return a.X<b.X+b.Width&&a.X+a.Width>b.X&&a.Y<b.Y+b.Height&&a.Y+a.Height>b.Y;}
     static string ClassName(IntPtr window){var text=new System.Text.StringBuilder(256);return GetClassName(window,text,text.Capacity)>0?text.ToString():"";}
     static bool BackgroundClass(string value){return value=="Progman"||value=="WorkerW"||value=="Shell_TrayWnd"||value=="Shell_SecondaryTrayWnd";}
@@ -150,7 +154,9 @@ namespace QuotaOverlay {
     }
     internal static bool IsTaskbarFullyRevealed(TaskbarArea bar,TaskbarArea monitor,double scale) {
       if(!TaskbarLayout.Valid(bar)||!TaskbarLayout.Valid(monitor)||!TaskbarLayout.Finite(scale)||scale<=0)return false;
-      return bar.Width>bar.Height&&bar.Height>=Math.Ceiling(TaskbarLayout.Height*scale)&&bar.Y>=monitor.Y&&Math.Abs(bar.Y+bar.Height-monitor.Y-monitor.Height)<0.5&&Math.Abs(bar.X-monitor.X)<0.5&&Math.Abs(bar.X+bar.Width-monitor.X-monitor.Width)<0.5;
+      bool horizontal=bar.Width>bar.Height;
+      if(horizontal)return bar.Height>=Math.Ceiling(TaskbarLayout.Height*scale)&&bar.Height<monitor.Height&&bar.Y>=monitor.Y&&bar.Y+bar.Height<=monitor.Y+monitor.Height+0.5&&Math.Abs(bar.X-monitor.X)<0.5&&Math.Abs(bar.Width-monitor.Width)<0.5&&(Math.Abs(bar.Y-monitor.Y)<0.5||Math.Abs(bar.Y+bar.Height-monitor.Y-monitor.Height)<0.5);
+      return bar.Height>bar.Width&&bar.Width>=Math.Ceiling(TaskbarLayout.Width*scale)&&bar.Width<monitor.Width&&bar.X>=monitor.X&&bar.X+bar.Width<=monitor.X+monitor.Width+0.5&&Math.Abs(bar.Y-monitor.Y)<0.5&&Math.Abs(bar.Height-monitor.Height)<0.5&&(Math.Abs(bar.X-monitor.X)<0.5||Math.Abs(bar.X+bar.Width-monitor.X-monitor.Width)<0.5);
     }
     internal static bool IsAutoHideHidden(bool autoHideEnabled,TaskbarArea bar,TaskbarArea monitor,double scale) {return autoHideEnabled&&!IsTaskbarFullyRevealed(bar,monitor,scale);}
     internal static bool IsFullscreenBounds(TaskbarArea bounds,TaskbarArea monitor,bool maximized,long style) {
@@ -161,12 +167,17 @@ namespace QuotaOverlay {
     }
     static bool Cloaked(IntPtr window){int value;return DwmGetWindowAttribute(window,14,out value,4)==0&&value!=0;}
     static bool WindowBounds(IntPtr window,out Rect bounds){return DwmGetWindowAttribute(window,9,out bounds,Marshal.SizeOf(typeof(Rect)))==0||GetWindowRect(window,out bounds);}
+    static bool RememberFullscreen(IntPtr foreground,IntPtr monitor,Rect monitorBounds,bool fullscreen) {
+      if(GetForegroundWindow()==foreground)fullscreenMemory.Confirm(monitor,monitorBounds.Left,monitorBounds.Top,monitorBounds.Right,monitorBounds.Bottom,fullscreen);
+      return fullscreen;
+    }
     static bool Fullscreen(IntPtr own,IntPtr monitor,Rect monitorBounds) {
-      IntPtr foreground=GetForegroundWindow();if(foreground==IntPtr.Zero)return true;
-      if(foreground==own||BackgroundClass(ClassName(foreground))||!IsWindowVisible(foreground)||IsIconic(foreground))return false;
-      if(MonitorFromWindow(foreground,MonitorNearest)!=monitor)return false;
-      Rect rect;if(!WindowBounds(foreground,out rect))return true;
-      return IsFullscreenBounds(rect.Area(),monitorBounds.Area(),IsZoomed(foreground),GetWindowLongPtr(foreground,-16).ToInt64());
+      IntPtr foreground=GetForegroundWindow();
+      if(!TaskbarTransient.MaySuppressForFullscreen(foreground))return fullscreenMemory.DuringTransient(monitor,monitorBounds.Left,monitorBounds.Top,monitorBounds.Right,monitorBounds.Bottom);
+      if(foreground==own||BackgroundClass(ClassName(foreground))||!IsWindowVisible(foreground)||IsIconic(foreground))return RememberFullscreen(foreground,monitor,monitorBounds,false);
+      if(MonitorFromWindow(foreground,MonitorNearest)!=monitor)return RememberFullscreen(foreground,monitor,monitorBounds,false);
+      Rect rect;if(!WindowBounds(foreground,out rect))return RememberFullscreen(foreground,monitor,monitorBounds,true);
+      return RememberFullscreen(foreground,monitor,monitorBounds,IsFullscreenBounds(rect.Area(),monitorBounds.Area(),IsZoomed(foreground),GetWindowLongPtr(foreground,-16).ToInt64()));
     }
     internal static bool CanDisplaySnapshot(TaskbarSnapshot snapshot,IntPtr own) {
       try {
@@ -185,12 +196,20 @@ namespace QuotaOverlay {
       // Auto-hide enablement is not hidden state: a fully revealed bar can host the label safely.
       var appbar=new AppbarData{Size=(uint)Marshal.SizeOf(typeof(AppbarData))};bool autoHideEnabled=(SHAppBarMessage(4,ref appbar).ToUInt64()&1)!=0;
       result.AutoHidden=IsAutoHideHidden(autoHideEnabled,result.Bounds,monitorInfo.Monitor.Area(),result.Scale);
-      // Only a complete readable horizontal primary bottom row is supported; sliding/offscreen rows hide.
+      // Only a complete revealed primary edge is supported; sliding/offscreen bars hide.
       if(!IsTaskbarFullyRevealed(result.Bounds,monitorInfo.Monitor.Area(),result.Scale))return result;
       result.Visible=true;
       result.Fullscreen=Fullscreen(own,monitor,monitorInfo.Monitor);if(result.Fullscreen)return result;
       uint explorer;GetWindowThreadProcessId(taskbar,out explorer);if(explorer==0)return result;
       bool consistent=true,startFound=false,trayFound=false;
+      var automationRoots=new List<IntPtr>();
+      uint ownProcess=(uint)Process.GetCurrentProcess().Id;
+      bool taskbarFound=ForEachWindowAbove(taskbar,delegate(IntPtr window) {
+        if(window==own||!IsWindowVisible(window)||IsIconic(window)||Cloaked(window)||BackgroundClass(ClassName(window))||TaskbarTransient.IsCaptureWindow(window)||TaskbarTransient.IsMenuWindow(window))return;
+        uint process;GetWindowThreadProcessId(window,out process);if(process==ownProcess)return;
+        Rect bounds;if(!WindowBounds(window,out bounds)){consistent=false;return;}
+        TaskbarArea area=bounds.Area();if(TaskbarLayout.Valid(area)&&Intersects(area,result.Bounds))result.Occupied.Add(area);
+      });
       EnumChildWindows(taskbar,delegate(IntPtr child,IntPtr unused) {
         if(!IsWindowVisible(child))return true;
         uint process;GetWindowThreadProcessId(child,out process);string name=ClassName(child);
@@ -198,32 +217,49 @@ namespace QuotaOverlay {
         TaskbarArea area=bounds.Area();if(!TaskbarLayout.Valid(area)||!Intersects(area,result.Bounds))return true;
         if(name=="Start")startFound=true;
         if(name=="TrayNotifyWnd")trayFound=true;
+        if(process==explorer&&(name=="Windows.UI.Composition.DesktopWindowContentBridge"||name=="ReBarWindow32"||name=="MSTaskListWClass"))automationRoots.Add(child);
         if(ProtectNativeWindow(name,process==explorer,GetWindow(child,5)==IntPtr.Zero))result.Occupied.Add(area);
         return true;
       },IntPtr.Zero);
-      AutomationElementCollection elements=ReadAutomationElements(taskbar);if(elements==null)return result;
+      IList<AutomationElement> elements=ReadTaskbarAutomationElements(taskbar,automationRoots,result.Occupied);if(elements==null)return result;
       if(elements.Count==0||elements.Count>4096)return result;
       for(int index=0;index<elements.Count;index++) {
-        AutomationElement element=elements[index];var cached=element.Cached;if(cached.IsOffscreen)continue;
+        AutomationElement element=elements[index];var cached=element.Cached;
+        // Explorer popup activation can mark real taskbar controls offscreen.
+        // Their fresh valid rectangles still reserve space; only empty hidden
+        // elements may be ignored, never visible buttons with usable bounds.
         string id=cached.AutomationId;ControlType type=cached.ControlType;
         bool structural=type==ControlType.Pane||type==ControlType.Group||type==ControlType.ToolBar||type==ControlType.Window||type==ControlType.List;
         System.Windows.Rect rect=cached.BoundingRectangle;
-        if(rect.IsEmpty||rect.Width<=0||rect.Height<=0){if(!structural)consistent=false;continue;}
+        if(rect.IsEmpty||rect.Width<=0||rect.Height<=0){if(!structural&&!cached.IsOffscreen)consistent=false;continue;}
         var area=new TaskbarArea{X=rect.X,Y=rect.Y,Width=rect.Width,Height=rect.Height};if(!TaskbarLayout.Valid(area)){consistent=false;continue;}if(!Intersects(area,result.Bounds))continue;
         if(id=="StartButton")startFound=true;
         if(id=="SystemTrayIcon"||id=="NotifyItemIcon"||id=="SystemTrayFrame"||id=="NotificationCenterButton"||id=="ClockButton")trayFound=true;
         if(!structural||cached.ProcessId!=(int)explorer)result.Occupied.Add(area);
       }
-      uint ownProcess=(uint)Process.GetCurrentProcess().Id;
-      bool taskbarFound=ForEachWindowAbove(taskbar,delegate(IntPtr window) {
-        if(window==own||!IsWindowVisible(window)||IsIconic(window)||Cloaked(window)||BackgroundClass(ClassName(window)))return;
-        uint process;GetWindowThreadProcessId(window,out process);if(process==ownProcess)return;
-        Rect bounds;if(!WindowBounds(window,out bounds)){consistent=false;return;}
-        TaskbarArea area=bounds.Area();if(TaskbarLayout.Valid(area)&&Intersects(area,result.Bounds))result.Occupied.Add(area);
-      });
       uint currentExplorer;GetWindowThreadProcessId(taskbar,out currentExplorer);
       result.OccupancyKnown=consistent&&taskbarFound&&startFound&&trayFound&&currentExplorer==explorer&&FindWindow("Shell_TrayWnd",null)==taskbar;
       return result;
+    }
+    internal static IList<AutomationElement> ReadTaskbarAutomationElements(IntPtr taskbar,IList<IntPtr> children,IList<TaskbarArea> occupied,Func<IntPtr,AutomationElementCollection> read=null) {
+      if(read==null)read=ReadAutomationElements;
+      var elements=new List<AutomationElement>();
+      // Modal shell popups can replace the wrapper's accessibility fragment.
+      // Query the concrete content HWNDs directly whenever they are available.
+      var roots=new List<IntPtr>();foreach(IntPtr child in children)if(!roots.Contains(child))roots.Add(child);
+      if(roots.Count==0)roots.Add(taskbar);
+      foreach(IntPtr root in roots) {
+        AutomationElementCollection part=null;try{part=read(root);}catch{}
+        if(part==null||part.Count==0) {
+          // If a concrete native subtree is unreadable, protect its entire current
+          // rectangle rather than inventing free space or renewing an old snapshot.
+          if(root!=taskbar){Rect bounds;if(!GetWindowRect(root,out bounds))return null;occupied.Add(bounds.Area());}
+          continue;
+        }
+        if(part.Count>4096-elements.Count)return null;
+        for(int i=0;i<part.Count;i++)elements.Add(part[i]);
+      }
+      return elements;
     }
     internal static bool ForEachWindowAbove(IntPtr boundary,Action<IntPtr> visit) {
       bool found=false;

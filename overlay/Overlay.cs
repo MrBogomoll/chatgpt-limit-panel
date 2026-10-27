@@ -136,6 +136,10 @@ namespace QuotaOverlay {
     MenuDismissWatcher taskbarMenuDismiss;
     bool taskbarEnabled;
     string taskbarSide;
+    int backgroundTransparency;
+    Slider transparencySlider;
+    TextBlock transparencyLabel;
+    bool syncingTransparency;
     readonly Func<TaskbarSnapshot> taskbarSnapshotReader;
     MenuItem updatesItem;
     Window updateDialog;
@@ -158,6 +162,8 @@ namespace QuotaOverlay {
       var preferences=ReadPreferences();
       taskbarEnabled=BooleanPreference(preferences,"taskbarEnabled",false);
       taskbarSide=preferences.ContainsKey("taskbarSide")&&Convert.ToString(preferences["taskbarSide"])=="right"?"right":"left";
+      object savedTransparency;
+      backgroundTransparency=preferences.TryGetValue("backgroundTransparency",out savedTransparency)&&savedTransparency is int&&(int)savedTransparency>=0&&(int)savedTransparency<=100?(int)savedTransparency:50;
       language=PanelLanguage.Read(settingsFile);
       autoStartEnabled=BooleanPreference(preferences,"autoStartEnabled",true);
       string savedTheme=preferences.ContainsKey("themeMode")?Convert.ToString(preferences["themeMode"]):"";
@@ -185,7 +191,7 @@ namespace QuotaOverlay {
       AllowsTransparency=true; Background=Brushes.Transparent;
       ShowInTaskbar=false; ShowActivated=false; Topmost=false; Focusable=false;
       FontFamily=new FontFamily("Segoe UI");
-      panel=new Border { Width=Layout.PanelWidth,Height=Layout.PanelHeight,Background=Brush(palette.Surface),BorderBrush=Brush(palette.Border),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(3,5,3,5) };
+      panel=new Border { Width=Layout.PanelWidth,Height=Layout.PanelHeight,Background=Brush(palette.Background(backgroundTransparency)),BorderBrush=Brush(palette.Border),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(3,5,3,5) };
       ToolTipService.SetIsEnabled(panel,false);
       var stack=new StackPanel(); panel.Child=stack;
       for(int i=0;i<2;i++) {
@@ -330,7 +336,7 @@ namespace QuotaOverlay {
       string resolved=themeResolver.Resolve(themeMode);
       if(resolved==effectiveTheme)return false;
       effectiveTheme=resolved;palette=resolved=="light"?ThemePalette.Light:ThemePalette.Dark;
-      panel.Background=Brush(palette.Surface);panel.BorderBrush=Brush(palette.Border);divider.Background=Brush(palette.Divider);
+      panel.Background=Brush(palette.Background(backgroundTransparency));panel.BorderBrush=Brush(palette.Border);divider.Background=Brush(palette.Divider);
       compactStale.Foreground=Brush(palette.Secondary);
       for(int i=0;i<2;i++) {
         periods[i].Foreground=Brush(palette.Secondary);markers[i].Foreground=Brush(palette.Secondary);
@@ -379,6 +385,20 @@ namespace QuotaOverlay {
       try{Preferences.Update(settingsFile,p=>{p["taskbarEnabled"]=taskbarEnabled;p["taskbarSide"]=taskbarSide;});}catch{taskbarSide=previous;SyncMenu();return;}
       SyncTaskbar();SyncMenu();lastState="";
     }
+    void SetBackgroundTransparency(int value) {
+      value=Math.Max(0,Math.Min(100,value));
+      if(closing||value==backgroundTransparency)return;
+      try{Preferences.Update(settingsFile,p=>{p["backgroundTransparency"]=value;});}catch{SyncTransparencyControl();return;}
+      backgroundTransparency=value;panel.Background=Brush(palette.Background(value));
+      SyncTaskbar();lastState="";
+    }
+    void SyncTransparencyControl() {
+      if(transparencySlider==null)return;
+      syncingTransparency=true;
+      try{transparencySlider.Value=backgroundTransparency;transparencyLabel.Text=T("backgroundTransparency")+": "+backgroundTransparency+"%";transparencyLabel.Foreground=Brush(palette.MenuText);}
+      finally{syncingTransparency=false;}
+    }
+    string TaskbarSideKey(bool last) {return taskbarWindow!=null&&taskbarWindow.IsVertical?(last?"taskbarBottom":"taskbarTop"):(last?"taskbarRight":"taskbarLeft");}
     void SyncTaskbar() {
       if(closing)return;
       if(taskbarWindow==null&&taskbarEnabled) {
@@ -388,14 +408,19 @@ namespace QuotaOverlay {
         var enabled=Menu("taskbarShow",true);enabled.Click+=delegate {SetTaskbarEnabled(enabled.IsChecked);};
         var left=Menu("taskbarLeft",true);left.Click+=delegate {SetTaskbarSide("left");};
         var right=Menu("taskbarRight",true);right.Click+=delegate {SetTaskbarSide("right");};
+        transparencyLabel=new TextBlock {FontSize=12,Margin=new Thickness(0,0,0,5)};
+        transparencySlider=new Slider {Minimum=0,Maximum=100,Value=backgroundTransparency,Width=195,TickFrequency=1,IsSnapToTickEnabled=true,IsMoveToPointEnabled=true,Focusable=false};
+        transparencySlider.ValueChanged+=delegate {if(!syncingTransparency)SetBackgroundTransparency((int)Math.Round(transparencySlider.Value));};
+        var transparencyContent=new StackPanel();transparencyContent.Children.Add(transparencyLabel);transparencyContent.Children.Add(transparencySlider);
+        var transparencyItem=new MenuItem {Header=transparencyContent,StaysOpenOnClick=true};
         var stop=Menu("stop");stop.Click+=delegate {Close();};
-        taskbarMenu.Items.Add(enabled);taskbarMenu.Items.Add(left);taskbarMenu.Items.Add(right);taskbarMenu.Items.Add(new Separator());taskbarMenu.Items.Add(stop);
+        taskbarMenu.Items.Add(enabled);taskbarMenu.Items.Add(left);taskbarMenu.Items.Add(right);taskbarMenu.Items.Add(new Separator());taskbarMenu.Items.Add(transparencyItem);taskbarMenu.Items.Add(new Separator());taskbarMenu.Items.Add(stop);
         taskbarMenuDismiss=new MenuDismissWatcher(Dispatcher,delegate{return !closing&&taskbarMenu.IsOpen;},delegate{taskbarMenu.IsOpen=false;},null);
-        taskbarMenu.Opened+=delegate {TranslateMenu(taskbarMenu);enabled.IsChecked=taskbarEnabled;left.IsChecked=taskbarSide=="left";right.IsChecked=taskbarSide=="right";taskbarMenuDismiss.Start();};
+        taskbarMenu.Opened+=delegate {TranslateMenu(taskbarMenu);left.Header=T(TaskbarSideKey(false));right.Header=T(TaskbarSideKey(true));SyncTransparencyControl();enabled.IsChecked=taskbarEnabled;left.IsChecked=taskbarSide=="left";right.IsChecked=taskbarSide=="right";taskbarMenuDismiss.Start();};
         taskbarMenu.Closed+=delegate {taskbarMenuDismiss.Stop();};taskbarWindow.ContextMenu=taskbarMenu;
       }
       if(taskbarWindow==null)return;
-      taskbarWindow.Configure(taskbarEnabled&&!paused,taskbarSide,palette);
+      taskbarWindow.Configure(taskbarEnabled&&!paused,taskbarSide,palette,backgroundTransparency);SyncTransparencyControl();
       bool stale=markers[0].Text.Length>0||markers[1].Text.Length>0;
       taskbarWindow.ApplyRows(values[0].Text,values[1].Text,rowTones[0],rowTones[1],stale);
     }
@@ -487,6 +512,7 @@ namespace QuotaOverlay {
       TranslateMenu(optionsMenu);languageRussianItem.IsChecked=language=="ru";languageEnglishItem.IsChecked=language=="en";
       if(updatesItem!=null&&!updatesItem.IsEnabled)updatesItem.Header=T("checkingUpdates");
       taskbarEnabledItem.IsChecked=taskbarEnabled;taskbarLeftItem.IsChecked=taskbarSide=="left";taskbarRightItem.IsChecked=taskbarSide=="right";
+      taskbarLeftItem.Header=T(TaskbarSideKey(false));taskbarRightItem.Header=T(TaskbarSideKey(true));
       taskbarStatusItem.Header=T(!taskbarEnabled?"taskbarOff":taskbarWindow!=null&&taskbarWindow.IsVisible?"taskbarActive":"taskbarWaiting");
       if(taskbarTrayItem!=null){taskbarTrayItem.Checked=taskbarEnabled;taskbarTrayLeft.Checked=taskbarSide=="left";taskbarTrayRight.Checked=taskbarSide=="right";}
       fullProgressItem.IsChecked=fullProgressMode=="bars";fullOutlineItem.IsChecked=fullProgressMode=="outline";fullOffItem.IsChecked=fullProgressMode=="off";
@@ -613,6 +639,7 @@ namespace QuotaOverlay {
       taskbarTrayRight=new Forms.ToolStripMenuItem(T("taskbarRight"));taskbarTrayRight.Click+=delegate {SetTaskbarSide("right");};
       taskbarTraySides.DropDownItems.Add(taskbarTrayLeft);taskbarTraySides.DropDownItems.Add(taskbarTrayRight);menu.Items.Add(taskbarTrayItem);menu.Items.Add(taskbarTraySides);
       tray.ContextMenuStrip=menu;ApplyTrayLanguage();ApplyTrayPalette();tray.Visible=true;
+      menu.Opening+=delegate{taskbarTrayLeft.Text=T(TaskbarSideKey(false));taskbarTrayRight.Text=T(TaskbarSideKey(true));};
       tray.DoubleClick+=delegate {Command("refresh");};
     }
     void StartInput() {
@@ -737,7 +764,7 @@ namespace QuotaOverlay {
       if(!appSignalSent||lastAppReady!=appReady){appSignalSent=true;lastAppReady=appReady;Command(appReady?"app-open":"app-closed");}
       if(pendingPreview) {pendingPreview=false;UpdateLayout();SavePreview();}
       IntPtr owner=Native.GetWindowLongPtr(hwnd,-8);uint ownerProcess=0;if(owner!=IntPtr.Zero)Native.GetWindowThreadProcessId(owner,out ownerProcess);
-      var state=new {taskbar=new {enabled=taskbarEnabled,side=taskbarSide,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
+      var state=new {backgroundTransparency=backgroundTransparency,taskbar=new {enabled=taskbarEnabled,side=taskbarSide,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
       string encoded=json.Serialize(state);
       diagnosticState=state;
       if(encoded!=lastState){lastState=encoded;try{File.WriteAllText(stateFile,encoded,Encoding.UTF8);stateWriteError="";}catch(Exception error){stateWriteError=error.GetType().Name+":"+error.HResult.ToString();}}

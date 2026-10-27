@@ -340,7 +340,7 @@ class OverlayNativeTest {
   }
   static void MenuActionsTest(OverlayWindow window) {
     Known(window);var menu=Field<ContextMenu>(window,"optionsMenu");
-    foreach(string header in new[]{"Обновить лимиты","Приостановить обновление","Продолжить обновление","Остановить панель"}) {
+    foreach(string header in new[]{"Обновить лимиты","Приостановить обновление лимитов","Возобновить обновление лимитов","Остановить панель"}) {
       MenuItem found=null;foreach(object item in menu.Items) {
         var candidate=item as MenuItem;if(candidate!=null && Convert.ToString(candidate.Header)==header){found=candidate;break;}
       }
@@ -589,6 +589,72 @@ class OverlayNativeTest {
     Check(!Field<bool>(window,"taskbarEnabled")&&Field<string>(window,"taskbarSide")=="left","off must persist and retain chosen side");
     Console.WriteLine("PASS native taskbar-settings: independent toggle, both sides, RU/EN, reconstruction and preserved settings");
   }
+  static Border TaskbarSurface(OverlayWindow window) {
+    var taskbar=Field<TaskbarWindow>(window,"taskbarWindow");
+    Check(taskbar!=null,"enabled taskbar fixture must create its own percentage view");
+    return (Border)typeof(TaskbarWindow).GetField("surface",PrivateInstance).GetValue(taskbar);
+  }
+  static void AssertBackgroundAlpha(OverlayWindow window,byte alpha) {
+    Check(ColorOf(Field<Border>(window,"panel").Background).A==alpha,"main panel must apply the selected transparency only to its background");
+    Check(ColorOf(TaskbarSurface(window).Background).A==alpha,"taskbar percentages must apply the same selected background transparency");
+    Check(window.Opacity==1&&Field<TaskbarWindow>(window,"taskbarWindow").Opacity==1,"background adjustment must not fade either window as a whole");
+    foreach(var label in Field<TextBlock[]>(window,"values"))Check(ColorOf(label.Foreground).A==255,"quota text must remain opaque at every transparency setting");
+    foreach(string name in new[]{"upper","lower"}) {
+      var label=(TextBlock)typeof(TaskbarWindow).GetField(name,PrivateInstance).GetValue(Field<TaskbarWindow>(window,"taskbarWindow"));
+      Check(ColorOf(label.Foreground).A==255,"taskbar percentage foreground must remain opaque");
+    }
+    Check(ColorOf(Field<Border>(window,"panel").BorderBrush).A==255,"the frame must remain opaque");
+    foreach(var fill in Field<Border[]>(window,"progressFills"))Check(ColorOf(fill.Background).A==255,"progress indicators must retain opaque brushes");
+    Check(ColorOf(Field<ContextMenu>(window,"taskbarMenu").Background).A==255,"the slider menu background must retain its normal opacity");
+  }
+  static void TransparencyTest(ref OverlayWindow window,string directory) {
+    string settings=Path.Combine(directory,"settings.json"),state=Path.Combine(directory,"state.json");
+    window.Close();File.WriteAllText(settings,"{\"other\":\"keep\",\"language\":\"en\",\"themeMode\":\"dark\",\"displayMode\":\"ultra\",\"autoStartEnabled\":false}");
+    window=NewWindow(state);
+    Apply(window,Row("5 ч","75%","31.12","23:59","","normal"),Row("Нед.","40%","31.12","00:00","","normal"));
+    Check(Field<int>(window,"backgroundTransparency")==50,"missing transparency must default to fifty percent");
+    Invoke(window,"SetTaskbarEnabled",true);
+    var slider=Field<Slider>(window,"transparencySlider");
+    Check(slider!=null&&slider.Minimum==0&&slider.Maximum==100&&slider.Value==50,"taskbar menu must expose the complete percentage range and current selection");
+    Check(slider.IsSnapToTickEnabled&&slider.TickFrequency==1&&!slider.Focusable,"slider must allow whole percentages without taking keyboard focus");
+    var menu=Field<ContextMenu>(window,"taskbarMenu");bool staysOpen=false;
+    foreach(object item in menu.Items) {
+      var host=item as MenuItem;if(host==null)continue;
+      var content=host.Header as Panel;
+      if(content!=null&&content.Children.Contains(slider))staysOpen=host.StaysOpenOnClick;
+    }
+    Check(staysOpen,"the slider host must keep its menu open while adjusting the value");
+    AssertBackgroundAlpha(window,128);
+    slider.Value=75;PumpDispatcher();
+    Check(Field<int>(window,"backgroundTransparency")==75&&Field<TextBlock>(window,"transparencyLabel").Text.Contains("75%"),"a real slider change must update the selected percentage and visible label");
+    AssertBackgroundAlpha(window,64);
+    var saved=new JavaScriptSerializer().DeserializeObject(File.ReadAllText(settings)) as Dictionary<string,object>;
+    Check(Convert.ToInt32(saved["backgroundTransparency"])==75&&Convert.ToString(saved["other"])=="keep"&&!(bool)saved["autoStartEnabled"],"slider changes must persist immediately while preserving unrelated and autostart choices");
+    Invoke(window,"SelectTheme","light");
+    Color light=ColorOf(Field<Border>(window,"panel").Background);
+    Check(light.R==243&&light.G==243&&light.B==244&&Field<int>(window,"backgroundTransparency")==75,"manual theme changes must preserve the percentage while updating surface RGB");
+    AssertBackgroundAlpha(window,64);
+    Invoke(window,"SetTaskbarEnabled",false);Invoke(window,"SetBackgroundTransparency",35);
+    window.Close();window=NewWindow(state);
+    Apply(window,Row("5 ч","75%","31.12","23:59","","normal"),Row("Нед.","40%","31.12","00:00","","normal"));
+    Check(!Field<bool>(window,"taskbarEnabled")&&Field<int>(window,"backgroundTransparency")==35,"a disabled taskbar view and transparency must survive reconstruction");
+    Check(Field<string>(window,"language")=="en"&&Field<string>(window,"themeMode")=="light"&&Field<string>(window,"preferredMode")=="ultra"&&!Field<bool>(window,"autoStartEnabled"),"transparency changes must preserve language, theme, mode and disabled autostart");
+    Invoke(window,"SetTaskbarEnabled",true);slider=Field<Slider>(window,"transparencySlider");
+    Check(slider.Value==35,"reopening the taskbar view must restore the saved slider value");AssertBackgroundAlpha(window,166);
+    slider.Value=0;PumpDispatcher();AssertBackgroundAlpha(window,255);
+    slider.Value=100;PumpDispatcher();AssertBackgroundAlpha(window,0);
+    Invoke(window,"SetBackgroundTransparency",-25);Check(slider.Value==0&&Field<int>(window,"backgroundTransparency")==0,"negative programmatic transparency must clamp to zero");AssertBackgroundAlpha(window,255);
+    Invoke(window,"SetBackgroundTransparency",125);Check(slider.Value==100&&Field<int>(window,"backgroundTransparency")==100,"oversized programmatic transparency must clamp to one hundred");AssertBackgroundAlpha(window,0);
+    foreach(string fixture in new[]{"{}","{\"backgroundTransparency\":null}","{\"backgroundTransparency\":true}","{\"backgroundTransparency\":\"75\"}","{\"backgroundTransparency\":75.5}","{\"backgroundTransparency\":-1}","{\"backgroundTransparency\":101}","[]","null","{invalid"}) {
+      window.Close();File.WriteAllText(settings,fixture);window=NewWindow(state);Known(window);
+      Check(Field<int>(window,"backgroundTransparency")==50&&ColorOf(Field<Border>(window,"panel").Background).A==128,"malformed or out-of-range saved transparency must safely default to fifty percent");
+    }
+    foreach(int percentage in new[]{0,100}) {
+      window.Close();File.WriteAllText(settings,"{\"backgroundTransparency\":"+percentage+"}");window=NewWindow(state);Known(window);
+      Check(Field<int>(window,"backgroundTransparency")==percentage,"valid endpoint preferences must survive reconstruction");
+    }
+    Console.WriteLine("PASS native transparency: live slider, both backgrounds, opaque content, persistence, themes and validated range");
+  }
   static void MenuPlacementTest(OverlayWindow window) {
     var menu=Field<ContextMenu>(window,"optionsMenu");
     Check(menu.Placement==System.Windows.Controls.Primitives.PlacementMode.Right && Object.ReferenceEquals(menu.PlacementTarget,Field<Border>(window,"panel")),"context menu must anchor beside the entire panel, not at the click point");
@@ -762,7 +828,7 @@ class OverlayNativeTest {
     Apply(window,Row("5 ч","30%","25.10","14:59","","warning"),Row("Нед.","10%","01.11","09:59","","critical"));
     AssertReadableColor(window,0,"#E3B382");AssertReadableColor(window,1,"#E6A0A1");
     Invoke(window,"SelectTheme","light");
-    Check(Field<string>(window,"effectiveTheme")=="light" && ColorOf(Field<Border>(window,"panel").Background)==ParseColor("#E6F3F3F4"),"manual light must apply a slightly translucent light panel surface");
+    Check(Field<string>(window,"effectiveTheme")=="light" && ColorOf(Field<Border>(window,"panel").Background)==ParseColor("#80F3F3F4"),"manual light must apply a half-transparent light panel surface");
     AssertReadableColor(window,0,"#955416");AssertReadableColor(window,1,"#B23B42");
     var menu=Field<ContextMenu>(window,"optionsMenu");
     Check(ColorOf((Brush)menu.Resources["Quota.MenuSurface"])==ParseColor("#FFFFFF") && ColorOf((Brush)menu.Resources["Quota.MenuText"])==ParseColor("#25282D"),"menu resources must switch to readable light colours");
@@ -785,7 +851,7 @@ class OverlayNativeTest {
     Apply(window,Row("5 ч","30%","25.10","14:59","","warning"),Row("Нед.","10%","01.11","09:59","","critical"));
     Invoke(window,"SelectTheme","dark");
     Check(ColorOf(shell.Background)==ParseColor("#292A2D"),"an already constructed menu template must update without being recreated");
-    Check(ColorOf(Field<Border>(window,"panel").Background)==ParseColor("#E6242526"),"dark background must retain its colour with slight transparency");
+    Check(ColorOf(Field<Border>(window,"panel").Background)==ParseColor("#80242526"),"dark background must retain its colour with half transparency");
     AssertReadableColor(window,0,"#E3B382");AssertReadableColor(window,1,"#E6A0A1");
     Console.WriteLine("PASS native theme: light/dark surfaces, readable warnings, menu resources and unchanged quota values");
   }
@@ -926,7 +992,7 @@ class OverlayNativeTest {
     Check(Field<TextBlock[]>(window,"markers")[0].Text=="stale"&&Field<TextBlock>(window,"compactStale").Text=="stale","both stale presentations must be translated");
     Check(Field<TextBlock[]>(window,"values")[0].Text==before[0]&&Field<TextBlock[]>(window,"times")[0].Text==before[1]&&Field<TextBlock[]>(window,"dates")[1].Text==before[2],"switching language must not change quota or reset values");
     Check(Field<MenuItem>(window,"languageEnglishItem").IsChecked&&!Field<MenuItem>(window,"languageRussianItem").IsChecked,"language choices must be exclusive");
-    Check(Convert.ToString(Field<MenuItem>(window,"pauseUpdatesItem").Header)=="Pause updates","action labels must switch immediately");
+    Check(Convert.ToString(Field<MenuItem>(window,"pauseUpdatesItem").Header)=="Pause quota refresh","action labels must switch immediately");
     foreach(string mode in new[]{"full","compact","ultra"}) {
       Invoke(window,"SelectMode",mode);Known(window);
       var badge=Field<Border>(window,"panel");badge.Measure(new Size(Layout.PanelWidth,badge.Height));badge.Arrange(new Rect(0,0,Layout.PanelWidth,badge.Height));badge.UpdateLayout();
@@ -989,6 +1055,7 @@ class OverlayNativeTest {
         case "motion-hook":MotionHookTest(window);break;
         case "updates":UpdatesTest(window);break;
         case "taskbar-settings":TaskbarSettingsTest(ref window,directory);break;
+        case "transparency":TransparencyTest(ref window,directory);break;
         case "combined-zero":CombinedZeroTest(ref window,directory);break;
         case "resize-aspect":ResizeAspectTest(window);break;
         case "resize-native":ResizeNativeTest(window);break;

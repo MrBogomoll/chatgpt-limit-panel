@@ -1,18 +1,22 @@
 # Quota Panel
 
-В 1.2.1 фон основной панели и индикатора на панели задач получил около 10% прозрачности в тёмной, светлой и автоматической темах. Текст, полоски, контур и меню сохраняют прежнюю непрозрачность.
+В 1.3.0 добавлена экспериментальная поддержка основной панели задач снизу, сверху, слева или справа. ПКМ по индикатору на панели задач → **«Прозрачность фона»** открывает ползунок 0–100%. Общая настройка сразу меняет фон основной панели Quota Panel и индикатора, сохраняется после перезапуска и по умолчанию равна 50%. Работает в тёмной, светлой и автоматической темах; текст, полоски, контур и меню сохраняют прежнюю непрозрачность.
 
-**English:** Version 1.2.1 adds about 10% transparency to the main panel and taskbar indicator backgrounds in dark, light and automatic themes. Text, bars, outlines and menus retain their previous opacity.
+**English:** Version 1.3.0 adds experimental support for the primary taskbar at the bottom, top, left or right. Right-click the taskbar indicator → **Background transparency** for the 0–100% slider. This shared setting immediately changes the main Quota Panel and taskbar indicator backgrounds, persists across restarts and defaults to 50%. It works in dark, light and automatic themes; text, bars, outlines and menus retain their previous opacity.
 
-Предварительная 1.2.1: **ПКМ → «Панель задач» → «Показывать проценты» → «Слева» / «Справа»**. Дополнительный индикатор по умолчанию выключен. В нём только два процента: короткий лимит сверху и недельный снизу. Пока он включён, запросы квоты продолжаются и при закрытом окне ChatGPT. При недоступности данных последние значения затемняются. Настройки доступны также из значка Quota Panel в трее.
+В меню ПКМ «Проверить новую версию» проверяет выпуски Quota Panel. «Приостановить обновление лимитов» и «Возобновить обновление лимитов» управляют получением квоты.
 
-**English:** Private preview 1.2.1 adds **Taskbar → Show percentages → Left / Right**, initially off. Two rows show short-window and weekly remaining quota. Enabled taskbar mode continues polling with ChatGPT closed. Stale values are dimmed. Controls are also available through Quota Panel's tray icon.
+**English:** The context menu distinguishes **Check for a new version** from **Pause quota refresh** and **Resume quota refresh**.
 
-Индикатор использует проверенное свободное место основной горизонтальной панели задач снизу; он не резервирует место в Windows. При нехватке места, полноэкранном режиме или неопределённой геометрии скрывается. Windows 10 не проверялась на отдельном компьютере. Стабильный публичный выпуск пока 1.1.0.
+Предварительная 1.3.0: **ПКМ → «Панель задач» → «Показывать проценты»**, затем выбери сторону размещения. Дополнительный индикатор по умолчанию выключен. В нём только два процента: короткий лимит сверху и недельный снизу. Пока он включён, запросы квоты продолжаются и при закрытом окне ChatGPT. При недоступности данных последние значения затемняются. Настройки доступны также из значка Quota Panel в трее.
 
-Версия 1.1.0: ПКМ по панели → **«Проверить обновления»** или одноимённая кнопка карточки. Проверка сравнивает установленную версию с последним стабильным релизом GitHub. Если есть новая версия, **«Открыть релиз»** ведёт на страницу скачивания. Git и вход в GitHub не требуются. Обновление устанавливается вручную; ошибка сети показывается отдельно.
+**English:** In private preview 1.3.0, use **Taskbar → Show percentages**, then choose the placement side. The indicator defaults off. Two rows show short-window and weekly remaining quota. Enabled taskbar mode continues polling with ChatGPT closed. Stale values are dimmed. Controls are also available through Quota Panel's tray icon.
 
-**English:** Version 1.1.0 adds **Check for updates** to the panel menu and control card. It checks the latest stable GitHub release. Choose **Open release** to visit the download page when a newer version is available. Git and GitHub sign-in are not required. Installation remains manual; network failures are reported separately.
+Индикатор использует измеренное свободное место основной панели задач; он не резервирует место в Windows и сам не меняет её положение. Поддержка всех четырёх границ экрана экспериментальная. При нехватке места, полноэкранном режиме или неопределённой геометрии индикатор скрывается. Windows 10 не проверялась на отдельном компьютере. Стабильный публичный выпуск пока 1.1.0.
+
+Проверка обновлений появилась в версии 1.1.0. В текущем меню ПКМ по панели выбери **«Проверить новую версию»** или нажми **«Проверить обновления»** в карточке. Проверка сравнивает установленную версию с последним стабильным релизом GitHub. Если есть новая версия, **«Открыть релиз»** ведёт на страницу скачивания. Git и вход в GitHub не требуются. Обновление устанавливается вручную; ошибка сети показывается отдельно.
+
+**English:** Update checking was added in version 1.1.0. In the current context menu, choose **Check for a new version**, or select **Check for updates** in the control card. It checks the latest stable GitHub release. Choose **Open release** to visit the download page when a newer version is available. Git and GitHub sign-in are not required. Installation remains manual; network failures are reported separately.
 
 Язык интерфейса выбирается через **ПКМ → «Язык / Language» → «Русский / English»**. Выбор сохраняется после перезапуска. Переводятся подписи панели, меню, трей, карточка управления и сообщения; карточка подхватывает выбор при следующем обновлении состояния (обычно в течение 5 секунд). Язык самого ChatGPT не изменяется. Числа, даты и время сброса сохраняют прежний формат, а ультракомпактный вид остаётся без текста. По умолчанию используется русский.
 
