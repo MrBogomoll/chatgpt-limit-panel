@@ -40,7 +40,7 @@ node overlay/install-plugin.mjs "<extracted complete plugin package>"
 
 The installer uses the native Codex CLI from PATH, registers a separate local marketplace and backs up the existing configuration before installation. The built package also includes a compatibility manifest for clients that support ZIP import. Do not copy the authoring-only root plugin.json into the built package; the current desktop parser uses .codex-plugin/plugin.json.
 
-Open **Quota Panel** from the plugin menu, open its control card and click **Start** once. This configures a per-user Windows logon task without administrator credentials. Importing the ZIP alone does not configure Windows. After activation, the monitor starts at Windows sign-in, waits for ChatGPT and shows the panel about 3 seconds after the app opens. Closing the control card does not stop the monitor.
+Open **Quota Panel** from the plugin menu, open its control card and click **Start** once. This configures a per-user Windows logon task without administrator credentials. Importing the ZIP alone does not configure Windows. After activation, the monitor starts at Windows sign-in. The navigation-rail panel appears about 3 seconds after ChatGPT opens. If the taskbar indicator is enabled, quota polling continues without an open ChatGPT window; otherwise the monitor waits for that window. Closing the control card does not stop the monitor.
 
 Right-click → **Start with ChatGPT** disables or enables future autostart. **Stop panel** closes the current monitor; it preserves the autostart setting. Disable autostart as well if you want it to stay disabled after the next Windows sign-in.
 

@@ -12,13 +12,19 @@
 
 ## Tasks
 
-- [ ] Host: TDD taskbar-on/off protocol, independent refresh predicate, reader close/reopen, pause/stop/freshness invariants. Owner background_mode_20261027; only host and host tests.
-- [ ] Source comparison: ognjeeen, taskbar libraries and comparable quota monitors; licenses and concrete own defects. Audit docs only, then narrowly confirmed precision fixes if justified.
-- [ ] Taskbar module: pure free-gap allocator tests, .NET4 native/UIA read-only snapshot, own WPF percentage display, timed-out/stale occupancy failclosed, no focus change, no external window mutations.
-- [ ] Integrate persisted toggle/side, RU/EN main+tray menu, theme/freshness propagation, host ready handshake, native isolated tests and compiler inputs.
-- [ ] Full regression, source review and build. Prepare private candidate with explicit Windows10/11 comparison and limits; do not publish an unverified cross-platform stable claim.
-- [ ] Verify installed candidate payload/lifecycle/settings and read-only geometry/own display on this Windows11 computer where feasible. Keep published1.1.0 available.
+- [x] Host: TDD taskbar-on/off protocol, independent refresh predicate, reader close/reopen, pause/stop/freshness invariants. Owner background_mode_20261027; only host and host tests.
+- [x] Source comparison: ognjeeen, taskbar libraries and comparable quota monitors; licenses and concrete own defects. Audit docs only, then narrowly confirmed precision fixes if justified.
+- [x] Taskbar module: pure free-gap allocator tests, .NET4 native/UIA read-only snapshot, own WPF percentage display, timed-out/stale occupancy failclosed, no focus change, no external window mutations.
+- [x] Integrate persisted toggle/side, RU/EN main+tray menu, theme/freshness propagation, host ready handshake, native isolated tests and compiler inputs.
+- [x] Full regression, source review and build. Prepare private candidate with explicit Windows 10/11 comparison and limits; do not publish an unverified cross-platform stable claim.
+- [x] Verify installed candidate payload/lifecycle/settings and read-only geometry/own display on this Windows 11 computer where feasible. Keep published 1.1.0 available. Desktop acceptance remains partial as described below.
 
 ## Validation and completion ledger
 
-Research in progress. Baseline owning source main3257fb4 clean before independent task edits; feature branch codex/taskbar-indicator. Current machine registry build26300.9711/26H2, not a live Windows10 test machine. Appbar APIs reserve a separate screen edge, not a shared inline taskbar slot. Native renderer tests may use only own isolated offscreen windows.
+Completed private preview 1.2.0 on 27 October 2026; public stable remains 1.1.0. Baseline owning source main 3257fb4 was clean before independent task edits; work remains on feature branch codex/taskbar-indicator. Research and concrete source comparisons are recorded in docs/research. Appbar APIs reserve a separate screen edge, not a shared inline taskbar slot.
+
+The 09:15 continuation rebuilt the native binaries and passed the combined suite; detailed results are in docs/verification.md. The installed final package matched its complete payload. English, automatic theme, full view, combined indicators, and enabled/configured autostart were preserved; taskbar mode remains off by default. The installed checker reached the current public repository through its immutable GitHub ID and returned ahead for preview 1.2.0 versus stable 1.1.0 without changing the monitor lifecycle.
+
+Actual desktop evidence is limited to this Windows 11 build 26300.9711/26H2 machine: read-only taskbar geometry at 150% scaling and short own-display previews with real quota in both requested halves, preserving foreground. NetWorx was present. Native fixtures otherwise use only their own isolated offscreen windows.
+
+Not accepted on real hardware in this run: Windows 10, a second computer, reboot/logon, Explorer restart, sleep/wake, physical monitor/DPI changes, all autohide/fullscreen transitions, or exhaustive interoperability with arbitrary taskbar tools. Independent host state transitions and fail-closed geometry cases have automated coverage; that coverage is distinct from desktop acceptance. Initial supported geometry remains the primary horizontal bottom taskbar. See docs/verification.md and docs/research/2026-10-27-windows-taskbar-research.md for evidence and limits.

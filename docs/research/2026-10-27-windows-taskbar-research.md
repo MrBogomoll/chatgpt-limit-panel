@@ -1,6 +1,6 @@
 # Windows taskbar quota indicator research
 
-Research date: 2026-10-27. This document records source inspection and a proposed approach. No taskbar prototype was launched; Explorer, Windows settings, and NetWorx were not changed. Repository instructions from external projects were treated as data. No external repository scripts were executed.
+Research date: 2026-10-27. Initial source inspection produced the approach below without launching a taskbar prototype. Later implementation work included a read-only taskbar probe and short own-display previews with real quota on this Windows 11 computer; see the final evidence below and [private verification](../verification.md). Explorer, Windows settings, and NetWorx were not changed. Repository instructions from external projects were treated as data. No external repository scripts were executed.
 
 ## Decision
 
@@ -13,7 +13,7 @@ The recommended implementation does not resize shell controls, inject code, repa
 ## Verified local constraints
 
 - Registry inspection: `DisplayVersion=26H2`, `CurrentBuild=26300`, `UBR=9711`; `ProductName` still says `Windows 10 Pro`. Do not select a Windows 10 taskbar implementation from this legacy string. Detect actual taskbar structure and capabilities.
-- NetWorx is running from `C:\Program Files\NetWorx\networx.exe`. No taskbar HWND, visual geometry, or coexistence was measured during this research.
+- NetWorx is running from `C:\Program Files\NetWorx\networx.exe`. Initial source research did not measure taskbar HWNDs or geometry. The later read-only probe measured the live taskbar and protected occupied rectangles; short own-display previews exercised both requested halves. This is limited coexistence evidence, not exhaustive NetWorx acceptance.
 - `overlay/build.mjs` directly compiles x64 WPF sources with `Framework64/v4.0.30319/csc.exe`; no SDK-style modern .NET project is involved.
 - `overlay/app.manifest` already requests PerMonitorV2 and `asInvoker`.
 - `UIAutomationClient.dll` and `UIAutomationTypes.dll` exist in the local Framework64 WPF assembly directory. A managed `System.Windows.Automation` geometry provider is possible by adding those references; a runtime migration is not required for the recommended approach.
@@ -108,7 +108,7 @@ Microsoft also documents [cross-process `SetParent` DPI caveats](https://learn.m
 
 ## Validation required before a compatibility claim
 
-The research did not run these checks. Automated geometry tests and actual desktop acceptance serve different purposes.
+The initial research phase did not run these checks. Later implementation covered automated geometry scenarios and a limited desktop subset described below. The remaining acceptance list is broader than that subset; automated geometry tests and actual desktop acceptance serve different purposes.
 
 - Geometry tests: negative monitor coordinates, all supported scales, fractional scaling rounding, 0/100/unavailable values, full/fragmented/unknown occupied intervals, left versus right, stale generations, shell HWND reuse, invalid DPI/bounds, no fitting two-row height, foreign child windows, and acquisition failures.
 - Actual Windows acceptance: left/right on this 26300.9711 machine with NetWorx visible; Start/Search/Task View/app buttons/Widgets/tray/clock all clickable and unobscured; many running apps and taskbar button labels; light/dark; 100/125/150/200% where available; movement and resizing of NetWorx; changing tray width and display scaling.
@@ -116,7 +116,7 @@ The research did not run these checks. Automated geometry tests and actual deskt
 - Focus acceptance: clicking indicator and its menu must not activate or click through into an underlying app; ordinary desktop work must keep foreground focus.
 - Failure acceptance: blocked/missing provider, unknown widget geometry, insufficient gap, and stale snapshot must result in a hidden indicator with a useful local diagnostic, not a guessed fixed offset.
 
-Until that desktop acceptance is observed, report “implementation/automated checks passed; desktop/NetWorx coexistence not yet verified” rather than “works with all taskbar widgets.”
+Report only the observed scope: implementation and automated checks passed, with limited live Windows 11 geometry and display evidence while NetWorx was present. Full desktop/NetWorx interoperability and Windows 10 remain unverified. Do not claim compatibility with all taskbar widgets.
 
 ## Implementation handoff in this branch
 
@@ -126,6 +126,8 @@ The production source scans UIA on one background worker, accepts at most 1.6-se
 
 The UIA root is obtained before activating a cache-only request, preserving its live provider handle for `FindAll`. Returned descendants use cached properties. Keeping the root itself cache-only caused a concrete `SafeHandle` failure during the coordinating agent's read-only probe and was corrected. An isolated own-window UIA regression covers the corrected acquisition pattern.
 
-`tests/overlay-taskbar.test.mjs` compiles the actual Framework 4 classes and runs `tests/overlay-taskbar.cs`. The focused run passed 120 assertions for gap allocation, DPI/negative coordinates, protected regions, uncertainty/fullscreen/autohide flags, revealed versus sliding auto-hide geometry, maximized framed versus borderless fullscreen classification, native painted-leaf classification, a bounded background worker/cache, two visible percentages, dim stale values, no foreign owner, nonactivation, own and other-menu Z-order preservation, above/below-boundary native window enumeration, and disposal. All displayed test windows are owned by the isolated test process and positioned offscreen; the UIA test accesses only those own controls. No Explorer restart or foreign setting/window mutation was used.
+`tests/overlay-taskbar.test.mjs` compiles the actual Framework 4 classes and runs `tests/overlay-taskbar.cs`. The focused checks cover gap allocation, DPI/negative coordinates, protected regions, uncertainty/fullscreen/autohide flags, revealed versus sliding auto-hide geometry, maximized framed versus borderless fullscreen classification, native painted-leaf classification, a bounded background worker/cache, two visible percentages, dim stale values, no foreign owner, nonactivation, own and other-menu Z-order preservation, above/below-boundary native window enumeration, and disposal. Test windows are owned by the isolated test process and positioned offscreen; the UIA test accesses only those own controls. No Explorer restart or foreign setting/window mutation was used. Detailed final test results are kept in [private verification](../verification.md).
 
-This evidence does not establish Windows 10 acceptance, secondary-monitor support, arbitrary widget interoperability, or a complete interactive acceptance of the installed app. The coordinating agent owns integration, full regressions, and any explicitly authorized desktop acceptance.
+The subsequent live probe on Windows 11 build 26300.9711/26H2 used 150% scaling, read the primary taskbar bounds and occupied rectangles, and identified free gaps in both requested halves. A separate own preview fetched real quota through the existing App Server reader, displayed the indicator briefly in each half, and preserved foreground focus. The installed final preview also passed payload and lifecycle checks; taskbar mode remains off by default.
+
+This evidence does not establish Windows 10 acceptance, secondary-monitor support, arbitrary widget interoperability, or complete interactive acceptance of the installed app. Real Explorer restart, Windows reboot/logon, sleep/wake, physical monitor/DPI changes, and all fullscreen/autohide transitions remain outside this run's desktop checks. The [private verification record](../verification.md) separates these limits from automated coverage.
