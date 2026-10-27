@@ -4,7 +4,11 @@
 
 A Windows x64 quota monitor that shows the shared Codex / Work quota above the avatar in the ChatGPT desktop navigation rail. The panel is a separate native overlay window; it does not modify the ChatGPT client. The installed plugin provides a control card to start, stop and check the monitor.
 
-**Private preview: 1.3.1. Public stable release: 1.1.0.** Source remains private; Quota Panel has not been submitted to or approved for the OpenAI Plugin Directory.
+**Private preview: 1.3.2. Public stable release: 1.1.0.** Source remains private; Quota Panel has not been submitted to or approved for the OpenAI Plugin Directory.
+
+Version 1.3.2 refreshes the slider, keeps the transparent panel area clickable,
+and corrects a taskbar snapshot-age race. Disappearance with Start11's context
+menu is still being investigated. [1.3.2 preview notes](docs/PREVIEW-1.3.2.md).
 
 Version 1.3.1 adds experimental support for the primary taskbar at any of the four screen edges: bottom, top, left or right. Right-click the taskbar indicator → **Background transparency** to use the 0–100% slider. This shared setting immediately changes the main Quota Panel and taskbar indicator backgrounds, persists across restarts and defaults to 50%. It works in dark, light and automatic themes; text, bars, outlines and menus retain their previous opacity. See the [1.3.1 preview notes](docs/PREVIEW-1.3.1.md).
 

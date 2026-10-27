@@ -192,5 +192,33 @@ internal static class TaskbarNativeTest {
       window.Configure(false,"right",ThemePalette.Dark);Check(!window.IsVisible&&!window.Enabled,"disabling remains authoritative during a modal menu");
     }finally{release.Set();window.Dispose();cover.Close();cache.Dispose();}
   }
-  [STAThread] static int Main() {try {Allocation();FailClosed();NativeWidgetClassification();AutoHideGeometry();SnapshotLifecycle();OwnWindow();MenuWhileProviderStalls();Console.WriteLine("PASS taskbar allocation and offscreen indicator ("+assertions+" assertions)");return 0;}catch(Exception ex){Console.Error.WriteLine(ex);return 1;}}
+  static void SnapshotMeasurementRace() {
+    long now=0;int calls=0;bool reuse=false;
+    var first=Snapshot();var second=Snapshot();var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);
+    var source=new TaskbarSnapshotSource(delegate{int call=Interlocked.Increment(ref calls);if(call==1)return first;entered.Set();release.WaitOne();return reuse?first:second;},delegate{return Interlocked.Read(ref now);},delegate{return true;});
+    var current=typeof(TaskbarSnapshotSource).GetField("snapshot",BindingFlags.Instance|BindingFlags.NonPublic);
+    try {
+      TaskbarSnapshotSource.Measurement initial;source.Read(out initial);
+      var wait=System.Diagnostics.Stopwatch.StartNew();while(!Object.ReferenceEquals(current.GetValue(source),first)&&wait.ElapsedMilliseconds<1000)Thread.Sleep(5);
+      Check(Object.ReferenceEquals(current.GetValue(source),first),"measurement race fixture must acquire its first snapshot");
+      Interlocked.Exchange(ref now,400);TaskbarSnapshotSource.Measurement oldReceipt;var captured=source.Read(out oldReceipt);
+      Check(Object.ReferenceEquals(captured,first)&&entered.WaitOne(1000),"a read must capture fresh A while a second scan is pending");
+      Interlocked.Exchange(ref now,450);release.Set();wait.Restart();while(!Object.ReferenceEquals(current.GetValue(source),second)&&wait.ElapsedMilliseconds<1000)Thread.Sleep(5);
+      Check(Object.ReferenceEquals(current.GetValue(source),second),"the second snapshot must publish before calculating captured A age");
+      Check(source.SnapshotAge(oldReceipt)==450,"publication of B must preserve the captured A measurement timestamp");
+      TaskbarSnapshotSource.Measurement secondReceipt;Check(Object.ReferenceEquals(source.Read(out secondReceipt),second)&&source.SnapshotAge(secondReceipt)==50,"a new read must capture B independently of A");
+      release.Reset();entered.Reset();reuse=true;Interlocked.Exchange(ref now,800);TaskbarSnapshotSource.Measurement stillSecond;source.Read(out stillSecond);Check(entered.WaitOne(1000),"the scanner may return a previously used snapshot object");Interlocked.Exchange(ref now,850);release.Set();wait.Restart();while(!Object.ReferenceEquals(current.GetValue(source),first)&&wait.ElapsedMilliseconds<1000)Thread.Sleep(5);
+      TaskbarSnapshotSource.Measurement sameObjectReceipt;Check(Object.ReferenceEquals(source.Read(out sameObjectReceipt),first)&&source.SnapshotAge(sameObjectReceipt)==50,"republishing an object captures the new measurement independently");
+      Check(source.SnapshotAge(oldReceipt)==850,"republishing the same object in the same generation must not renew a prior receipt");
+      Interlocked.Exchange(ref now,1701);Check(source.SnapshotAge(oldReceipt)>1600,"an old receipt must truly expire without renewal by later publications");
+      source.Invalidate();Check(source.SnapshotAge(secondReceipt)>1600,"explicit invalidation must revoke previously returned measurements");
+      release.Reset();entered.Reset();reuse=true;Interlocked.Exchange(ref now,1800);TaskbarSnapshotSource.Measurement empty;source.Read(out empty);Check(entered.WaitOne(1000),"a fresh generation must acquire independently");release.Set();wait.Restart();while(!Object.ReferenceEquals(current.GetValue(source),first)&&wait.ElapsedMilliseconds<1000)Thread.Sleep(5);
+      TaskbarSnapshotSource.Measurement reusedReceipt;Check(Object.ReferenceEquals(source.Read(out reusedReceipt),first)&&source.SnapshotAge(reusedReceipt)==0,"reusing the same object must yield a distinct fresh measurement");
+      Check(source.SnapshotAge(oldReceipt)>1600,"republishing the same snapshot object must not renew its previous receipt");
+      Interlocked.Exchange(ref now,1799);Check(source.SnapshotAge(reusedReceipt)>1600,"a clock moving behind receipt acquisition must fail closed");
+      Interlocked.Exchange(ref now,1800);source.Dispose();Check(source.SnapshotAge(reusedReceipt)>1600,"disposing the reader must revoke its last receipt");
+      Check(source.SnapshotAge((TaskbarSnapshotSource.Measurement)null)>1600,"missing receipts must fail closed");
+    }finally{release.Set();source.Dispose();}
+  }
+  [STAThread] static int Main() {try {Allocation();FailClosed();NativeWidgetClassification();AutoHideGeometry();SnapshotLifecycle();SnapshotMeasurementRace();OwnWindow();MenuWhileProviderStalls();Console.WriteLine("PASS taskbar allocation and offscreen indicator ("+assertions+" assertions)");return 0;}catch(Exception ex){Console.Error.WriteLine(ex);return 1;}}
 }

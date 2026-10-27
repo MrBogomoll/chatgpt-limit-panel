@@ -188,7 +188,7 @@ namespace QuotaOverlay {
       Title="Quota Panel";
       Width=Layout.PanelWidth; Height=Layout.PanelHeight;
       WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize;
-      AllowsTransparency=true; Background=Brushes.Transparent;
+      AllowsTransparency=true; Background=TaskbarAppearance.InputSurface(backgroundTransparency);
       ShowInTaskbar=false; ShowActivated=false; Topmost=false; Focusable=false;
       FontFamily=new FontFamily("Segoe UI");
       panel=new Border { Width=Layout.PanelWidth,Height=Layout.PanelHeight,Background=Brush(palette.Background(backgroundTransparency)),BorderBrush=Brush(palette.Border),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(3,5,3,5) };
@@ -336,7 +336,7 @@ namespace QuotaOverlay {
       string resolved=themeResolver.Resolve(themeMode);
       if(resolved==effectiveTheme)return false;
       effectiveTheme=resolved;palette=resolved=="light"?ThemePalette.Light:ThemePalette.Dark;
-      panel.Background=Brush(palette.Background(backgroundTransparency));panel.BorderBrush=Brush(palette.Border);divider.Background=Brush(palette.Divider);
+      Background=TaskbarAppearance.InputSurface(backgroundTransparency);panel.Background=Brush(palette.Background(backgroundTransparency));panel.BorderBrush=Brush(palette.Border);divider.Background=Brush(palette.Divider);
       compactStale.Foreground=Brush(palette.Secondary);
       for(int i=0;i<2;i++) {
         periods[i].Foreground=Brush(palette.Secondary);markers[i].Foreground=Brush(palette.Secondary);
@@ -389,7 +389,7 @@ namespace QuotaOverlay {
       value=Math.Max(0,Math.Min(100,value));
       if(closing||value==backgroundTransparency)return;
       try{Preferences.Update(settingsFile,p=>{p["backgroundTransparency"]=value;});}catch{SyncTransparencyControl();return;}
-      backgroundTransparency=value;panel.Background=Brush(palette.Background(value));
+      backgroundTransparency=value;Background=TaskbarAppearance.InputSurface(value);panel.Background=Brush(palette.Background(value));
       SyncTaskbar();lastState="";
     }
     void SyncTransparencyControl() {
@@ -410,6 +410,7 @@ namespace QuotaOverlay {
         var right=Menu("taskbarRight",true);right.Click+=delegate {SetTaskbarSide("right");};
         transparencyLabel=new TextBlock {FontSize=12,Margin=new Thickness(0,0,0,5)};
         transparencySlider=new Slider {Minimum=0,Maximum=100,Value=backgroundTransparency,Width=195,TickFrequency=1,IsSnapToTickEnabled=true,IsMoveToPointEnabled=true,Focusable=false};
+        TaskbarAppearance.ApplySliderStyle(transparencySlider);
         transparencySlider.ValueChanged+=delegate {if(!syncingTransparency)SetBackgroundTransparency((int)Math.Round(transparencySlider.Value));};
         var transparencyContent=new StackPanel();transparencyContent.Children.Add(transparencyLabel);transparencyContent.Children.Add(transparencySlider);
         var transparencyItem=new MenuItem {Header=transparencyContent,StaysOpenOnClick=true};

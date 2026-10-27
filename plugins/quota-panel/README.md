@@ -1,10 +1,8 @@
 # Quota Panel
 
-В 1.3.1 исправлено исчезновение индикатора при открытии меню Start11: пока меню
-блокирует получение геометрии, сохраняется уже проверенное положение с контролем
-изменений панели задач и соседних окон. **English:** 1.3.1 retains an existing
-verified indicator position during Start11's modal menu while validating native
-taskbar and neighboring-window changes.
+Предварительная 1.3.2: обновлён ползунок прозрачности и сохранена возможность нажать ПКМ по пустой области индикатора даже при прозрачном фоне. Исправлена ошибка определения возраста свежего снимка панели задач. Совместимость с меню Start11 продолжает проверяться.
+
+**English:** Preview 1.3.2 refreshes the transparency slider and keeps the empty indicator area clickable even with a fully clear background. A snapshot-age race has been corrected. Start11 context-menu compatibility is still under investigation.
 
 В 1.3.1 добавлена экспериментальная поддержка основной панели задач снизу, сверху, слева или справа. ПКМ по индикатору на панели задач → **«Прозрачность фона»** открывает ползунок 0–100%. Общая настройка сразу меняет фон основной панели Quota Panel и индикатора, сохраняется после перезапуска и по умолчанию равна 50%. Работает в тёмной, светлой и автоматической темах; текст, полоски, контур и меню сохраняют прежнюю непрозрачность.
 

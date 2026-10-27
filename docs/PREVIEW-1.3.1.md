@@ -1,5 +1,12 @@
 # Quota Panel 1.3.1 — private preview
 
+**Уточнение:** в окружении Start11 исчезновение осталось. Описанный ниже
+механизм оказался недостаточным; 1.3.1 нельзя считать исправлением этого сбоя.
+Дальнейшая диагностика — в [предварительной 1.3.2](PREVIEW-1.3.2.md).
+
+**Correction:** disappearance persisted with Start11. The mechanism below was
+insufficient; 1.3.1 must not be treated as a verified fix for that failure.
+
 ## Русский
 
 Исправлена обработка меню модифицированной панели задач Start11. Его диалог

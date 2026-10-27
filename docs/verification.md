@@ -340,3 +340,49 @@ SHA-256: 4018c0a8f8cddc2bd425688dad34b5e39b8818a856d08ec58ba7fea5e5b80691
 
 Живой повтор Start11 после установки 1.3.1 пока ожидает ответа. Границы проверки
 Windows 10, перезагрузки, сна, нескольких мониторов и всех положений сохраняются.
+
+## 1.3.2 private preview — appearance, measurement receipts and actual GUI diagnostics
+
+The Start11 taskbar-menu disappearance reported against 1.3.1 remains unverified.
+The real installed GUI now logs transition-only metadata to taskbar-debug.jsonl;
+no app captions, content or tokens are written. The bounded spool performs native
+metadata collection and file IO off the UI thread (8 pending + 1 inflight,
+200ms minimum interval, 1MB file and one previous file). Event and worker times
+are distinct. Injected taskbar fixtures do not log to user AppData.
+
+Modern slider: 4DIP rounded track, 14DIP visual thumb, 22DIP pointer target,
+live dark/light resources. Alpha1/255 input background at transparency100 keeps
+empty layered-window pixels clickable; visual panel alpha contract and opaque
+text are unchanged. Own tests check input pixels, HTCLIENT, native styles,
+focus preservation, value changes, endpoints and production persistence.
+
+A separate race was reproduced before fixing: captured A age450ms incorrectly
+returned1601 after B publication. Production now captures immutable measurement
+receipts atomically and computes age independently of newer publication. Explicit
+invalidation/dispose, true expiry, reverse clock and object reuse remain guarded.
+A behavioral RED/GREEN was recorded; this is not yet established as Start11 cause.
+
+Final combined suite145/145 passed; taskbar fixture163 assertions, purelease75,
+appearance32, diagnosticspool22. Native build passed. Version staging assertion
+initially retained1.3.1 in an escaped regex; corrected and whole suite rerun.
+
+Installed through registered source + CLI, owned task1.3.1→1.3.2 migrated with XML
+backup dist/v132-upgrade-backup. All24 stage/source/cache payload hashes matched.
+Actual GUI startup62932 showed exactly the prior GUI preferences: Russian,
+Auto/dark, full, both indicators, shortcontour, taskbar-on/right,29%transparency,
+autostart-on, pausedfalse. Taskbar visible at1833,1380/72x48px, aboveShell_TrayWnd.
+MCP5tools reports1.3.2; realGitHub checkahead vs publicstable1.1.0 changed no lifecycle.
+
+Important diagnostic caveat: packaged shell/launcher AppData reads differ from
+scheduledGUI AppData for files shadowed under the ChatGPT package LocalCache.
+Shell settings.json85bytes saysEnglish/compact, while actualGUI startupprefs are
+Russian/full/right/29%. The packageLocalCacheLocal settings has the same85bytes.
+Do not infer actualGUI language/visible/paused from the stale shell-side state.
+Compare actualGUI startup or fresh nonshadowed diagnostic metadata. No migration
+of those storage layers was attempted in this patch; this is a follow-up concern.
+
+Package: quota-panel-1.3.2-windows-x64.zip
+SHA256:25b792ef05dee29a1fd6bdb3d174c002b605f58a50a8b2252573462370787772
+Public stable remains1.1.0. No public publication or universal Win10/11/Start11
+compatibility claim. One real Start11 repro requested asynchronously remains
+pending; at last inspection the log contains startup/visible transitions only.
