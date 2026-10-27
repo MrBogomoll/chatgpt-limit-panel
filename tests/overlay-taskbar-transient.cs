@@ -30,9 +30,31 @@ internal static class TaskbarTransientTest {
     memory.Confirm(primary,-1920,-1080,0,0,false);
     Check(!memory.DuringTransient(primary,-1920,-1080,0,0),"valid negative monitor coordinates remain a stable key");
   }
+  static void TaskbarDialogPolicy(){
+    const long popup=0x84000000L,actualEx=0x082800A8L;
+    Check(TaskbarTransient.IsTaskbarPopupDialog("#32770",popup,actualEx,true,false,true),"the observed captionless Start11 context dialog is recognized by trusted provenance");
+    Check(TaskbarTransient.IsTaskbarPopupDialog("#32770",popup,actualEx,true,true,false),"a positively shell-owned captionless popup is recognized");
+    Check(!TaskbarTransient.IsTaskbarPopupDialog("#32770",popup,actualEx,true,false,false),"a foreign captionless dialog cannot inherit the taskbar menu exception");
+    Check(!TaskbarTransient.IsTaskbarPopupDialog("#32770",popup,actualEx,false,true,true),"unrelated dialogs away from the taskbar remain protected");
+    foreach(long style in new[]{0L,popup|0x40000000L,popup|0x00C00000L,popup|0x00040000L})Check(!TaskbarTransient.IsTaskbarPopupDialog("#32770",style,actualEx,true,true,true),"ordinary framed, child, resizable or nonpopup dialogs are excluded");
+    Check(!TaskbarTransient.IsTaskbarPopupDialog("#32770",popup,actualEx|0x00040000L,true,true,true),"an app-window dialog remains a real application");
+    foreach(string name in new[]{"#32768","#327700","NetWorxDeskband","Chrome_WidgetWin_1","",null})Check(!TaskbarTransient.IsTaskbarPopupDialog(name,popup,actualEx,true,true,true),"dialog provenance never exempts unrelated window classes");
+    string root=@"C:\Program Files (x86)";IntPtr instance=new IntPtr(0x12345000);
+    Check(TaskbarTransient.IsTrustedStart11ImagePath(Path.Combine(root,"Stardock","Start11","Start11_64.exe"),root),"the exact protected standalone Start11 image is recognized");
+    foreach(string module in new[]{"Start10_64.dll","Start11_64.dll"}){
+      string image=Path.Combine(root,"Stardock","Start11",module);
+      Check(TaskbarTransient.IsTrustedStart11ModuleIdentity(image,instance,instance,root),"the dialog instance must resolve to an exact protected Start11 module");
+      Check(TaskbarTransient.IsTrustedStart11ModuleIdentity(image.ToUpperInvariant(),instance,instance,root.ToLowerInvariant()),"module identity paths are case insensitive");
+      Check(!TaskbarTransient.IsTrustedStart11ModuleIdentity(image,instance,new IntPtr(0x23456000),root),"a trusted module path with another base address cannot prove the dialog instance");
+      Check(!TaskbarTransient.IsTrustedStart11ModuleIdentity(image,IntPtr.Zero,IntPtr.Zero,root),"a missing instance never proves Start11 provenance");
+    }
+    foreach(string image in new[]{@"C:\Temp\Start10_64.dll",@"C:\Program Files (x86)\Stardock\Start11Fake\Start10_64.dll",@"C:\Program Files (x86)\Stardock\Start10\Start10_64.dll",@"C:\Program Files (x86)\Stardock\Start11\Start10_64.dll:stream",@"C:\Program Files (x86)\Stardock\Start11\Start10_64.dll.bak",@"Stardock\Start11\Start10_64.dll","",null,"\0"})Check(!TaskbarTransient.IsTrustedStart11ModuleIdentity(image,instance,instance,root),"fake, relative and invalid Start11 module paths are rejected");
+    foreach(string image in new[]{@"C:\Temp\Start11_64.exe",@"C:\Program Files (x86)\Stardock\Start11\Start11.exe",@"C:\Program Files (x86)\Stardock\Start11Fake\Start11_64.exe",@"C:\Program Files (x86)\Stardock\Start11\Start11_64.exe:stream","",null})Check(!TaskbarTransient.IsTrustedStart11ImagePath(image,root),"a filename alone cannot establish standalone Start11 provenance");
+  }
   [STAThread] static int Main() {
     try {
       FullscreenTransitions();
+      TaskbarDialogPolicy();
       Check(!TaskbarTransient.MaySuppressForFullscreen(IntPtr.Zero),"null foreground during a menu activation transition is not confirmed fullscreen");
       string windows=@"C:\Windows";
       foreach(string package in new[]{"MicrosoftWindows.Client.Core_cw5n1h2txyewy","MicrosoftWindows.Client.CBS_cw5n1h2txyewy","Microsoft.Windows.ShellExperienceHost_cw5n1h2txyewy"}) {

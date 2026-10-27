@@ -16,6 +16,15 @@ namespace QuotaOverlay {
     readonly Func<TaskbarSnapshot> readSnapshot;
     readonly TaskbarSnapshotSource source;
     readonly DispatcherTimer timer;
+    readonly Stopwatch placementClock=Stopwatch.StartNew();
+    readonly TaskbarMenuLease menuLease=new TaskbarMenuLease();
+    readonly Func<bool> readTransient;
+    readonly Func<TaskbarSnapshot,TaskbarArea,string> readLeaseFingerprint;
+    readonly Func<long> placementMilliseconds;
+    TaskbarSnapshot leaseSnapshot;
+    TaskbarPlacement lastShown;
+    bool wasTransient;
+    long recoveryUntil;
     readonly TextBlock upper,lower;
     readonly Border surface;
     ThemePalette palette=ThemePalette.Dark;
@@ -28,8 +37,11 @@ namespace QuotaOverlay {
     public bool IsVertical {get;private set;}
     public Func<bool> IsOtherMenuOpen {get;set;}
 
-    public TaskbarWindow(Func<TaskbarSnapshot> readSnapshot=null) {
+    public TaskbarWindow(Func<TaskbarSnapshot> readSnapshot=null,Func<bool> readTransient=null,Func<TaskbarSnapshot,TaskbarArea,string> readLeaseFingerprint=null,Func<long> nowMilliseconds=null) {
       if(readSnapshot==null){source=new TaskbarSnapshotSource();this.readSnapshot=source.Read;}else this.readSnapshot=readSnapshot;
+      this.readTransient=readTransient??delegate{IntPtr capture;return TaskbarTransient.IsActive(out capture);};
+      this.readLeaseFingerprint=readLeaseFingerprint??delegate(TaskbarSnapshot value,TaskbarArea bounds){return TaskbarNative.LeaseFingerprint(value,bounds,hwnd);};
+      placementMilliseconds=nowMilliseconds??delegate{return placementClock.ElapsedMilliseconds;};
       Width=TaskbarLayout.Width;Height=TaskbarLayout.Height;WindowStartupLocation=WindowStartupLocation.Manual;
       WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;Background=Brushes.Transparent;
       ShowInTaskbar=false;ShowActivated=false;Focusable=false;UseLayoutRounding=true;SnapsToDevicePixels=true;
@@ -57,8 +69,9 @@ namespace QuotaOverlay {
     }
     public void Configure(bool enabled,string side,ThemePalette palette,int transparency=50) {
       if(disposed||closed)return;
+      if(this.side!=side)InvalidateMenuLease();
       this.side=side;this.palette=palette??ThemePalette.Dark;backgroundTransparency=Math.Max(0,Math.Min(100,transparency));ApplyPalette();Enabled=enabled;
-      if(!enabled){timer.Stop();if(source!=null)source.Invalidate();Conceal("disabled");return;}
+      if(!enabled){timer.Stop();if(source!=null)source.Invalidate();InvalidateMenuLease();Conceal("disabled");return;}
       timer.Start();RefreshPlacement();
     }
     public void ApplyRows(string upper,string lower,string upperTone,string lowerTone,bool stale) {
@@ -67,26 +80,49 @@ namespace QuotaOverlay {
     }
     void ApplyPalette() {surface.Background=Color(palette.Background(backgroundTransparency));upper.Foreground=Color(palette.Tone(upperTone));lower.Foreground=Color(palette.Tone(lowerTone));upper.Opacity=lower.Opacity=stale?0.55:1;}
     void Conceal(string reason) {PlacementStatus=reason;if(IsVisible)Hide();}
+    void InvalidateMenuLease(){menuLease.Invalidate();leaseSnapshot=null;lastShown=null;wasTransient=false;recoveryUntil=0;}
     void RefreshPlacement() {
       if(disposed||closed||!Enabled)return;
       try {
         TaskbarSnapshot snapshot=readSnapshot();if(snapshot!=null&&TaskbarLayout.Valid(snapshot.Bounds))IsVertical=snapshot.Bounds.Height>snapshot.Bounds.Width;
         TaskbarPlacement placement=TaskbarLayout.Place(snapshot,side);
+        long now=placementMilliseconds();bool transient=readTransient();
+        if(!transient&&wasTransient)recoveryUntil=now+1600;
+        if(transient)recoveryUntil=0;
+        wasTransient=transient;
+        bool hold=transient||(!placement.Visible&&now<recoveryUntil);
+        string fingerprint=hold&&leaseSnapshot!=null&&lastShown!=null?readLeaseFingerprint(leaseSnapshot,lastShown.Bounds):null;
+        TaskbarPlacement retained;
+        bool retainedPosition=menuLease.TryHold(hold,IsVisible,fingerprint!=null,fingerprint,now,out retained);
+        if(hold&&!retainedPosition){Conceal("menu-unverified");return;}
+        if(retainedPosition) {
+          if(snapshot!=null&&snapshot.OccupancyKnown) {
+            menuLease.Record(snapshot,retained,fingerprint,now);
+            if(!menuLease.TryHold(hold,IsVisible,true,fingerprint,now,out retained)){Conceal("menu-changed");return;}
+          }
+          if(retained!=null)placement=retained;
+        }
         if(!placement.Visible){Conceal(placement.Reason);return;}
         bool showing=!IsVisible;
         if(showing){Opacity=0;Show();}
         TaskbarArea bounds=placement.Bounds;
-        IntPtr captureWindow;uint flags=0x0010;if((ContextMenu!=null&&ContextMenu.IsOpen)||(IsOtherMenuOpen!=null&&IsOtherMenuOpen())||TaskbarTransient.IsActive(out captureWindow))flags|=0x0004;
+        IntPtr captureWindow;uint flags=0x0010;if(hold||(ContextMenu!=null&&ContextMenu.IsOpen)||(IsOtherMenuOpen!=null&&IsOtherMenuOpen())||TaskbarTransient.IsActive(out captureWindow))flags|=0x0004;
         if(!TaskbarNative.SetWindowPos(hwnd,new IntPtr(-1),(int)bounds.X,(int)bounds.Y,(int)bounds.Width,(int)bounds.Height,flags)) {Conceal("position-failed");return;}
-        PlacementStatus="visible";Opacity=1;
+        PlacementStatus=placement.Reason;Opacity=1;
+        if(!hold) {
+          string evidence=readLeaseFingerprint(snapshot,bounds);
+          long age=source==null?0:source.SnapshotAge(snapshot);
+          menuLease.Record(snapshot,placement,evidence,placementMilliseconds()-age);
+          leaseSnapshot=snapshot;lastShown=placement;
+        }
       }catch {Conceal("provider-error");}
     }
     IntPtr WindowMessage(IntPtr window,int message,IntPtr wParam,IntPtr lParam,ref bool handled) {
       if(message==0x0021){handled=true;return new IntPtr(3);}
-      if(message==0x007E||message==0x001A||message==0x02E0){if(source!=null)source.Invalidate();Conceal("layout-changed");}
+      if(message==0x007E||message==0x001A||message==0x02E0){if(source!=null)source.Invalidate();InvalidateMenuLease();Conceal("layout-changed");}
       return IntPtr.Zero;
     }
-    void Stop() {Enabled=false;timer.Stop();if(source!=null)source.Dispose();PlacementStatus="disposed";}
+    void Stop() {Enabled=false;timer.Stop();InvalidateMenuLease();if(source!=null)source.Dispose();PlacementStatus="disposed";}
     public void Dispose() {if(disposed)return;disposed=true;Stop();if(!closed)Close();}
   }
 
@@ -128,6 +164,7 @@ namespace QuotaOverlay {
       return candidate;
     }
     public void Invalidate(){lock(gate){generation++;snapshot=null;nextScan=0;}}
+    public long SnapshotAge(TaskbarSnapshot value){lock(gate)return value!=null&&Object.ReferenceEquals(value,snapshot)?nowMilliseconds()-measuredAt:LifetimeMilliseconds+1;}
     public void Dispose(){lock(gate){disposed=true;generation++;snapshot=null;}}
   }
 
@@ -188,6 +225,49 @@ namespace QuotaOverlay {
         return GetMonitorInfo(monitor,ref information)&&IsTaskbarFullyRevealed(area,information.Monitor.Area(),snapshot.Scale)&&!Fullscreen(own,monitor,information.Monitor);
       }catch{return false;}
     }
+    internal static string LeaseFingerprint(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own) {
+      try {
+        if(snapshot==null||!TaskbarLayout.Valid(footprint)||!CanDisplaySnapshot(snapshot,own))return null;
+        uint shell;GetWindowThreadProcessId(snapshot.Handle,out shell);if(shell==0)return null;
+        uint ownProcess=(uint)Process.GetCurrentProcess().Id;bool safe=true,above=true;int count=0;
+        double margin=Math.Ceiling(TaskbarLayout.Clearance*snapshot.Scale);
+        var protectedFootprint=new TaskbarArea{X=footprint.X-margin,Y=footprint.Y-margin,Width=footprint.Width+2*margin,Height=footprint.Height+2*margin};
+        var rows=new List<string>();rows.Add("shell|"+snapshot.Handle.ToInt64()+"|"+shell+"|"+snapshot.Scale.ToString("R",CultureInfo.InvariantCulture));
+        rows.Add(LeaseArea("bar",snapshot.Bounds));
+        EnumChildWindows(snapshot.Handle,delegate(IntPtr child,IntPtr unused) {
+          if(++count>512){safe=false;return false;}if(!IsWindowVisible(child))return true;
+          uint process;GetWindowThreadProcessId(child,out process);Rect rect;
+          if(process==0||!GetWindowRect(child,out rect)){safe=false;return false;}
+          TaskbarArea area=rect.Area();if(!TaskbarLayout.Valid(area)||!Intersects(area,snapshot.Bounds))return true;
+          string name=ClassName(child);rows.Add(LeaseArea("child|"+child.ToInt64()+"|"+process+"|"+name,area));
+          if(ProtectNativeWindow(name,process==shell,GetWindow(child,5)==IntPtr.Zero)&&Intersects(area,protectedFootprint)){safe=false;return false;}
+          return true;
+        },IntPtr.Zero);
+        if(!safe)return null;count=0;
+        EnumWindows(delegate(IntPtr window,IntPtr unused) {
+          if(++count>1024){safe=false;return false;}
+          if(window==snapshot.Handle){above=false;return true;}
+          if(window==own||!IsWindowVisible(window)||Cloaked(window)||BackgroundClass(ClassName(window)))return true;
+          uint process;GetWindowThreadProcessId(window,out process);if(process==ownProcess)return true;
+          if(TaskbarTransient.IsCaptureWindow(window)||TaskbarTransient.IsMenuWindow(window))return true;
+          Rect rect;if(process==0||!WindowBounds(window,out rect)){safe=false;return false;}
+          TaskbarArea area=rect.Area();bool iconic=IsIconic(window);
+          if(above&&!iconic&&TaskbarLayout.Valid(area)&&Intersects(area,protectedFootprint)){safe=false;return false;}
+          long extended=GetWindowLongPtr(window,-20).ToInt64();
+          bool button=(extended&0x00040000L)!=0||((extended&0x80L)==0&&GetWindow(window,4)==IntPtr.Zero);
+          if(button) {
+            var title=new System.Text.StringBuilder(512);GetWindowText(window,title,title.Capacity);string text=title.ToString();
+            rows.Add(LeaseArea("app|"+window.ToInt64()+"|"+process+"|"+iconic+"|"+(extended&0x00040080L)+"|"+text.Length+":"+text,area));
+          }
+          return true;
+        },IntPtr.Zero);
+        uint current;GetWindowThreadProcessId(snapshot.Handle,out current);
+        if(!safe||above||current!=shell||!CanDisplaySnapshot(snapshot,own))return null;
+        rows.Sort(StringComparer.Ordinal);
+        using(var sha=System.Security.Cryptography.SHA256.Create())return Convert.ToBase64String(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(String.Join("\n",rows.ToArray()))));
+      }catch{return null;}
+    }
+    static string LeaseArea(string key,TaskbarArea area) {return key+"|"+area.X.ToString("R",CultureInfo.InvariantCulture)+"|"+area.Y.ToString("R",CultureInfo.InvariantCulture)+"|"+area.Width.ToString("R",CultureInfo.InvariantCulture)+"|"+area.Height.ToString("R",CultureInfo.InvariantCulture);}
     internal static TaskbarSnapshot ReadSnapshot(IntPtr own) {
       var result=new TaskbarSnapshot();IntPtr taskbar=FindWindow("Shell_TrayWnd",null);result.Handle=taskbar;
       Rect rectangle;if(taskbar==IntPtr.Zero||!GetWindowRect(taskbar,out rectangle)||!IsWindowVisible(taskbar)||Cloaked(taskbar))return result;
@@ -286,6 +366,7 @@ namespace QuotaOverlay {
     [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent,EnumWindowProc callback,IntPtr parameter);
     [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowProc callback,IntPtr parameter);
     [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window,System.Text.StringBuilder name,int count);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr window,System.Text.StringBuilder text,int count);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr window,uint command);
     [DllImport("shell32.dll")] static extern UIntPtr SHAppBarMessage(uint message,ref AppbarData data);

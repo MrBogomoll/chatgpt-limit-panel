@@ -26,6 +26,7 @@ internal static class TaskbarNativeTest {
   static void Pump() {var frame=new DispatcherFrame();Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background,new Action(delegate{frame.Continue=false;}));Dispatcher.PushFrame(frame);}
   static void Refresh(TaskbarWindow window) {typeof(TaskbarWindow).GetMethod("RefreshPlacement",BindingFlags.NonPublic|BindingFlags.Instance).Invoke(window,null);Pump();}
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window,out TaskbarNative.Rect rect);
   [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")] static extern IntPtr GetWindowLongPtr(IntPtr hwnd,int index);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window,out uint process);
   [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr window,uint command);
@@ -157,5 +158,39 @@ internal static class TaskbarNativeTest {
     var slow=new TaskbarSnapshotSource(delegate{slowStarted.Set();slowRelease.WaitOne();return Snapshot();},delegate{return Interlocked.Read(ref slowNow);},delegate(TaskbarSnapshot value){return true;});
     try{Check(slow.Read()==null&&slowStarted.WaitOne(2000),"slow scan starts without blocking UI");Interlocked.Exchange(ref slowNow,1300);slowRelease.Set();Thread.Sleep(30);Check(slow.Read()==null,"over-budget acquisition must not become a fresh successful snapshot");}finally{slowRelease.Set();slow.Dispose();}
   }
-  [STAThread] static int Main() {try {Allocation();FailClosed();NativeWidgetClassification();AutoHideGeometry();SnapshotLifecycle();OwnWindow();Console.WriteLine("PASS taskbar allocation and offscreen indicator ("+assertions+" assertions)");return 0;}catch(Exception ex){Console.Error.WriteLine(ex);return 1;}}
+  static void MenuWhileProviderStalls() {
+    long now=0;bool menu=false,block=false,safe=true;string fingerprint="native-1";
+    var sample=Snapshot();sample.Bounds=Area(-20000,-20000,1920,48);
+    var entered=new ManualResetEvent(false);var release=new ManualResetEvent(false);
+    var cache=new TaskbarSnapshotSource(delegate{if(block){entered.Set();release.WaitOne();}return sample;},delegate{return now;},delegate{return true;});
+    var window=new TaskbarWindow(cache.Read,delegate{return menu;},delegate(TaskbarSnapshot value,TaskbarArea bounds){return safe?fingerprint:null;},delegate{return now;});
+    var cover=new Window{Left=-21000,Top=-21000,Width=32,Height=32,ShowActivated=false,ShowInTaskbar=false,WindowStyle=WindowStyle.None,Topmost=true};
+    try {
+      window.Configure(true,"right",ThemePalette.Dark);
+      var wait=System.Diagnostics.Stopwatch.StartNew();while(!window.IsVisible&&wait.ElapsedMilliseconds<2000){Refresh(window);Thread.Sleep(5);}
+      Check(window.IsVisible,"menu regression begins from a freshly verified displayed footprint");
+      IntPtr handle=new WindowInteropHelper(window).Handle;TaskbarNative.Rect first;GetWindowRect(handle,out first);IntPtr foreground=GetForegroundWindow();
+      menu=true;safe=false;now=100;Refresh(window);
+      Check(!window.IsVisible,"a changed native guard must reject even a still TTL-valid accessibility placement during the menu");
+      menu=false;safe=true;now=200;Refresh(window);Check(window.IsVisible,"a verified normal frame can rearm after the unsafe menu closes");
+      menu=true;block=true;now=500;Refresh(window);Check(entered.WaitOne(1000),"the next accessibility scan must be stalled by the simulated modal menu");
+      cover.Show();Pump();IntPtr coverHandle=new WindowInteropHelper(cover).Handle;TaskbarNative.SetWindowPos(coverHandle,new IntPtr(-1),0,0,0,0,0x0013);
+      foreach(long moment in new long[]{1700,15000}) {
+        now=moment;Refresh(window);window.Configure(true,"right",ThemePalette.Light);Refresh(window);
+        TaskbarNative.Rect held;GetWindowRect(handle,out held);
+        Check(window.IsVisible&&window.PlacementStatus=="menu-held","a recognized menu retains the already visible widget beyond the UIA cache lifetime");
+        Check(first.Left==held.Left&&first.Top==held.Top&&first.Right==held.Right&&first.Bottom==held.Bottom,"a stalled provider may not allocate or move the retained footprint");
+        Check(Above(coverHandle,handle)&&GetForegroundWindow()==foreground,"retention keeps native menu layering and foreground unchanged");
+      }
+      safe=false;Refresh(window);Check(!window.IsVisible,"changed native evidence immediately revokes a retained footprint");
+      safe=true;Refresh(window);Check(!window.IsVisible,"a revoked lease cannot revive a hidden widget while its menu remains open");
+      menu=false;block=false;release.Set();Refresh(window);
+      wait.Restart();while(!window.IsVisible&&wait.ElapsedMilliseconds<2000){Refresh(window);Thread.Sleep(5);}
+      Check(window.IsVisible,"fresh accessibility data restores normal placement after the menu closes");
+      release.Reset();entered.Reset();block=true;menu=true;now=15500;Refresh(window);Check(entered.WaitOne(1000),"the provider can stall for a second independent menu");now=18000;Refresh(window);
+      fingerprint="native-2";Refresh(window);Check(!window.IsVisible,"an app-window or taskbar fingerprint change revokes the exact retained position");
+      window.Configure(false,"right",ThemePalette.Dark);Check(!window.IsVisible&&!window.Enabled,"disabling remains authoritative during a modal menu");
+    }finally{release.Set();window.Dispose();cover.Close();cache.Dispose();}
+  }
+  [STAThread] static int Main() {try {Allocation();FailClosed();NativeWidgetClassification();AutoHideGeometry();SnapshotLifecycle();OwnWindow();MenuWhileProviderStalls();Console.WriteLine("PASS taskbar allocation and offscreen indicator ("+assertions+" assertions)");return 0;}catch(Exception ex){Console.Error.WriteLine(ex);return 1;}}
 }

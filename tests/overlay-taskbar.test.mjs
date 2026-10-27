@@ -20,7 +20,7 @@ test('taskbar allocation and own offscreen indicator fail closed without probing
     '/nologo', '/codepage:65001', '/platform:x64', '/target:exe', '/main:TaskbarNativeTest', `/out:${executable}`,
     `/win32manifest:${path.join(root, 'overlay', 'app.manifest')}`,
     ...references.map(reference => `/reference:${reference}`),
-    path.join(root, 'overlay', 'Theme.cs'), path.join(root, 'overlay', 'TaskbarLayout.cs'), path.join(root, 'overlay', 'TaskbarWindow.cs'), path.join(root, 'overlay', 'TaskbarTransient.cs'), path.join(root, 'tests', 'overlay-taskbar.cs'),
+    path.join(root, 'overlay', 'Theme.cs'), path.join(root, 'overlay', 'TaskbarLayout.cs'), path.join(root, 'overlay', 'TaskbarWindow.cs'), path.join(root, 'overlay', 'TaskbarTransient.cs'), path.join(root, 'overlay', 'TaskbarMenuLease.cs'), path.join(root, 'tests', 'overlay-taskbar.cs'),
   ], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
   assert.ifError(compiled.error);
   assert.equal(compiled.status, 0, `taskbar test compilation failed:\n${compiled.stdout}\n${compiled.stderr}`);

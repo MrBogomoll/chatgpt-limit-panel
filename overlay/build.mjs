@@ -12,7 +12,7 @@ else {
   args.push('/target:winexe',`/win32manifest:${path.join(root,'overlay/app.manifest')}`);
   for(const name of ['PresentationCore','PresentationFramework','WindowsBase','UIAutomationClient','UIAutomationTypes']) args.push(`/reference:${path.join(framework,'WPF',name+'.dll')}`);
   for(const name of ['System.Web.Extensions','System.Windows.Forms','System.Drawing','System.Xaml']) args.push(`/reference:${path.join(framework,name+'.dll')}`);
-  args.push(path.join(root,'overlay/Layout.cs'),path.join(root,'overlay/TaskbarLayout.cs'),path.join(root,'overlay/TaskbarWindow.cs'),path.join(root,'overlay/TaskbarTransient.cs'),path.join(root,'overlay/Progress.cs'),path.join(root,'overlay/VisualHost.cs'),path.join(root,'overlay/Theme.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'overlay/Language.cs'),path.join(root,'overlay/Overlay.cs'));
+  args.push(path.join(root,'overlay/Layout.cs'),path.join(root,'overlay/TaskbarLayout.cs'),path.join(root,'overlay/TaskbarWindow.cs'),path.join(root,'overlay/TaskbarTransient.cs'),path.join(root,'overlay/TaskbarMenuLease.cs'),path.join(root,'overlay/Progress.cs'),path.join(root,'overlay/VisualHost.cs'),path.join(root,'overlay/Theme.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'overlay/Language.cs'),path.join(root,'overlay/Overlay.cs'));
 }
 const result=spawnSync(path.join(framework,'csc.exe'),args,{encoding:'utf8',windowsHide:true});
 if(result.stdout)process.stdout.write(result.stdout);if(result.stderr)process.stderr.write(result.stderr);
