@@ -10,7 +10,7 @@ namespace QuotaOverlay {
     public readonly string Surface,Border,Divider,Primary,Secondary,Date,Warning,Critical,Short,Weekly,Track;
     public readonly string MenuSurface,MenuText,MenuBorder,MenuHover,MenuCheck,MenuArrow,MenuDivider;
     ThemePalette(bool light) {
-      Surface=light?"#F3F3F4":"#242526";Border=light?"#C8CBD0":"#494A4C";Divider=light?"#D4D7DC":"#424345";
+      Surface=light?"#E6F3F3F4":"#E6242526";Border=light?"#C8CBD0":"#494A4C";Divider=light?"#D4D7DC":"#424345";
       Primary=light?"#25282D":"#ECECEE";Secondary=light?"#626873":"#B1B2B5";Date=light?"#5D626B":"#BFC0C2";
       Warning=light?"#955416":"#E3B382";Critical=light?"#B23B42":"#E6A0A1";
       Short=light?"#207D6B":"#7ADBC5";Weekly=light?"#2B74AB":"#87BEEB";Track=light?"#DADEE3":"#41464B";

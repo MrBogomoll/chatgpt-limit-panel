@@ -762,7 +762,7 @@ class OverlayNativeTest {
     Apply(window,Row("5 ч","30%","25.10","14:59","","warning"),Row("Нед.","10%","01.11","09:59","","critical"));
     AssertReadableColor(window,0,"#E3B382");AssertReadableColor(window,1,"#E6A0A1");
     Invoke(window,"SelectTheme","light");
-    Check(Field<string>(window,"effectiveTheme")=="light" && ColorOf(Field<Border>(window,"panel").Background)==ParseColor("#F3F3F4"),"manual light must apply a light panel surface");
+    Check(Field<string>(window,"effectiveTheme")=="light" && ColorOf(Field<Border>(window,"panel").Background)==ParseColor("#E6F3F3F4"),"manual light must apply a slightly translucent light panel surface");
     AssertReadableColor(window,0,"#955416");AssertReadableColor(window,1,"#B23B42");
     var menu=Field<ContextMenu>(window,"optionsMenu");
     Check(ColorOf((Brush)menu.Resources["Quota.MenuSurface"])==ParseColor("#FFFFFF") && ColorOf((Brush)menu.Resources["Quota.MenuText"])==ParseColor("#25282D"),"menu resources must switch to readable light colours");
@@ -785,7 +785,7 @@ class OverlayNativeTest {
     Apply(window,Row("5 ч","30%","25.10","14:59","","warning"),Row("Нед.","10%","01.11","09:59","","critical"));
     Invoke(window,"SelectTheme","dark");
     Check(ColorOf(shell.Background)==ParseColor("#292A2D"),"an already constructed menu template must update without being recreated");
-    Check(ColorOf(Field<Border>(window,"panel").Background)==ParseColor("#242526"),"dark background must retain its original colour");
+    Check(ColorOf(Field<Border>(window,"panel").Background)==ParseColor("#E6242526"),"dark background must retain its colour with slight transparency");
     AssertReadableColor(window,0,"#E3B382");AssertReadableColor(window,1,"#E6A0A1");
     Console.WriteLine("PASS native theme: light/dark surfaces, readable warnings, menu resources and unchanged quota values");
   }
