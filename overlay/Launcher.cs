@@ -61,7 +61,7 @@ class QuotaMonitorLauncher {
       else if(taskHostMode) {
         try {File.WriteAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ChatGPTQuotaOverlay","task-host-error.json"),new JavaScriptSerializer().Serialize(new {time=DateTime.UtcNow.ToString("o"),code=error.HResult}),Encoding.UTF8);}catch{}
       }
-      else MessageBox.Show(error.Message,"Quota Panel",MessageBoxButtons.OK,MessageBoxIcon.Error);
+      else MessageBox.Show(error.Message,"ChatGPT Limit Panel",MessageBoxButtons.OK,MessageBoxIcon.Error);
     }
   }
   static void ConfigureAutostart(string launcher,string data,bool? enabled) {

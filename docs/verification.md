@@ -657,3 +657,38 @@ the indicator. This confirms the reported scenario on this Windows11/Start11 set
 it is not a physical Windows10 or all-games compatibility claim. Root installed
 metadata: v121-beta4-installed.json, v121-beta4-installed-check.json and native-child-
 beta4-1793172221369.jsonl. Previous beta/stable archives and tags remain unchanged.
+
+## ChatGPT Limit Panel rename, 1.2.1-beta.5 (2026-10-28)
+
+User authorized both repository names and the plugin display name. Public repository
+is now MrBogomoll/chatgpt-limit-panel (same ID1433486830); private source is now
+MrBogomoll/chatgpt-limit-panel-code (same ID1433242334). Visibility and default main
+branches are preserved. Both local remotes, repository descriptions, active README
+links and package repository metadata use canonical new URLs. Three existing public
+release titles/bodies were renamed without changing tags, asset IDs, names or sizes.
+Public documentation explains the old name in immutable1.1.0 binaries and archives.
+
+Display branding is ChatGPT Limit Panel in manifests, native title/tray/dialogs,
+control card, MCP metadata, update messages and SVG accessibility text. Internal
+quota-panel identity, task ownership markers, executables, AppData and archive prefix
+remain stable to preserve installation and settings. The ID-based release checker
+accepts the renamed public canonical URL while preserving owner/asset validation.
+
+Existing manifest/MCP tests failed with the new expected title before production
+edits, then passed. The browser control-card test verified the new heading and
+narrow layout. One stale escaped version regex was corrected to beta5. A concurrent
+native run reported intermittent fixture movement/foreground/visibility failures;
+each affected fixture passed in isolation, and the final complete sequential run
+passed155/155 with no skips in90.1seconds. No runtime behavior was changed to bypass
+those assertions. Root log: dist/rebrand-beta5-sequential-verification.txt.
+
+Native build succeeded. Original source+CLI migration beta4->beta5 preserved all true
+physical preferences (RU/auto/full/both/short/right, transparency74, autostart enabled,
+not paused) and all24 staged/source/cache payload hashes matched. Installed manifest
+and MCP title are ChatGPT Limit Panel; live card h1 and manual public GitHub check
+passed, ahead vs stable1.1.0 with no downgrade link or lifecycle change. Physical
+GUI143620 reports attached/visible taskbar with fresh values. Beta5 archive SHA256:
+fab6fc7eb25ce63b7bd9c182fb713c2f26de9096b4435b801071045bea60450d.
+Public README download links match canonical existing release assets; no new public
+release or replacement of an old archive was performed. Root migration and repository
+audit files preserve exact before/after identity and preferences evidence.

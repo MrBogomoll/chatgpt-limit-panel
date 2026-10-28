@@ -1,5 +1,5 @@
-export const CURRENT_VERSION='1.2.1-beta.4';
-export const RELEASE_ORIGIN='https://github.com/MrBogomoll/quota-panel-chatgpt';
+export const CURRENT_VERSION='1.2.1-beta.5';
+export const RELEASE_ORIGIN='https://github.com/MrBogomoll/chatgpt-limit-panel';
 // Repository names can change. The verified public repository ID stays stable.
 const endpoint='https://api.github.com/repositories/1433486830/releases/latest';
 function version(value,allowPrerelease=false) {
@@ -35,7 +35,7 @@ export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=gl
       if(abort.signal.aborted)return failure('cancelled');
       try {
         const work=(async()=>{
-          const response=await fetchImpl(endpoint,{headers:{Accept:'application/vnd.github+json','User-Agent':'Quota-Panel/'+currentVersion,'X-GitHub-Api-Version':'2022-11-28'},signal:abort.signal,redirect:'error'});
+          const response=await fetchImpl(endpoint,{headers:{Accept:'application/vnd.github+json','User-Agent':'ChatGPT-Limit-Panel/'+currentVersion,'X-GitHub-Api-Version':'2022-11-28'},signal:abort.signal,redirect:'error'});
           if(response.status===403||response.status===429)return failure('rate-limit');
           if(response.status===404)return failure('not-found');
           if(!response.ok)return failure('network');
@@ -65,8 +65,8 @@ export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=gl
 }
 export function updateMessage(update,language='ru') {
   const en=language==='en';
-  if(update.state==='available')return en?`Quota Panel ${update.latestVersion} is available. Installed: ${update.currentVersion}.`:`Доступна Quota Panel ${update.latestVersion}. Установлена: ${update.currentVersion}.`;
-  if(update.state==='current')return en?`Quota Panel ${update.currentVersion} is up to date.`:`Установлена актуальная Quota Panel ${update.currentVersion}.`;
+  if(update.state==='available')return en?`ChatGPT Limit Panel ${update.latestVersion} is available. Installed: ${update.currentVersion}.`:`Доступна ChatGPT Limit Panel ${update.latestVersion}. Установлена: ${update.currentVersion}.`;
+  if(update.state==='current')return en?`ChatGPT Limit Panel ${update.currentVersion} is up to date.`:`Установлена актуальная ChatGPT Limit Panel ${update.currentVersion}.`;
   if(update.state==='ahead')return en?`Installed ${update.currentVersion} is newer than the latest release ${update.latestVersion}.`:`Установленная версия ${update.currentVersion} новее последнего релиза ${update.latestVersion}.`;
   if(update.reason==='rate-limit')return en?'GitHub request limit reached. Try again later.':'Достигнут лимит запросов GitHub. Повтори проверку позже.';
   if(update.reason==='timeout')return en?'The update check timed out. Try again.':'Время проверки обновлений истекло. Повтори попытку.';

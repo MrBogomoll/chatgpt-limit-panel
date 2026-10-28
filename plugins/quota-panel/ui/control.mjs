@@ -9,8 +9,8 @@ let updateBusy=false,updateSnapshot,openFailure=false;
 const copy = {
   ru: {
     checkUpdates:'Проверить обновления',openRelease:'Открыть релиз',checkingUpdates:'Проверка обновлений…',
-    updateAvailable:(latest,current)=>`Доступна Quota Panel ${latest}. Установлена: ${current}.`,
-    updateCurrent:current=>`Установлена актуальная Quota Panel ${current}.`,
+    updateAvailable:(latest,current)=>`Доступна ChatGPT Limit Panel ${latest}. Установлена: ${current}.`,
+    updateCurrent:current=>`Установлена актуальная ChatGPT Limit Panel ${current}.`,
     updateAhead:(current,latest)=>`Установленная версия ${current} новее последнего релиза ${latest}.`,
     updateError:'Не удалось проверить обновления. Проверь соединение и повтори попытку.',
     updateRateLimit:'Достигнут лимит запросов GitHub. Повтори проверку позже.',updateTimeout:'Время проверки обновлений истекло. Повтори попытку.',
@@ -24,8 +24,8 @@ const copy = {
   },
   en: {
     checkUpdates:'Check for updates',openRelease:'Open release',checkingUpdates:'Checking for updates…',
-    updateAvailable:(latest,current)=>`Quota Panel ${latest} is available. Installed: ${current}.`,
-    updateCurrent:current=>`Quota Panel ${current} is up to date.`,
+    updateAvailable:(latest,current)=>`ChatGPT Limit Panel ${latest} is available. Installed: ${current}.`,
+    updateCurrent:current=>`ChatGPT Limit Panel ${current} is up to date.`,
     updateAhead:(current,latest)=>`Installed ${current} is newer than the latest release ${latest}.`,
     updateError:'Could not check for updates. Check your connection and try again.',
     updateRateLimit:'GitHub request limit reached. Try again later.',updateTimeout:'The update check timed out. Try again.',
@@ -144,7 +144,7 @@ refreshButton.addEventListener('click', () => call('get_quota_overlay_status'));
 window.addEventListener('pagehide', dispose, { once: true });
 
 try {
-  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'quota-panel', version: '1.2.1-beta.4' }, appCapabilities: {} });
+  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'quota-panel', version: '1.2.1-beta.5' }, appCapabilities: {} });
   if (!disposed) {
     applyHostContext(result?.hostContext); connected = true;
     window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized' }, '*');

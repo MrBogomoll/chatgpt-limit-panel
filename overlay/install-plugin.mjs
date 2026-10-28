@@ -31,8 +31,8 @@ export function installPlugin({
     if (!info?.isFile() || info.isSymbolicLink() || !info.size) throw new Error(`Missing complete bundled plugin file: ${relative}`);
   }
   const manifest = JSON.parse(readFileSync(path.join(stage, '.codex-plugin/plugin.json'), 'utf8'));
-  if (manifest.name !== 'quota-panel' || !manifest.version || manifest.interface?.displayName !== 'Quota Panel') {
-    throw new Error('The compatibility plugin manifest must identify the Quota Panel release.');
+  if (manifest.name !== 'quota-panel' || !manifest.version || manifest.interface?.displayName !== 'ChatGPT Limit Panel') {
+    throw new Error('The compatibility plugin manifest must identify the ChatGPT Limit Panel release.');
   }
 
   const sources = path.join(home, 'plugins', 'local-sources');
@@ -48,7 +48,7 @@ export function installPlugin({
   mkdirSync(path.dirname(catalogPath), { recursive: true });
   writeFileSync(catalogPath, JSON.stringify({
     name: marketplaceName,
-    interface: { displayName: 'Quota Panel' },
+    interface: { displayName: 'ChatGPT Limit Panel' },
     plugins: [{ name: 'quota-panel', source: { source: 'local', path: './plugins/quota-panel' },
       policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' }, category: 'Productivity' }],
   }, null, 2) + '\n', { flag: 'wx' });
@@ -71,11 +71,11 @@ export function installPlugin({
   run(['plugin', 'add', pluginId, '--json']);
   const listed = run(['plugin', 'list', '--marketplace', marketplaceName, '--json']);
   const installed = listed.installed?.find(plugin => plugin.pluginId === pluginId && plugin.installed && plugin.enabled && plugin.version === manifest.version);
-  if (!installed) throw new Error('Could not verify Quota Panel as installed and enabled in native Codex plugin metadata.');
+  if (!installed) throw new Error('Could not verify ChatGPT Limit Panel as installed and enabled in native Codex plugin metadata.');
   return { installed, marketplaceRoot, sourcePath, configBackupPath };
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   try { process.stdout.write(JSON.stringify(installPlugin({ stagePath: process.argv[2] }), null, 2) + '\n'); }
-  catch (error) { process.stderr.write(`Quota Panel installation failed: ${error.message}\n`); process.exitCode = 1; }
+  catch (error) { process.stderr.write(`ChatGPT Limit Panel installation failed: ${error.message}\n`); process.exitCode = 1; }
 }

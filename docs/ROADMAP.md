@@ -3,7 +3,7 @@
 User request recorded 2026-10-25 while finishing 1.0.1:
 
 Add a manual **Check for updates / Проверить обновления** action. Check the
-latest published release of MrBogomoll/quota-panel-releases, compare its
+latest published release of MrBogomoll/chatgpt-limit-panel, compare its
 semantic version with the installed version, and report whether an update is
 available. Offer the verified GitHub release/download page when newer.
 

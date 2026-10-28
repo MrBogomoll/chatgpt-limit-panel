@@ -17,7 +17,7 @@ export function createLanguageReader({ settingsPath = join(process.env.LOCALAPPD
 }
 
 export const englishTools = {
-  check_quota_panel_updates:['Check for Quota Panel updates','Manually checks the latest stable public GitHub release. Returns its version and release link; does not install an update or start the monitor.'],
+  check_quota_panel_updates:['Check for ChatGPT Limit Panel updates','Manually checks the latest stable public GitHub release. Returns its version and release link; does not install an update or start the monitor.'],
   show_quota_overlay: ['Open quota panel controls', 'Opens controls to start and stop the local Codex/Work quota monitor. Reads status without starting the monitor. Requires Windows x64 and a local executor.'],
   start_quota_overlay: ['Start quota panel', 'Starts one local quota monitor. First activation configures a per-user Windows logon task; the monitor waits for ChatGPT to open. Autostart can be disabled in the panel context menu. Repeated starts do not create duplicates.'],
   stop_quota_overlay: ['Stop quota panel', 'Cooperatively closes only the local quota monitor. Repeated stops are safe. Does not close ChatGPT.'],

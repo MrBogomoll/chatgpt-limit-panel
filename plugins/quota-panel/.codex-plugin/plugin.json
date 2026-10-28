@@ -1,6 +1,6 @@
 {
   "name": "quota-panel",
-  "version": "1.2.1-beta.4",
+  "version": "1.2.1-beta.5",
   "description": "Запуск и остановка самостоятельной панели общего лимита Codex/Work в Windows x64.",
   "author": {
     "name": "Local tools"
@@ -8,7 +8,7 @@
   "mcpServers": "./.mcp.json",
   "requires_local_executor": true,
   "interface": {
-    "displayName": "Quota Panel",
+    "displayName": "ChatGPT Limit Panel",
     "shortDescription": "Лимиты Codex / Work",
     "longDescription": "Управление самостоятельной панелью лимитов в Windows x64. Показывает общий остаток Codex/Work над окном ChatGPT. Использует текущий вход локального Codex App Server. Требует локальный исполнитель и установленный Codex с выполненным входом. Первый запуск включает пользовательскую задачу автозапуска при входе в Windows; панель ждёт открытия ChatGPT. Автозапуск отключается через меню панели. Клиент ChatGPT не изменяется.",
     "developerName": "Local tools",

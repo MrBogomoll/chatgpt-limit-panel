@@ -24,7 +24,7 @@ namespace QuotaOverlay {
         IntPtr thread=GetThreadDpiAwarenessContext(),host=GetWindowDpiAwarenessContext(parent);
         if(parent==IntPtr.Zero||!IsWindow(parent)||thread==IntPtr.Zero||host==IntPtr.Zero||!AreDpiAwarenessContextsEqual(thread,host)){reason="child-creation-dpi-mismatch";return false;}
         closed=onClosed;
-        var parameters=new HwndSourceParameters("Quota Panel taskbar"){
+        var parameters=new HwndSourceParameters("ChatGPT Limit Panel taskbar"){
           ParentWindow=parent,WindowStyle=0x46000000,ExtendedWindowStyle=0x08000080,
           Width=1,Height=1,UsesPerPixelTransparency=true,
           AcquireHwndFocusInMenuMode=false,TreatAsInputRoot=true

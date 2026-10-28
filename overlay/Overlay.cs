@@ -185,7 +185,7 @@ namespace QuotaOverlay {
       string legacySource=preferredMode=="full"?"fullProgressWindow":preferredMode=="ultra"?"ultraProgressWindow":"compactProgressWindow";
       string savedSource=preferences.ContainsKey("contourWindow")?Convert.ToString(preferences["contourWindow"]):"";
       contourWindow=savedSource=="short"||savedSource=="weekly"?savedSource:preferences.ContainsKey(legacySource)&&Convert.ToString(preferences[legacySource])=="weekly"?"weekly":"short";
-      Title="Quota Panel";
+      Title="ChatGPT Limit Panel";
       Width=Layout.PanelWidth; Height=Layout.PanelHeight;
       WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize;
       AllowsTransparency=true; Background=TaskbarAppearance.InputSurface(backgroundTransparency);
@@ -557,7 +557,7 @@ namespace QuotaOverlay {
         }catch{}
         Dispatcher.BeginInvoke(new Action(delegate {
           if(closing)return;autostartBusy=false;if(succeeded)autoStartEnabled=actual;SyncMenu();lastState="";
-          if(!succeeded&&tray.Visible)tray.ShowBalloonTip(4000,"Quota Panel",T("autostartError"),Forms.ToolTipIcon.Warning);
+          if(!succeeded&&tray.Visible)tray.ShowBalloonTip(4000,"ChatGPT Limit Panel",T("autostartError"),Forms.ToolTipIcon.Warning);
         }));
       });
     }

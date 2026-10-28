@@ -389,7 +389,7 @@ test('manual update command uses a separate coalesced checker without changing q
   assert.equal(count,0);await send('check-updates');await until(()=>count===1);
   await send('check-updates');await delay(30);assert.equal(count,1);assert.equal(reader.calls,0);
   assert((await views()).some(view=>view.update?.state==='checking'));
-  finish({state:'available',currentVersion:'1.1.0',latestVersion:'1.2.0',url:'https://github.com/MrBogomoll/quota-panel-releases/releases/tag/v1.2.0'});
+  finish({state:'available',currentVersion:'1.1.0',latestVersion:'1.2.0',url:'https://github.com/MrBogomoll/chatgpt-limit-panel/releases/tag/v1.2.0'});
   await until(async()=> (await views()).some(view=>view.update?.state==='available'));
   assert.equal(reader.calls,0);await send('check-updates');await until(()=>count===2);await host.stop();finish({state:'current'});await delay(20);
   assert(!(await views()).some(view=>view.update?.state==='current'));

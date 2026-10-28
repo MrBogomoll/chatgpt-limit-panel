@@ -549,7 +549,7 @@ class OverlayNativeTest {
     var action=Field<MenuItem>(window,"updatesItem");MenuClick(action);Check(!action.IsEnabled,"update check must disable duplicate clicks");
     foreach(string language in new[]{"ru","en"})foreach(string theme in new[]{"dark","light"}) {
       Invoke(window,"SelectLanguage",language);Invoke(window,"SelectTheme",theme);
-      var update=new Dictionary<string,object>{{"state","available"},{"currentVersion","1.1.0"},{"latestVersion","1.2.0"},{"url","https://github.com/MrBogomoll/quota-panel-chatgpt/releases/tag/v1.2.0"}};
+      var update=new Dictionary<string,object>{{"state","available"},{"currentVersion","1.1.0"},{"latestVersion","1.2.0"},{"url","https://github.com/MrBogomoll/chatgpt-limit-panel/releases/tag/v1.2.0"}};
       Invoke(window,"Apply",new Dictionary<string,object>{{"update",update}});Check(shown!=null&&action.IsEnabled,"manual result must show its own dialog and re-enable action");
       Check(!shown.ShowActivated,"delayed update result must not activate over the user's current app");
       var stack=(StackPanel)shown.Content;var text=(TextBlock)stack.Children[0];Check(text.Text.Contains("1.2.0")&&text.Text.Contains("1.1.0"),"result must show available and installed versions");
