@@ -32,6 +32,7 @@ test('native overlay renders and accepts updates using only isolated own control
   succeeded(compilation, 'native test compilation');
 
   for (const [scenario, description] of [
+    ['snap-preview', 'recorded Snap preview hides only the sidebar while ordinary drag and unrelated shell windows remain unaffected'],
     ['layout', '100% and bold reset times fit actual available width with current fonts'],
     ['language', 'Russian and English switch live, fit all three sizes and survive restart without changing quota or settings'],
     ['tones', 'both rows apply readable muted warning and critical colours'],

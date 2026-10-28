@@ -1131,6 +1131,21 @@ class OverlayNativeTest {
       Console.WriteLine("PASS native target-identity: rejects untrusted ChatGPT filename with bounded GUI CPU; cpuMs="+cpu);
     } finally {if(own!=IntPtr.Zero)DestroyWindow(own);}
   }
+  static void SnapPreviewTest(OverlayWindow window) {
+    var screen=new Native.Rect{Left=-2560,Top=0,Right=0,Bottom=1440};
+    var bar=new Native.Rect{Left=-2560,Top=0,Right=-1,Bottom=540};
+    Check(SidebarSnapPreview.Matches(true,true,"XamlExplorerHostIslandWindow",2621600,bar,screen),"recorded Snap preview hides the independent sidebar");
+    Check(!SidebarSnapPreview.Matches(true,true,"XamlExplorerHostIslandWindow",2621608,bar,screen),"ordinary dragging with topmost Snap hint retains the sidebar");
+    Check(!SidebarSnapPreview.Matches(false,true,"XamlExplorerHostIslandWindow",2621600,bar,screen),"stationary windows never use the drag preview rule");
+    Check(!SidebarSnapPreview.Matches(true,false,"XamlExplorerHostIslandWindow",2621600,bar,screen),"a spoofed shell class is rejected");
+    Check(!SidebarSnapPreview.Matches(true,true,"OtherXamlWindow",2621600,bar,screen),"unrelated shell classes are rejected");
+    Check(!SidebarSnapPreview.Matches(true,true,"XamlExplorerHostIslandWindow",0,bar,screen),"unknown shell style does not authorize hiding");
+    var other=screen;other.Left=0;other.Right=2560;
+    Check(!SidebarSnapPreview.Matches(true,true,"XamlExplorerHostIslandWindow",2621600,bar,other),"another monitor cannot hide this sidebar");
+    bar.Top=100;
+    Check(!SidebarSnapPreview.Matches(true,true,"XamlExplorerHostIslandWindow",2621600,bar,screen),"ordinary floating shell islands do not match a top-edge Snap bar");
+    Known(window);Invoke(window,"SavePreview");Console.WriteLine("PASS native snap-preview: recorded preview, ordinary drag, trusted shell, monitor and stationary boundaries");
+  }
   [STAThread] public static int Main(string[] args) {
     if(args.Length==1&&args[0]=="motion-fixture")return MotionFixture();
     Application app=null;OverlayWindow window=null;
@@ -1141,6 +1156,7 @@ class OverlayNativeTest {
       window=NewWindow(Path.Combine(directory,"state.json"));
       AssertUnshown(window);
       switch(args[0]) {
+        case "snap-preview":SnapPreviewTest(window);break;
         case "rail-translation":RailTranslationTest(window);break;
         case "rail-overflow":RailOverflowTest(window);break;
         case "target-identity":TargetIdentityTest(window);break;

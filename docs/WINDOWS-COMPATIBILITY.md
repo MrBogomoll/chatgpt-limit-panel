@@ -6,6 +6,18 @@ Windows 11 results must not be presented as Windows 10 validation.
 
 ## Current evidence and candidates
 
+- The bundled Node.js 24 runtime lists Windows 10 x64 as supported in its
+  [platform requirements](https://github.com/nodejs/node/blob/v24.22.1/BUILDING.md).
+  This rules out assuming that Node itself requires Windows 11; it does not
+  establish that this plugin works on the affected computer.
+- The available baseline is Windows 11 build 26300 with matching visible
+  taskbar/widget DPI contexts. This is not a Windows 10 result.
+- Sidebar discovery currently accepts `ChatGPT.exe` from the packaged
+  `OpenAI.Codex_` installation. The affected machine's running package must be
+  identified before attributing a missing sidebar to Windows 10 or expanding
+  trusted process recognition. Installed package names alone do not identify
+  which executable the user opened.
+
 - Vertical Start11 placement was reproduced on the available Windows 11 system.
   A redundant classic layout peer masked free space; this is a distinct measured
   issue and does not establish the cause of the Windows 10 report.

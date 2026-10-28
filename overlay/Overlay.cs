@@ -61,6 +61,42 @@ namespace QuotaOverlay {
     }
   }
 
+  internal sealed class SidebarSnapPreview {
+    [StructLayout(LayoutKind.Sequential)]struct Gui {public uint Size,Flags;public IntPtr Active,Focus,Capture,MenuOwner,MoveSize,Caret;public Native.Rect CaretBounds;}
+    [StructLayout(LayoutKind.Sequential)]struct Monitor {public int Size;public Native.Rect Bounds,Work;public uint Flags;}
+    IntPtr watched;long nextRead;bool active;
+    internal static bool Matches(bool moving,bool trusted,string kind,long style,Native.Rect bar,Native.Rect monitor) {
+      // Observed Snap host: ordinary drag is topmost; active preview drops that bit.
+      // shortcut: matches the measured Explorer host; trace changed shell implementations before extending it.
+      return moving&&trusted&&kind=="XamlExplorerHostIslandWindow"&&(style&0x2800a8)==0x2800a0&&
+        monitor.Right>monitor.Left&&monitor.Bottom>monitor.Top&&Math.Abs((double)bar.Left-monitor.Left)<=2&&Math.Abs((double)bar.Right-monitor.Right)<=2&&
+        Math.Abs((double)bar.Top-monitor.Top)<=2&&bar.Bottom>bar.Top&&bar.Bottom<monitor.Bottom;
+    }
+    internal bool Active(IntPtr target,long now) {
+      uint process;uint thread=Native.GetWindowThreadProcessId(target,out process);var gui=new Gui{Size=(uint)Marshal.SizeOf(typeof(Gui))};
+      if(target==IntPtr.Zero||!GetGUIThreadInfo(thread,ref gui)||(gui.Flags&2)==0||gui.MoveSize!=target){watched=IntPtr.Zero;active=false;return false;}
+      if(watched==target&&now<nextRead)return active;
+      watched=target;nextRead=now+100;active=false;
+      var monitor=new Monitor{Size=Marshal.SizeOf(typeof(Monitor))};if(!GetMonitorInfo(MonitorFromWindow(target,2),ref monitor))return false;
+      IntPtr candidate=IntPtr.Zero;
+      for(int i=0;i<8;i++) {
+        candidate=FindWindowEx(IntPtr.Zero,candidate,"XamlExplorerHostIslandWindow",null);if(candidate==IntPtr.Zero)break;
+        Native.Rect bounds;int cloaked;
+        if(!Native.IsWindowVisible(candidate)||!Native.GetWindowRect(candidate,out bounds)||Native.DwmGetWindowAttribute(candidate,14,out cloaked,4)!=0||cloaked!=0)continue;
+        long style=Native.GetWindowLongPtr(candidate,-20).ToInt64();
+        if(!Matches(true,true,"XamlExplorerHostIslandWindow",style,bounds,monitor.Bounds))continue;
+        Native.GetWindowThreadProcessId(candidate,out process);string image=Native.ProcessImage(process);
+        bool trusted=String.Equals(image,Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),"explorer.exe"),StringComparison.OrdinalIgnoreCase);
+        if(trusted){active=true;break;}
+      }
+      return active;
+    }
+    [DllImport("user32.dll")]static extern bool GetGUIThreadInfo(uint thread,ref Gui info);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern IntPtr FindWindowEx(IntPtr parent,IntPtr after,string kind,string title);
+    [DllImport("user32.dll")]static extern IntPtr MonitorFromWindow(IntPtr window,uint flags);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern bool GetMonitorInfo(IntPtr monitor,ref Monitor info);
+  }
+
   // Exists only while our context menu is open. Observe button-down without
   // capturing/suppressing input; clicks on our own popup HWNDs stay inside.
   internal sealed class MenuDismissWatcher : IDisposable {
@@ -191,6 +227,7 @@ namespace QuotaOverlay {
   }
   public class OverlayWindow : Window {
     readonly SidebarGeometrySource sidebarGeometry=new SidebarGeometrySource();
+    readonly SidebarSnapPreview snapPreview=new SidebarSnapPreview();
     bool sidebarPointer,sidebarDragged,sidebarSuppressClick;
     double sidebarPointerX,sidebarPointerY,sidebarPointerOffset;
     double? sidebarPosition;
@@ -902,7 +939,9 @@ namespace QuotaOverlay {
       if(valid&&targetMatcher==null)placement=Layout.PlaceInAvailableRail(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,controls,sidebarPosition);
       bool modeChanged=presentationMode!=placement.Mode;
       if(modeChanged)SetMode(placement.Mode);
-      bool show=valid&&!paused&&placement.Visible&&appReady;
+      bool preview=valid&&snapPreview.Active(target,NowMilliseconds());
+      bool show=valid&&!paused&&placement.Visible&&appReady&&!preview;
+      if(preview)sidebarStatus="snap-preview";
       if(valid&&targetMatcher==null&&controls==null)sidebarStatus="geometry-unavailable";
       if(show) {
         if(!base.IsVisible)Show();ApplyAttachedPlacement(hwnd,target,placement,optionsMenu.IsOpen);sidebarStatus="window";
