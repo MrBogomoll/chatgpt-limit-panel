@@ -15,7 +15,7 @@ test('updates use the primary source repository after the release-only repositor
 
 test('the current release reports its own version and does not offer the older stable release',async()=>{
   const value=await api.createUpdateChecker({fetchImpl:async()=>reply(release('1.2.0')),cooldownMs:0}).check();
-  assert.equal(value.currentVersion,'1.4.2-beta.1');assert.equal(value.latestVersion,'1.2.0');
+  assert.equal(value.currentVersion,'1.4.2-beta.4');assert.equal(value.latestVersion,'1.2.0');
   assert.equal(value.state,'ahead');assert.equal(value.url,null);
 });
 

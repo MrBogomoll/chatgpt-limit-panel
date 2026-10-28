@@ -1099,6 +1099,7 @@ class OverlayNativeTest {
     snapshot.RootBounds=new Rect(525,262,1200,850);snapshot.Controls.Clear();snapshot.Controls.Add(new Rect(531,362,36,36));
     controls=snapshot.Project(steady,steady,1200,900,1200,900,1,1,false,out verified);
     Check(controls!=null&&controls.Count==1&&controls[0].Top==150&&!verified,"steady inset document retains original client projection without authorizing motion reuse");
+    Check(snapshot.Project(steady,steady,1200,900,1200,900,1,1,true,out verified)==null,"a known full-client document cannot become an inset map while cached bounds lag resizing");
     Known(window);Invoke(window,"SavePreview");Console.WriteLine("PASS native rail-translation: coherent coordinates, trusted document mapping, shape/DPI rejection and inset fallback");
   }
   static void RailOverflowTest(OverlayWindow window) {
@@ -1146,6 +1147,42 @@ class OverlayNativeTest {
     Check(!SidebarSnapPreview.Matches(true,true,"XamlExplorerHostIslandWindow",2621600,bar,screen),"ordinary floating shell islands do not match a top-edge Snap bar");
     Known(window);Invoke(window,"SavePreview");Console.WriteLine("PASS native snap-preview: recorded preview, ordinary drag, trusted shell, monitor and stationary boundaries");
   }
+  static void RailResizeTest(OverlayWindow window) {
+    var controls=new List<RailRegion>{new RailRegion{Top=80,Bottom=120},new RailRegion{Top=840,Bottom=880}};
+    foreach(double scale in new[]{1.0,1.25,1.5,2.0}) {
+      var scaled=new List<RailRegion>();foreach(var c in controls)scaled.Add(new RailRegion{Top=c.Top*scale,Bottom=c.Bottom*scale});
+      foreach(double delta in new[]{-140.0,140.0}) {
+        var envelope=SidebarControlSnapshot.ResizeEnvelope(scaled,delta*scale);
+        for(int i=0;i<scaled.Count;i++)foreach(double fraction in new[]{0.0,.5,1.0}) {
+          double top=scaled[i].Top+delta*scale*fraction,bottom=scaled[i].Bottom+delta*scale*fraction;
+          Check(envelope[i].Top<=top&&envelope[i].Bottom>=bottom,"resize envelope reserves fixed, proportional and bottom-anchored controls at every DPI");
+        }
+      }
+      Check(scaled[0].Top==80*scale,"resize projection never mutates the measured map");
+    }
+    var sample=new SidebarGeometrySource.Sample{Target=new IntPtr(42),Width=1200,Height=900,Scale=1,At=1000,Verified=true,Controls=controls};
+    Check(SidebarGeometrySource.CurrentControls(sample,new IntPtr(42),800,760,1,1500)!=null,"resize retains a fresh verified rail map");
+    Check(SidebarGeometrySource.CurrentControls(sample,new IntPtr(43),800,760,1,1500)==null,"another target never reuses a resize map");
+    Check(SidebarGeometrySource.CurrentControls(sample,new IntPtr(42),800,760,1.5,1500)==null,"DPI change requires a new measurement");
+    Check(SidebarGeometrySource.CurrentControls(sample,new IntPtr(42),800,760,1,4001)==null,"resize never extends the existing freshness bound");
+    sample.Verified=false;
+    Check(SidebarGeometrySource.CurrentControls(sample,new IntPtr(42),800,760,1,1500)==null,"an inset or unverified document cannot authorize resize projection");
+    var origin=new Native.Point{X=0,Y=0};bool verified;
+    var snapshot=new SidebarControlSnapshot{RootBounds=new Rect(0,0,1200,900)};
+    snapshot.Controls.Add(new Rect(5,80,36,40));snapshot.Controls.Add(new Rect(5,840,36,40));
+    var measured=snapshot.Project(origin,origin,1200,1000,1200,1040,1,1,true,out verified);
+    Check(measured!=null&&verified,"a fresh full-client cache remains usable while native height changes during measurement");
+    Check(measured[1].Top<=840&&measured[1].Bottom>=1020,"vertical receipt reserves the bottom control's movement to the current height");
+    Check(snapshot.Project(origin,origin,1200,1000,1200,1040,1,1,false,out verified)==null,"unknown root mapping cannot authorize resizing receipts");
+    foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(int delta in new[]{-40,40}) {
+      snapshot.RootBounds=new Rect(0,0,1200*scale,900*scale);snapshot.Controls.Clear();snapshot.Controls.Add(new Rect(5*scale,840*scale,36*scale,40*scale));
+      measured=snapshot.Project(origin,origin,(int)(1200*scale),(int)(900*scale),(int)(1200*scale),(int)((900+delta)*scale),scale,scale,true,out verified);
+      Check(measured!=null&&measured[0].Top<=(840+delta)*scale&&measured[0].Bottom>=(880+delta)*scale,"fresh vertical receipts cover the actual bottom control during grow and shrink at every DPI");
+    }
+    snapshot.RootBounds=new Rect(0,50,1200,900);
+    Check(snapshot.Project(origin,origin,1200,1000,1200,1040,1,1,true,out verified)==null,"a displaced document cannot be accepted as a vertical resize");
+    Known(window);Invoke(window,"SavePreview");Console.WriteLine("PASS native rail-resize: conservative occupied regions, target/DPI/freshness boundaries and unchanged measured map");
+  }
   [STAThread] public static int Main(string[] args) {
     if(args.Length==1&&args[0]=="motion-fixture")return MotionFixture();
     Application app=null;OverlayWindow window=null;
@@ -1156,6 +1193,7 @@ class OverlayNativeTest {
       window=NewWindow(Path.Combine(directory,"state.json"));
       AssertUnshown(window);
       switch(args[0]) {
+        case "rail-resize":RailResizeTest(window);break;
         case "snap-preview":SnapPreviewTest(window);break;
         case "rail-translation":RailTranslationTest(window);break;
         case "rail-overflow":RailOverflowTest(window);break;

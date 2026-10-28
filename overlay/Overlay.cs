@@ -143,11 +143,32 @@ namespace QuotaOverlay {
     internal Rect RootBounds;
     internal readonly List<Rect> Controls=new List<Rect>();
     internal int Candidates;
+    internal static IList<RailRegion> ResizeEnvelope(IList<RailRegion> controls,double heightChange) {
+      var result=new List<RailRegion>();
+      // Reserve the swept area for top-, bottom- and proportionally anchored controls.
+      foreach(var c in controls)result.Add(new RailRegion{Top=c.Top+Math.Min(0,heightChange),Bottom=c.Bottom+Math.Max(0,heightChange)});
+      return result;
+    }
     internal IList<RailRegion> Project(Native.Point before,Native.Point after,int width,int height,int afterWidth,int afterHeight,double scale,double afterScale,bool verifiedClientDocument,out bool verified,IList<RailRegion> expectedControls=null) {
       verified=false;
-      if(width<=0||height<=0||width!=afterWidth||height!=afterHeight||scale<=0||Double.IsNaN(scale)||Double.IsInfinity(scale)||afterScale<=0||Double.IsNaN(afterScale)||Double.IsInfinity(afterScale)||Math.Abs(scale-afterScale)>.001||RootBounds.IsEmpty)return null;
+      if(width<=0||height<=0||afterWidth<=0||afterHeight<=0||scale<=0||Double.IsNaN(scale)||Double.IsInfinity(scale)||afterScale<=0||Double.IsNaN(afterScale)||Double.IsInfinity(afterScale)||Math.Abs(scale-afterScale)>.001||RootBounds.IsEmpty)return null;
+      if(height!=afterHeight||(verifiedClientDocument&&Math.Abs(RootBounds.Height-height)>2)) {
+        if(!verifiedClientDocument||RootBounds.Height<=0||Double.IsNaN(RootBounds.Height)||Double.IsInfinity(RootBounds.Height)||
+          RootBounds.Width<Math.Min(width,afterWidth)-2||RootBounds.Width>Math.Max(width,afterWidth)+2||
+          RootBounds.Left<Math.Min(before.X,after.X)-2||RootBounds.Left>Math.Max(before.X,after.X)+2||
+          RootBounds.Top<Math.Min(before.Y,after.Y)-2||RootBounds.Top>Math.Max(before.Y,after.Y)+2)return null;
+        var relative=new List<RailRegion>();
+        foreach(var b in Controls)if(!b.IsEmpty&&b.Width>0&&b.Height>0&&b.Left<RootBounds.Left+49*scale&&b.Right>RootBounds.Left+3*scale&&b.Top<RootBounds.Bottom&&b.Bottom>RootBounds.Top)relative.Add(new RailRegion{Top=b.Top-RootBounds.Top,Bottom=b.Bottom-RootBounds.Top});
+        // The receipt can span two heights; reserve the swept bounds instead of discarding it.
+        var envelope=ResizeEnvelope(relative,afterHeight-RootBounds.Height);
+        double uncertainty=Math.Abs((double)after.Y-before.Y)+Math.Abs((double)afterHeight-height);
+        foreach(var region in envelope){region.Top-=uncertainty;region.Bottom+=uncertainty;}
+        verified=true;return envelope;
+      }
+      if(width!=afterWidth||height!=afterHeight)return null;
       bool moved=before.X!=after.X||before.Y!=after.Y;
       bool fullClient=Math.Abs(RootBounds.Width-width)<=2&&Math.Abs(RootBounds.Height-height)<=2;
+      if(verifiedClientDocument&&!fullClient)return null;
       verified=fullClient&&(moved?verifiedClientDocument:Math.Abs(RootBounds.Left-before.X)<=2&&Math.Abs(RootBounds.Top-before.Y)<=2);
       if(!moved&&fullClient&&!verified)return null;
       if(moved&&!verified)return null;
@@ -169,9 +190,15 @@ namespace QuotaOverlay {
     }
   }
   internal sealed class SidebarGeometrySource:IDisposable {
-    sealed class Sample {internal IntPtr Target;internal int Width,Height;internal double Scale;internal long At;internal IList<RailRegion> Controls;}
+    internal sealed class Sample {internal IntPtr Target;internal int Width,Height;internal double Scale;internal long At;internal bool Verified;internal IList<RailRegion> Controls;}
     readonly object gate=new object();readonly Stopwatch clock=Stopwatch.StartNew();Sample sample;
-    bool busy,disposed;long next;
+    bool busy,disposed;long next,lastRequested=-1000;
+    internal Action Updated;
+    internal static IList<RailRegion> CurrentControls(Sample value,IntPtr target,int width,int height,double scale,long now) {
+      if(value==null||value.Controls==null||value.Target!=target||width<=0||height<=0||scale<=0||Math.Abs(value.Scale-scale)>=.001||Double.IsNaN(scale)||Double.IsInfinity(scale)||now<value.At||now-value.At>3000)return null;
+      if(value.Width==width&&value.Height==height)return value.Controls;
+      return value.Verified?SidebarControlSnapshot.ResizeEnvelope(value.Controls,height-value.Height):null;
+    }
     AutomationElement document;IntPtr documentTarget;bool documentFillsClient;
     long lastDuration;int lastControls,lastVisited;bool lastBottom;string lastError;
     internal object Debug {get{lock(gate)return new{busy=busy,duration=lastDuration,controls=lastControls,candidates=lastVisited,bottom=lastBottom,error=lastError,age=sample==null?-1:clock.ElapsedMilliseconds-sample.At};}}
@@ -196,7 +223,8 @@ namespace QuotaOverlay {
     }
     internal IList<RailRegion> Read(IntPtr target,int width,int height,double scale){
       lock(gate){long now=clock.ElapsedMilliseconds;if(disposed||target==IntPtr.Zero)return null;
-        if(!busy&&now>=next){busy=true;next=now+1000;ThreadPool.QueueUserWorkItem(delegate{
+        bool changed=sample==null||sample.Target!=target||sample.Width!=width||sample.Height!=height||Math.Abs(sample.Scale-scale)>=.001;
+        if(!busy&&(now>=next||(changed&&now-lastRequested>=100))){busy=true;lastRequested=now;next=now+1000;ThreadPool.QueueUserWorkItem(delegate{
           Sample value=null;long began=clock.ElapsedMilliseconds,measuredAt=began;int count=0,visited=0;bool bottom=false;string error=null;
           try{Native.Rect current;var origin=new Native.Point();
             if(Native.IsWindow(target)&&Native.GetClientRect(target,out current)&&current.Right==width&&current.Bottom==height&&Native.ClientToScreen(target,ref origin)){
@@ -210,17 +238,19 @@ namespace QuotaOverlay {
               if(Native.GetClientRect(target,out afterRect)&&Native.ClientToScreen(target,ref afterOrigin)) {
                 Sample previous;lock(gate)previous=sample;
                 var expected=previous!=null&&previous.Target==target&&previous.Width==width&&previous.Height==height&&Math.Abs(previous.Scale-scale)<.001?previous.Controls:null;
-                var measured=snapshot.Project(origin,afterOrigin,width,height,afterRect.Right,afterRect.Bottom,scale,Native.GetDpiForWindow(target)/96.0,documentFillsClient,out verified,expected);documentFillsClient=verified;
+                var measured=snapshot.Project(origin,afterOrigin,width,height,afterRect.Right,afterRect.Bottom,scale,Native.GetDpiForWindow(target)/96.0,documentFillsClient,out verified,expected);documentFillsClient=documentFillsClient||verified;
                 if(measured!=null) {
-                  controls.AddRange(measured);bool bottomKnown=false;foreach(var control in controls)if(control.Bottom>height-120*scale&&control.Top>height/2)bottomKnown=true;count=controls.Count;bottom=bottomKnown;
-                  if(controls.Count>=3&&bottomKnown)value=new Sample{Target=target,Width=width,Height=height,Scale=scale,At=measuredAt,Controls=controls};
+                  controls.AddRange(measured);bool bottomKnown=false;foreach(var control in controls)if(control.Bottom>afterRect.Bottom-120*scale&&control.Top>afterRect.Bottom/2)bottomKnown=true;count=controls.Count;bottom=bottomKnown;
+                  if(controls.Count>=3&&bottomKnown)value=new Sample{Target=target,Width=afterRect.Right,Height=afterRect.Bottom,Scale=scale,At=measuredAt,Verified=verified,Controls=controls};
                 }
               }
             }
           }catch(Exception exception){document=null;documentFillsClient=false;error=exception.GetType().Name;}
-          lock(gate){busy=false;lastDuration=clock.ElapsedMilliseconds-measuredAt;lastControls=count;lastVisited=visited;lastBottom=bottom;lastError=error;if(!disposed&&lastDuration<=1600&&value!=null)sample=value;}
+          Action updated=null;
+          lock(gate){busy=false;lastDuration=clock.ElapsedMilliseconds-measuredAt;lastControls=count;lastVisited=visited;lastBottom=bottom;lastError=error;if(!disposed&&lastDuration<=1600&&value!=null){sample=value;updated=Updated;}}
+          if(updated!=null)updated();
         });}
-        return sample!=null&&sample.Target==target&&sample.Width==width&&sample.Height==height&&Math.Abs(sample.Scale-scale)<.001&&now>=sample.At&&now-sample.At<=3000?sample.Controls:null;
+        return CurrentControls(sample,target,width,height,scale,now);
       }
     }
     public void Dispose(){lock(gate){disposed=true;sample=null;}}
@@ -297,6 +327,7 @@ namespace QuotaOverlay {
 
     public OverlayWindow(string statePath):this(statePath,null) { }
     internal OverlayWindow(string statePath,ThemeResolver resolver,Func<IntPtr,bool> matchTarget=null,Func<TaskbarSnapshot> readTaskbarSnapshot=null) {
+      sidebarGeometry.Updated=delegate {if(!closing&&!Dispatcher.HasShutdownStarted)Dispatcher.BeginInvoke(DispatcherPriority.Render,new Action(delegate {if(!closing)UpdatePlacement();}));};
       targetMatcher=matchTarget;
       taskbarSnapshotReader=readTaskbarSnapshot;
       stateFile=statePath;
