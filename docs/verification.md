@@ -716,3 +716,37 @@ settings, autostart, existing releases and immutable archives were left untouche
 no new archive or release was produced and no native renderer logic changed.
 The next distributable build must receive its own version instead of replacing a
 previous beta5 ZIP. Public release repository content required no further changes.
+
+## Stable 1.3.0 naming and package (2026-10-28)
+
+User requested a full tracked-filename audit in both repositories, removal of former
+project history from README, and primary public release1.3.0. Renamed all12 remaining
+old-branded tracked source filenames, plus the public icon filename. Current trees
+and the real ZIP have no old-branded filenames. Tests, icons, backend limits.mjs,
+fixtures, start/stop commands and all active references use current names. Native
+programs are ChatGPTLimitPanel.exe and ChatGPTLimitPanelLauncher.exe, with product
+ChatGPT Limit Panel and file version1.3.0.0. AppData/IPC/task ownership/plugin identity
+remain compatible with existing preferences and autostart.
+
+Version1.3.0 is consistent across package, manifests, UI and MCP. The verified-ID
+updater accepts the new stable asset name and the historical safe prefix with exact
+owner/version/URL validation. Existing tests first failed for the new names/version,
+then the focused45 and full sequential155 checks passed with no skips. After adding
+binary product metadata, the final native build, launcher and manifest checks passed;
+actual file version/product fields match1.3.0.0. Root logs release-130-focused.txt and
+release-130-full-verification.txt preserve diagnostics.
+
+Real ZIP audit passed24entries: no old filenames, private state or author runtime
+paths; every decompressed hash matches staging; packaged host imports and MCP1.3.0
+resolve. Archive chatgpt-limit-panel-1.3.0-windows-x64.zip is35237980bytes. SHA256:
+1539975c672262a8815f488140fa32aeffd430e1b73cbd39c3173a26f692d398.
+
+Original source/CLI migration beta5->1.3.0 verified all24 staged/source/cache hashes
+and exact physical preference equality. Native GUI65972 is ChatGPTLimitPanel.exe
+from cache1.3.0; taskbar attached/visible with fresh values, RU/auto/full/both/short/
+right/transparency74/autostartON/notpaused preserved. Installed MCP title/card/version
+and real public update check passed before publication (ahead vs stable1.1.0), with no
+lifecycle mutation. Publication is the final step; root stable-130-published.json and
+final checkpoint record its actual result separately. Public release text contains
+user changes without test counts or user-confirmation claims. No all-games bug-free
+or physical Windows10 claim is made.

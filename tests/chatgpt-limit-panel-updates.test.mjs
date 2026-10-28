@@ -2,13 +2,13 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 const api=await import('../plugins/chatgpt-limit-panel/server/updates.mjs').catch(()=>({}));
 const origin='https://github.com/MrBogomoll/chatgpt-limit-panel';
-function release(version='1.2.0',slug='chatgpt-limit-panel') {const base='https://github.com/MrBogomoll/'+slug;return {id:99,url:'https://api.github.com/repos/MrBogomoll/'+slug+'/releases/99',tag_name:'v'+version,draft:false,prerelease:false,html_url:base+'/releases/tag/v'+version,assets:[{name:`quota-panel-${version}-windows-x64.zip`,state:'uploaded',size:123,browser_download_url:base+`/releases/download/v${version}/quota-panel-${version}-windows-x64.zip`}]};}
+function release(version='1.2.0',slug='chatgpt-limit-panel') {const base='https://github.com/MrBogomoll/'+slug;return {id:99,url:'https://api.github.com/repos/MrBogomoll/'+slug+'/releases/99',tag_name:'v'+version,draft:false,prerelease:false,html_url:base+'/releases/tag/v'+version,assets:[{name:`chatgpt-limit-panel-${version}-windows-x64.zip`,state:'uploaded',size:123,browser_download_url:base+`/releases/download/v${version}/chatgpt-limit-panel-${version}-windows-x64.zip`}]};}
 const reply=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers});
 function checker(options={}) {assert.equal(typeof api.createUpdateChecker,'function');return api.createUpdateChecker({currentVersion:'1.1.0',cooldownMs:0,...options});}
 
-test('the local beta reports its own version and does not offer the older stable release',async()=>{
+test('the current release reports its own version and does not offer the older stable release',async()=>{
   const value=await api.createUpdateChecker({fetchImpl:async()=>reply(release('1.2.0')),cooldownMs:0}).check();
-  assert.equal(value.currentVersion,'1.2.1-beta.5');assert.equal(value.latestVersion,'1.2.0');
+  assert.equal(value.currentVersion,'1.3.0');assert.equal(value.latestVersion,'1.2.0');
   assert.equal(value.state,'ahead');assert.equal(value.url,null);
 });
 
@@ -70,6 +70,8 @@ test('immutable repository identity accepts canonical renamed releases while mis
     const result=await checker({fetchImpl:async()=>reply(release('1.2.0',slug))}).check();assert.equal(result.state,'available');assert.equal(result.url,`https://github.com/MrBogomoll/${slug}/releases/tag/v1.2.0`);
   }
   for(const modify of [x=>x.url=x.url.replace('MrBogomoll','attacker'),x=>x.url=x.url.replace('/99','/100'),x=>x.html_url=x.html_url.replace('MrBogomoll','attacker')]){const data=release();modify(data);const result=await checker({fetchImpl:async()=>reply(data)}).check();assert.equal(result.state,'error');assert.equal(result.url,null);}
+  const historical=release();historical.assets[0].name=historical.assets[0].name.replace('chatgpt-limit-panel-','quota-panel-');historical.assets[0].browser_download_url=historical.assets[0].browser_download_url.replace('/chatgpt-limit-panel-1.2.0-windows','/quota-panel-1.2.0-windows');
+  const accepted=await checker({fetchImpl:async()=>reply(historical)}).check();assert.equal(accepted.state,'available');assert.equal(accepted.url,origin+'/releases/tag/v1.2.0');
 });
 test('MCP update tool works without starting or contacting the monitor and uses the selected language',async()=>{
   const {createMcpHandler}=await import('../plugins/chatgpt-limit-panel/server/mcp.mjs');let calls=0;

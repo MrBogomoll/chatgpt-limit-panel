@@ -1,4 +1,10 @@
-# Quota Panel 1.0.0
+# Changes
+
+## 1.3.0 — 2026-10-28
+
+- Add stable taskbar indicators and background refresh with the app window closed.
+- Fix game/Start/Start11 visibility and transparent child composition.
+- Add background transparency controls and complete current file branding.
 
 Released for manual Windows x64 installation on 25 October 2026. The GitHub repository remains private; no OpenAI Plugin Directory submission has been made.
 

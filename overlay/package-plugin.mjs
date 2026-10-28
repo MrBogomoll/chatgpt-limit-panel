@@ -5,20 +5,20 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
-const version = '1.2.1-beta.5';
-const archiveName = `quota-panel-${version}-windows-x64.zip`;
+const version = '1.3.0';
+const archiveName = `chatgpt-limit-panel-${version}-windows-x64.zip`;
 const pluginFiles = [
   // The installed desktop parser ignores bundled MCP servers when root
   // plugin.json exists. Ship its supported compatibility entry point only.
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
-  'assets/quota.svg', 'assets/quota.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
+  'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'server/updates.mjs', 'ui/control.html', 'ui/control.mjs',
 ];
 const dependencyFiles = [
   'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/updates.mjs',
-  'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/quota.mjs',
-  'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe',
+  'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',
+  'dist/overlay/ChatGPTLimitPanel.exe', 'dist/overlay/ChatGPTLimitPanelLauncher.exe',
 ];
 
 function requireFile(filename, description) {
@@ -62,7 +62,7 @@ export function stagePluginBundle({
     }
   }
   mkdirSync(output, { recursive: true });
-  const stagePath = mkdtempSync(path.join(output, `quota-panel-${version}-stage-`));
+  const stagePath = mkdtempSync(path.join(output, `chatgpt-limit-panel-${version}-stage-`));
   for (const file of files) {
     const target = path.join(stagePath, file.destination);
     mkdirSync(path.dirname(target), { recursive: true });

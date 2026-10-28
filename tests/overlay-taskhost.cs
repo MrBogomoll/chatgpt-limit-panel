@@ -4,7 +4,7 @@ using System.Xml;
 
 class OverlayTaskHostTest {
   const string Sid="S-1-5-21-100-200-300-1001";
-  const string Launcher=@"C:\Users\Тест & User\AppData\Local\ChatGPTQuotaOverlay\app\dist\overlay\QuotaMonitor.exe";
+  const string Launcher=@"C:\Users\Тест & User\AppData\Local\ChatGPTQuotaOverlay\app\dist\overlay\ChatGPTLimitPanelLauncher.exe";
   // Literal shape exported by Windows Task Scheduler after registration. The
   // service elides documented defaults and assigns the registered task URI.
   const string WindowsXml=@"<Task version=""1.2"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
@@ -12,7 +12,7 @@ class OverlayTaskHostTest {
     <Principals><Principal id=""CurrentUser""><UserId>S-1-5-21-100-200-300-1001</UserId><LogonType>InteractiveToken</LogonType></Principal></Principals>
     <Settings><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><ExecutionTimeLimit>PT0S</ExecutionTimeLimit><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><IdleSettings><StopOnIdleEnd>true</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings></Settings>
     <Triggers />
-    <Actions Context=""CurrentUser""><Exec><Command>C:\Users\Тест &amp; User\AppData\Local\ChatGPTQuotaOverlay\app\dist\overlay\QuotaMonitor.exe</Command><Arguments>--run-host</Arguments><WorkingDirectory>C:\Users\Тест &amp; User\AppData\Local\ChatGPTQuotaOverlay\app\dist\overlay</WorkingDirectory></Exec></Actions>
+    <Actions Context=""CurrentUser""><Exec><Command>C:\Users\Тест &amp; User\AppData\Local\ChatGPTQuotaOverlay\app\dist\overlay\ChatGPTLimitPanelLauncher.exe</Command><Arguments>--run-host</Arguments><WorkingDirectory>C:\Users\Тест &amp; User\AppData\Local\ChatGPTQuotaOverlay\app\dist\overlay</WorkingDirectory></Exec></Actions>
   </Task>";
   static void Check(bool value,string message) {if(!value)throw new Exception(message);}
   static XmlDocument Parse(string xml) {var doc=new XmlDocument();doc.LoadXml(xml);return doc;}
@@ -54,8 +54,8 @@ class OverlayTaskHostTest {
       Rejected(WindowsXml.Replace("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>",""),"infinite task lifetime must be explicit");
       Rejected(WindowsXml.Replace("\\ChatGPTQuotaOverlay.Host.","\\UnrelatedTask."),"normalized URI must name this user's exact task");
       Check(QuotaPanelTaskHost.IsOwnTaskXml(xml.Replace("<Enabled>true</Enabled>","<Enabled>false</Enabled>"),Launcher,Sid),"Windows can persist a disabled task without losing ownership");
-      string currentLauncher=Path.Combine(Environment.CurrentDirectory,"QuotaMonitor.exe");
-      string relativeCommand=QuotaPanelTaskHost.CreateTaskXml(currentLauncher,Sid).Replace(currentLauncher,"QuotaMonitor.exe");
+      string currentLauncher=Path.Combine(Environment.CurrentDirectory,"ChatGPTLimitPanelLauncher.exe");
+      string relativeCommand=QuotaPanelTaskHost.CreateTaskXml(currentLauncher,Sid).Replace(currentLauncher,"ChatGPTLimitPanelLauncher.exe");
       Check(!QuotaPanelTaskHost.IsOwnTaskXml(relativeCommand,currentLauncher,Sid),"task action must be absolute even when a relative path currently resolves to same file");
       Rejected(xml.Replace("<Triggers />","<Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers>"),"reject unrequested startup triggers");
       Rejected(xml.Replace("--run-host","--start"),"reject an altered executable action");
@@ -64,7 +64,7 @@ class OverlayTaskHostTest {
       Rejected(xml.Replace("IgnoreNew","StopExisting"),"reject replacement instance policy");
       Rejected(xml.Replace("<Hidden>false</Hidden>","<Hidden>true</Hidden>"),"reject hidden task definitions");
       Rejected(xml.Replace(Sid,"S-1-5-21-100-200-300-1002"),"reject another user's task");
-      Rejected(xml.Replace("QuotaMonitor.exe","Unrelated.exe"),"reject another executable");
+      Rejected(xml.Replace("ChatGPTLimitPanelLauncher.exe","Unrelated.exe"),"reject another executable");
       Rejected(xml.Replace("<Actions Context=\"CurrentUser\">","<Actions Context=\"CurrentUser\"><Exec><Command>calc.exe</Command></Exec>"),"reject extra action");
       Rejected("<!DOCTYPE Task [<!ENTITY x SYSTEM 'file:///C:/Windows/win.ini'>]><Task>&x;</Task>","reject external entities");
       Rejected("not xml","reject malformed definitions");
@@ -84,7 +84,7 @@ class OverlayTaskHostTest {
       Check(!QuotaPanelTaskHost.Ensure(Launcher,Sid,store).enabled && store.registrations==1,"ensure preserves manually disabled task");
       Throws(()=>QuotaPanelTaskHost.Run(Launcher,Sid,store),"отключена");
       Check(store.runs==1,"disabled task never runs");
-      store.record.xml=xml.Replace("QuotaMonitor.exe","Unrelated.exe");
+      store.record.xml=xml.Replace("ChatGPTLimitPanelLauncher.exe","Unrelated.exe");
       Throws(()=>QuotaPanelTaskHost.Ensure(Launcher,Sid,store),"не принадлежит");
       Throws(()=>QuotaPanelTaskHost.Run(Launcher,Sid,store),"не принадлежит");
       Throws(()=>QuotaPanelTaskHost.RemoveOwn(Launcher,Sid,store),"не принадлежит");

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-const api = await import('../plugins/chatgpt-limit-panel/server/quota.mjs').catch(() => ({}));
+const api = await import('../plugins/chatgpt-limit-panel/server/limits.mjs').catch(() => ({}));
 const sample = { rateLimitsByLimitId: { codex: { limitId: 'codex', primary: { usedPercent: 62, windowDurationMins: 300, resetsAt: 1792774530 }, secondary: { usedPercent: 57, windowDurationMins: 10080, resetsAt: 1793297434 } }, codex_other: { primary: { usedPercent: 1, windowDurationMins: 300, resetsAt: 100 } } } };
 
 test('uses the Codex bucket, returns server resets, and calculates remaining quota', () => {

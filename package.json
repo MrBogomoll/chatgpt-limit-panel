@@ -1,6 +1,6 @@
 {
-  "name": "quota-panel",
-  "version": "1.2.1-beta.5",
+  "name": "chatgpt-limit-panel",
+  "version": "1.3.0",
   "private": true,
   "description": "ChatGPT Limit Panel: a Windows usage limit monitor for Codex / Work, with sidebar and taskbar indicators.",
   "engines": {
@@ -13,9 +13,9 @@
     "x64"
   ],
   "scripts": {
-    "test": "node --test tests/plugin-reader.test.mjs tests/plugin-quota.test.mjs tests/quota-panel-*.test.mjs tests/overlay-*.test.mjs",
+    "test": "node --test tests/plugin-reader.test.mjs tests/plugin-limits.test.mjs tests/chatgpt-limit-panel-*.test.mjs tests/overlay-*.test.mjs",
     "test:overlay": "node --test tests/overlay-*.test.mjs",
-    "test:plugin": "node --test tests/plugin-reader.test.mjs tests/plugin-quota.test.mjs tests/quota-panel-*.test.mjs",
+    "test:plugin": "node --test tests/plugin-reader.test.mjs tests/plugin-limits.test.mjs tests/chatgpt-limit-panel-*.test.mjs",
     "build:overlay": "node overlay/build.mjs",
     "package:plugin": "node --input-type=module -e \"import { packagePlugin } from './overlay/package-plugin.mjs'; console.log(JSON.stringify(packagePlugin({ nodeLicensePath: 'third-party/NODE-LICENSE.txt' }), null, 2));\""
   },

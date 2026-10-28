@@ -10,7 +10,7 @@ import { RateLimitReader } from '../plugins/chatgpt-limit-panel/server/reader.mj
 
 const api = await import('../overlay/host.mjs').catch(() => ({}));
 const fixture = fileURLToPath(new URL('./fixtures/overlay-gui.cjs', import.meta.url));
-const appServerFixture = fileURLToPath(new URL('./fixtures/quota-app-server.cjs', import.meta.url));
+const appServerFixture = fileURLToPath(new URL('./fixtures/limits-app-server.cjs', import.meta.url));
 const instant = Date.parse('2026-10-23T14:00:00Z');
 const quota = { rateLimits: { limitId: 'codex', primary: { usedPercent: 62, windowDurationMins: 300, resetsAt: 1792774531 }, secondary: { usedPercent: 75, windowDurationMins: 10080, resetsAt: 1793297434 } } };
 

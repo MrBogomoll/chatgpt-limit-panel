@@ -7,10 +7,10 @@ import path from 'node:path';
 const api = await import('../overlay/install-plugin.mjs').catch(() => ({}));
 const payloadFiles = [
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
-  'assets/quota.svg', 'assets/quota.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
+  'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
-  'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/quota.mjs',
-  'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe', 'dist/overlay/runtime.json',
+  'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',
+  'dist/overlay/ChatGPTLimitPanel.exe', 'dist/overlay/ChatGPTLimitPanelLauncher.exe', 'dist/overlay/runtime.json',
   'runtime/node.exe', 'runtime/NODE-LICENSE.txt',
   'server/updates.mjs','plugins/chatgpt-limit-panel/server/updates.mjs',
 ];
@@ -24,7 +24,7 @@ async function fixture(t, installed = true) {
     await writeFile(path.join(stagePath, filename), 'payload:' + filename);
   }
   for (const filename of ['.codex-plugin/plugin.json']) {
-    await writeFile(path.join(stagePath, filename), JSON.stringify({ name: 'quota-panel', version: '1.2.1-beta.5',
+    await writeFile(path.join(stagePath, filename), JSON.stringify({ name: 'quota-panel', version: '1.3.0',
       interface: { displayName: 'ChatGPT Limit Panel' }, extensions: { 'com.openai': { interface: { displayName: 'ChatGPT Limit Panel' } } } }));
   }
   await writeFile(path.join(stagePath, 'private-author-config.toml'), 'do not install');
@@ -48,7 +48,7 @@ if(args[1] === 'marketplace') {
   console.log(JSON.stringify({installed:true}));
 } else if(args[1] === 'list') {
   if(JSON.stringify(args.slice(2)) !== JSON.stringify(['--marketplace','quota-panel-local','--json'])) process.exit(16);
-  console.log(JSON.stringify({installed:${installed ? "[{pluginId:'quota-panel@quota-panel-local',name:'quota-panel',marketplaceName:'quota-panel-local',installed:true,enabled:true,version:'1.2.1-beta.5'}]" : '[]'}}));
+  console.log(JSON.stringify({installed:${installed ? "[{pluginId:'quota-panel@quota-panel-local',name:'quota-panel',marketplaceName:'quota-panel-local',installed:true,enabled:true,version:'1.3.0'}]" : '[]'}}));
 } else process.exit(17);
 `);
   return { stagePath, codexHome, codexBin: process.execPath, codexPrefixArgs: [cli, log], log, originalConfig };
@@ -61,7 +61,7 @@ test('plugin installer registers a complete private marketplace and verifies nat
   assert.equal(result.installed.pluginId, 'quota-panel@quota-panel-local');
   assert.equal(result.installed.enabled, true);
   assert.equal(await readFile(path.join(result.sourcePath, 'runtime/node.exe'), 'utf8'), 'payload:runtime/node.exe');
-  assert.equal(await readFile(path.join(result.sourcePath, 'dist/overlay/QuotaMonitor.exe'), 'utf8'), 'payload:dist/overlay/QuotaMonitor.exe');
+  assert.equal(await readFile(path.join(result.sourcePath, 'dist/overlay/ChatGPTLimitPanelLauncher.exe'), 'utf8'), 'payload:dist/overlay/ChatGPTLimitPanelLauncher.exe');
   assert.equal(await readFile(path.join(result.sourcePath, '.codex-plugin/plugin.json'), 'utf8'), await readFile(path.join(settings.stagePath, '.codex-plugin/plugin.json'), 'utf8'));
   assert.equal((await readdir(result.sourcePath)).includes('private-author-config.toml'), false);
   assert.equal((await readdir(result.sourcePath)).includes('plugin.json'), false);

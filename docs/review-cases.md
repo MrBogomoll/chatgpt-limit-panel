@@ -1,4 +1,4 @@
-# Draft review cases for Quota Panel 1.0
+# Draft review cases for ChatGPT Limit Panel 1.0
 
 Status: drafted from implemented behavior, not run as portal review conversations. Existing automated and installed-runtime test evidence is documented separately. All positive cases require a supported Windows x64 desktop client, local executor and prepared local Codex sign-in. Use an appropriate review setup, not the author's personal credentials.
 

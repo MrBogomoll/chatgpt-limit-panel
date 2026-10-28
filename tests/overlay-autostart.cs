@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using System.Xml;
 class OverlayAutostartTest {
-  const string Sid="S-1-5-21-100-200-300-1001",Launcher=@"C:\Users\Другой User\.codex\plugins\cache\market\quota-panel\0.2.0-beta.3\dist\overlay\QuotaMonitor.exe";
+  const string Sid="S-1-5-21-100-200-300-1001",Launcher=@"C:\Users\Другой User\.codex\plugins\cache\market\quota-panel\0.2.0-beta.3\dist\overlay\ChatGPTLimitPanelLauncher.exe";
   static void Check(bool value,string message){if(!value)throw new Exception(message);}
   static MethodInfo Method(string name,int count){foreach(var m in typeof(QuotaPanelTaskHost).GetMethods(BindingFlags.Static|BindingFlags.NonPublic))if(m.Name==name&&m.GetParameters().Length==count)return m;throw new Exception("missing portable autostart operation "+name);}
   static object Call(string name,params object[] args){try{return Method(name,args.Length).Invoke(null,args);}catch(TargetInvocationException e){throw e.InnerException;}}
@@ -40,7 +40,7 @@ class OverlayAutostartTest {
     Check(QuotaPanelTaskHost.IsOwnTaskXml(store.record.xml,Launcher,Sid),"disabled migrated task stays owned");
     Check(!QuotaPanelTaskHost.IsOwnTaskXml(xml.Replace("<UserId>"+Sid+"</UserId>","<UserId>S-1-5-21-9-9-9-1001</UserId>"),Launcher,Sid),"reject another user's trigger/principal");
     Check(!QuotaPanelTaskHost.IsOwnTaskXml(xml.Replace("LeastPrivilege","HighestAvailable"),Launcher,Sid),"reject elevated definitions");
-    store.record.xml=xml.Replace("QuotaMonitor.exe","other.exe");int changes=store.updates;
+    store.record.xml=xml.Replace("ChatGPTLimitPanelLauncher.exe","other.exe");int changes=store.updates;
     bool rejected=false;try{Call("ConfigureAutostart",Launcher,Sid,store,true);}catch(InvalidOperationException){rejected=true;}
     Check(rejected&&store.updates==changes,"foreign tasks must never be rewritten");
     Console.WriteLine("PASS portable autostart ownership, current SID, migration, disable and idempotence");return 0;

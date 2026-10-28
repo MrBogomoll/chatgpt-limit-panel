@@ -5,11 +5,11 @@ import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RateLimitReader } from '../plugins/chatgpt-limit-panel/server/reader.mjs';
-import { normalizeQuota } from '../plugins/chatgpt-limit-panel/server/quota.mjs';
+import { normalizeQuota } from '../plugins/chatgpt-limit-panel/server/limits.mjs';
 import { overlayView } from './model.mjs';
 import {createUpdateChecker,CURRENT_VERSION} from '../plugins/chatgpt-limit-panel/server/updates.mjs';
 
-const executablePath = fileURLToPath(new URL('../dist/overlay/QuotaOverlay.exe', import.meta.url));
+const executablePath = fileURLToPath(new URL('../dist/overlay/ChatGPTLimitPanel.exe', import.meta.url));
 const defaultStatePath = () => join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ChatGPTQuotaOverlay', 'state.json');
 
 /** Own the GUI and read-only quota reader together; neither survives the other. */

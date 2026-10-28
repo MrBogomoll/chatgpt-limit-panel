@@ -29,7 +29,7 @@
 
 ### Task 1: Checker and protocols
 
-Files: new plugins/quota-panel/server/updates.mjs and tests/quota-panel-updates.test.mjs; modify server/index.mjs, server/mcp.mjs, server/language.mjs, overlay/host.mjs and host/MCP tests.
+Files: new plugins/quota-panel/server/updates.mjs and tests/chatgpt-limit-panel-updates.test.mjs; modify server/index.mjs, server/mcp.mjs, server/language.mjs, overlay/host.mjs and host/MCP tests.
 
 - [x] Write failing checker cases for versions, result validation, network failures, timeout and coalescing.
 - [x] Implement checker and safe release URL normalization; use the same result in host and MCP.

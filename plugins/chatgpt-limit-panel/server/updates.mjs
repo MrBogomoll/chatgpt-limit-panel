@@ -1,4 +1,4 @@
-export const CURRENT_VERSION='1.2.1-beta.5';
+export const CURRENT_VERSION='1.3.0';
 export const RELEASE_ORIGIN='https://github.com/MrBogomoll/chatgpt-limit-panel';
 // Repository names can change. The verified public repository ID stays stable.
 const endpoint='https://api.github.com/repositories/1433486830/releases/latest';
@@ -48,8 +48,9 @@ export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=gl
             const origin='https://github.com/MrBogomoll/'+canonical[1];
             const latestVersion=version(release.tag_name),url=origin+'/releases/tag/'+release.tag_name;
             if(release.html_url!==url)throw new Error();
-            const filename=`quota-panel-${latestVersion}-windows-x64.zip`;
-            const asset=release.assets?.find(item=>item.name===filename);
+            const names=[`chatgpt-limit-panel-${latestVersion}-windows-x64.zip`,`quota-panel-${latestVersion}-windows-x64.zip`];
+            const asset=names.map(name=>release.assets?.find(item=>item.name===name)).find(Boolean);
+            const filename=asset?.name;
             if(!asset||asset.state!=='uploaded'||!Number.isSafeInteger(asset.size)||asset.size<=0||asset.browser_download_url!==origin+'/releases/download/'+release.tag_name+'/'+filename)throw new Error();
             const compared=compareVersions(latestVersion,currentVersion);
             return {state:compared>0?'available':compared===0?'current':'ahead',currentVersion,latestVersion,url:compared>0?url:null,checkedAt:now()};

@@ -9,7 +9,7 @@ using System.Threading;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-class QuotaMonitorLauncher {
+class LimitPanelLauncher {
   [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct StartupInfo {
     public int cb;public string reserved,desktop,title;public int x,y,xSize,ySize,xCountChars,yCountChars,fillAttribute,flags;public short showWindow,reservedSize;public IntPtr reservedBytes,input,output,error;
   }
@@ -33,7 +33,7 @@ class QuotaMonitorLauncher {
       string command=args.Length==0?"--start":args[0];
       if(args.Length>1 || !new[]{"--start","--stop","--status-json","--start-json","--stop-json","--run-host","--enable-autostart-json","--disable-autostart-json"}.Contains(command))throw new Exception(QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"unknownCommand"));
       var before=ReadStatus(data,MonitorMutex);
-      string launcher=Path.Combine(dir,"QuotaMonitor.exe");
+      string launcher=Path.Combine(dir,"ChatGPTLimitPanelLauncher.exe");
       if(command=="--status-json") {FillAutostart(before,launcher);WriteJson(before);return;}
       if(taskHostMode) {
         if(!before.running)StartConfiguredHost(dir,data,false,true);
@@ -123,7 +123,7 @@ class QuotaMonitorLauncher {
       string file=Path.Combine(data,"state.json");
       if(DateTime.UtcNow-File.GetLastWriteTimeUtc(file)>TimeSpan.FromSeconds(10))return result;
       var state=new JavaScriptSerializer().DeserializeObject(File.ReadAllText(file)) as Dictionary<string,object>;
-      using(var process=Process.GetProcessById(Convert.ToInt32(state["process"])))if(process.ProcessName=="QuotaOverlay" && !process.HasExited) {
+      using(var process=Process.GetProcessById(Convert.ToInt32(state["process"])))if(process.ProcessName=="ChatGPTLimitPanel" && !process.HasExited) {
         result.visible=state.ContainsKey("visible") && Convert.ToBoolean(state["visible"]);
         result.paused=state.ContainsKey("paused") && Convert.ToBoolean(state["paused"]);
       }

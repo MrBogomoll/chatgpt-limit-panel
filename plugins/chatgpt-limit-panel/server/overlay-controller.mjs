@@ -8,7 +8,7 @@ const defaultRoot = fileURLToPath(new URL('../', import.meta.url));
 const failureMessage = 'Не удалось связаться с монитором. Проверь установку плагина и повтори попытку.';
 
 /** Invoke our cooperative native launcher; never inspect or stop unrelated processes. */
-export function createOverlayController({ pluginRoot = defaultRoot, command = join(pluginRoot, 'dist', 'overlay', 'QuotaMonitor.exe'), prefixArgs = [], timeoutMs = 8000, run = execute } = {}) {
+export function createOverlayController({ pluginRoot = defaultRoot, command = join(pluginRoot, 'dist', 'overlay', 'ChatGPTLimitPanelLauncher.exe'), prefixArgs = [], timeoutMs = 8000, run = execute } = {}) {
   async function invoke(operation) {
     try {
       const { stdout } = await run(command, [...prefixArgs, operation], { windowsHide: true, shell: false, timeout: timeoutMs, encoding: 'utf8', maxBuffer: 16 * 1024 });

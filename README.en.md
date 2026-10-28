@@ -1,88 +1,75 @@
 # ChatGPT Limit Panel
 
-Private preview **1.2.1-beta.5** fixes transparent taskbar child rendering and native right-click menu handling. Actual game and Start11 menu transitions are still being verified. The prepared 1.2.0 archive is unchanged.
+[Русский](README.md)
 
-[Русская документация](README.md)
+<img src="plugins/chatgpt-limit-panel/assets/chatgpt-limit-panel.png" width="88" height="88" alt="ChatGPT Limit Panel">
 
-A Windows x64 monitor for the shared Codex / Work quota. The main panel appears above the avatar in the ChatGPT desktop navigation rail. An optional taskbar indicator shows two remaining percentages. Both displays use the same account quota.
+A Windows panel for the shared Codex / Work usage limits in desktop ChatGPT. Shows remaining percentages and reset times beside the app, with an optional two-row indicator on the Windows taskbar. Instant displays the same Codex / Work counters.
 
-**Release candidate build: 1.2.0. Latest public stable release: 1.1.0.** Preparing the 1.2.0 archive does not publish it. Source remains private; ChatGPT Limit Panel has not been published in the OpenAI Plugin Directory.
+**[Download ChatGPT Limit Panel 1.3.0 for Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.3.0/chatgpt-limit-panel-1.3.0-windows-x64.zip)** · [All releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Upgrade an installed panel](UPGRADING.md)
 
-## New in 1.2.0
+Choose **chatgpt-limit-panel-1.3.0-windows-x64.zip** under Assets. The complete ZIP includes the programs, Node.js and its license. Git and a separate Node.js installation are not required. GitHub's automatic **Source code** archives contain repository materials.
 
-- An optional two-row indicator in a verified free area of the primary Windows taskbar: 5-hour remaining percentage above weekly remaining percentage. Choose a preferred left or right placement among safe gaps.
-- Quota polling continues with the ChatGPT window closed while the taskbar indicator is enabled. The ChatGPT Limit Panel tray icon provides controls with the main panel hidden.
-- A shared 0–100% background-transparency slider in the taskbar indicator menu. Text and graphics retain their opacity; the empty indicator area remains available for right-clicks with a fully clear background.
-- Refined handling of the active Start11 context menu: an already visible indicator retains its verified position while the menu blocks taskbar-button geometry queries.
-- A corrected race that could incorrectly mark a fresh taskbar measurement as expired.
+## New in 1.3.0
 
-[Russian and English release notes](docs/RELEASE-1.2.0.md).
+- An optional Windows taskbar indicator: five-hour remaining percentage above weekly remaining percentage, with left or right placement.
+- Stable taskbar attachment when switching between ChatGPT and games or opening Start and Start11 menus.
+- Continued limit refresh with the ChatGPT window closed while the taskbar indicator is enabled.
+- A 0–100% background transparency slider in the indicator's right-click menu. Percentages stay readable and the menu remains accessible with a transparent background.
+- Consistent program, icon and build filenames, with manual GitHub update checks.
 
-## Features and controls
+## Preview
 
-The shared 5-hour and weekly quota is available across supported ChatGPT window modes, including Instant. The plugin does not request a separate Instant quota. It reads remaining percentages and server reset timestamps through the normal Codex App Server, refreshing about every 30 seconds.
+| Full | Compact | Ultracompact |
+| :---: | :---: | :---: |
+| <img src="https://raw.githubusercontent.com/MrBogomoll/chatgpt-limit-panel/main/images/full.png" width="92" alt="Full view"> | <img src="https://raw.githubusercontent.com/MrBogomoll/chatgpt-limit-panel/main/images/compact.png" width="92" alt="Compact view"> | <img src="https://raw.githubusercontent.com/MrBogomoll/chatgpt-limit-panel/main/images/ultracompact.png" width="92" alt="Ultracompact view"> |
 
-Open **ChatGPT Limit Panel** from the plugin menu and open its control card to start, stop or check the monitor, or manually check for a new version. Closing the card does not stop the monitor.
+Screenshots use demonstration values.
 
-Left-click cycles **Full → Compact → Ultracompact**. Right-click provides direct view selection, theme, language, indicator style, outline source and autostart. The upper row is the 5-hour limit; the lower row is weekly. Compact view keeps the 5-hour percentage and reset time, then the weekly percentage and reset date. Ultracompact view always shows two bars without text.
+## Features
 
-Choose bars, an outline, both, or no graphics. The same 5-hour or weekly outline source applies to all views. In ultracompact view the bars remain visible and the shared setting controls the additional coloured outline. A known zero uses a fully red enabled indicator; unknown values remain unfilled and use a dash. Quota at or below 30% uses muted orange, and at or below 10% muted red. Stale known values are dimmed and marked **stale**.
+- Server-provided remaining percentages and reset timestamps, refreshed about every 30 seconds. Stale and unknown data are distinguished from current values.
+- Three sidebar sizes, cycled with left-click or selected through the right-click menu.
+- Bars, outline, both, or no graphics. Ultracompact always keeps its two bars.
+- One shared five-hour or weekly source for the outline in every view.
+- Muted orange at ≤30% remaining, red at ≤10%. A known zero fills enabled indicators red.
+- Dark, Light and Auto themes, with Russian and English interfaces.
+- Saved language, theme, size, transparency, indicators and autostart preference.
+- Taskbar placement uses a verified free gap, accounting for app buttons, tray, clock and adjacent widgets.
 
-For the taskbar, use **Taskbar → Show percentages**, then **Left** or **Right**. It defaults off. Right-click the indicator → **Background transparency** to change both display backgrounds; the default is 50%. Equivalent controls are available through the tray icon.
+## Installation
 
-Themes are **Dark**, **Light** and **Auto**. Auto follows the saved ChatGPT theme and the Windows app theme when appropriate. Right-click → **Language / Язык → English / Русский** translates panel, tray, card and messages. Settings persist without changing ChatGPT itself. The card picks up language changes on its next status refresh, normally within 5 seconds. Dates use **DD.MM**, times use local **24-hour HH:mm**. Russian is the default.
+Requires Windows x64, a desktop ChatGPT client supporting local plugins, and installed Codex signed in to the intended account. No API key is required.
 
-**Check for a new version** checks stable public GitHub releases; **Pause quota refresh** pauses quota polling. When a newer version is available, **Open release** opens its download page. Installation remains manual. Checking does not require Git or GitHub sign-in.
+1. Download the built ZIP above.
+2. Open **Plugins → Add → Upload plugin archive** and select the ZIP.
+3. Open **ChatGPT Limit Panel** and its control card.
+4. Click **Start** once.
 
-## Requirements and installation
+First activation configures per-user Windows autostart without administrator credentials or a password. The sidebar panel appears about three seconds after detecting ChatGPT. Enable the taskbar indicator separately: right-click the panel → **Taskbar → Show percentages**.
 
-Requires Windows x64, the ChatGPT desktop app with a local executor, and local Codex signed in to the intended account. The local Codex account must match the account whose limits you want to see. No API key is needed.
+With the taskbar indicator enabled, limits continue refreshing with the ChatGPT window closed. Otherwise the monitor waits for the window. Closing the control card keeps the panel running. **Stop panel** explicitly ends the current monitor.
 
-Published built archives and SHA-256 files are available from [public Releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases). Use the separately prepared 1.2.0 build archive until that release is published. The complete ZIP bundles the monitor, Node.js and its license; recipients do not need a separate Node installation. GitHub's automatic **Source code** archive is different from the built plugin ZIP.
+## Controls and updates
 
-Use the supported local-plugin ZIP import in a compatible desktop client. From a source checkout, an extracted complete package can also be installed with:
+Right-click the sidebar panel for view, indicators, outline source, theme, language, autostart, refresh and stop. Right-click the taskbar indicator for placement and background transparency.
 
-```powershell
-node overlay/install-plugin.mjs "<extracted complete plugin package>"
+**Check for a new version** explicitly checks the latest stable release. **Open release** takes you to its download page when a newer version is available. Updating is manual. Network failures and GitHub request limits are reported separately.
+
+## Compatibility
+
+Actually checked on Windows 11, including Start11 and an adjacent NetWorx indicator. A physical Windows 10 check has not been performed. If ZIP import is unavailable or an error occurs, include the Windows version, client version and reproduction steps in [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues).
+
+## Checksum and data
+
+[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.3.0/chatgpt-limit-panel-1.3.0-windows-x64.zip.sha256):
+
+```text
+1539975c672262a8815f488140fa32aeffd430e1b73cbd39c3173a26f692d398
 ```
 
-The installer uses the Codex CLI from PATH, registers a separate local marketplace and backs up the existing configuration. The built package uses `.codex-plugin/plugin.json`; do not manually copy the authoring-only root `plugin.json` into it.
+The panel uses your own local Codex sign-in. Author credentials, conversations and account settings are not included. ChatGPT files are unchanged. ChatGPT Limit Panel is an independent project, not an official OpenAI product.
 
-Open **ChatGPT Limit Panel** and click **Start** once. This configures its own per-user Windows logon task without administrator credentials or a password. Importing a ZIP alone does not configure Windows. After activation, the monitor starts at Windows sign-in. The main panel appears about 3 seconds after ChatGPT opens. Enabled taskbar mode keeps quota polling independent of an open ChatGPT window; otherwise the monitor waits for the window.
+## Development
 
-**Start with ChatGPT** controls future autostart. **Stop panel** closes the current monitor. Disable autostart as well if it should remain stopped after the next Windows sign-in.
-
-## Limitations and data
-
-Known issue in 1.2.0: opening Start over a borderless game can hide the taskbar
-indicator, observed with Honkai: Star Rail and Hollow Knight: Silksong. A fix is
-planned separately for a subsequent patch.
-
-The panels are separate Windows overlay windows. They do not change ChatGPT files or inject code into Explorer. The main panel follows a visible ChatGPT window, its scale and its Z-order; it hides when that window is minimized, closed or cloaked.
-
-The taskbar indicator uses measured free space on the **primary** taskbar and does not reserve a shell slot. It hides when there is insufficient space, fullscreen activity or uncertain geometry. Support for bottom, top, left and right taskbar edges is experimental. Compatibility with every taskbar modifier, other widget, monitor arrangement and scaling configuration is not guaranteed. Windows 10 has not been tested on a separate computer. See the [Windows 10/11 comparison](docs/research/2026-10-27-windows-taskbar-research.md).
-
-This build covers the currently recognised Windows desktop client with a local executor. Browser ChatGPT and macOS are not supported. Future client layout changes may require placement updates.
-
-Settings, state and bounded local diagnostics are stored under `%LOCALAPPDATA%\ChatGPTQuotaOverlay`. Panel renders contain only the panel itself; no desktop screenshots are taken. No author authentication, tokens, conversations or private account configuration are distributed. Each recipient uses their own local Codex account. Automatic cleanup of the Windows task when uninstalling the plugin still needs separate verification.
-
-## Development and versioning
-
-The private `chatgpt-limit-panel-code` repository is the source project. Public `chatgpt-limit-panel` holds user materials and built releases. A finished version uses the same number in source, manifest, archive and public release.
-
-Earlier `1.2.x` and `1.3.x` labels were private intermediate builds. Their changes are consolidated into the upcoming 1.2.0. Historical notes remain available as development history. Future previews use labels such as `1.3.0-beta.1`, `beta.2`, then the finished `1.3.0`; this naming policy does not automatically enable a separate beta-delivery channel. See the [release rules](docs/RELEASE_NOTES.md).
-
-Build with Node.js 24 x64 and the Windows .NET Framework 4.x compiler. Control-card browser checks use Playwright 1.62.1 and installed Microsoft Edge.
-
-```powershell
-npm install
-npm test
-npm run build:overlay
-npm run package:plugin
-```
-
-Native output goes to `dist/overlay`; the package ZIP and checksum go to `dist/releases`. Packaging bundles the Node executable used to run it. Update `third-party/NODE-LICENSE.txt` when changing that runtime. Existing archives are not overwritten.
-
-Tests use temporary directories, a substituted quota source and their own offscreen windows. The separate `overlay/smoke-package.mjs` starts and stops the installed monitor and is not part of the ordinary test suite.
-
-The source is not offered under a public license yet. Third-party components retain their own license notices. Public-submission requirements: [Russian publishing guide](docs/PUBLISHING-RU.md).
+Private source: [chatgpt-limit-panel-code](https://github.com/MrBogomoll/chatgpt-limit-panel-code). Run `npm test`, `npm run build:overlay` and `npm run package:plugin`. Packaging uses third-party/NODE-LICENSE.txt.

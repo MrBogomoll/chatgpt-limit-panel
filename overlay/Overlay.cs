@@ -547,7 +547,7 @@ namespace QuotaOverlay {
       ThreadPool.QueueUserWorkItem(delegate {
         bool succeeded=false,actual=autoStartEnabled;
         try {
-          var info=new ProcessStartInfo(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"QuotaMonitor.exe"),enabled?"--enable-autostart-json":"--disable-autostart-json") {UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
+          var info=new ProcessStartInfo(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"ChatGPTLimitPanelLauncher.exe"),enabled?"--enable-autostart-json":"--disable-autostart-json") {UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};
           using(var child=Process.Start(info)) {
             if(!child.WaitForExit(10000)){try{child.Kill();}catch{}throw new IOException("Autostart update timed out");}
             var result=new JavaScriptSerializer().DeserializeObject(child.StandardOutput.ReadToEnd()) as Dictionary<string,object>;

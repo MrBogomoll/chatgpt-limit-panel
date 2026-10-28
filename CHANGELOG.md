@@ -1,5 +1,11 @@
 # Changes
 
+## 1.3.0 — 2026-10-28
+
+- Add stable taskbar indicators and background refresh with the app window closed.
+- Fix game/Start/Start11 visibility and transparent child composition.
+- Add background transparency controls and complete current file branding.
+
 ## 1.1.0 — 2026-10-25
 
 - Add **Check for updates** to the panel context menu and plugin control card.
