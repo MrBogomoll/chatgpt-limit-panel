@@ -12,6 +12,16 @@ class LayoutTest {
       Check(Math.Abs(p.Width-46*scale)<1,"width scales");
       Check(Math.Abs(p.Height-192*scale)<0.01,"full height including bars scales");
       Check(!p.Compact,"full mode preferred when space allows");
+      var controls=new System.Collections.Generic.List<RailRegion>{new RailRegion{Top=0,Bottom=450*scale},new RailRegion{Top=712*scale,Bottom=748*scale},new RailRegion{Top=806*scale,Bottom=850*scale}};
+      var safe=Layout.PlaceInRail(p,40,850*scale,scale,controls,null);
+      Check(safe.Visible&&safe.Y+safe.Height<=40+708*scale,"new native quota button moves our panel into the nearest actual free gap");
+      safe=Layout.PlaceInRail(p,40,850*scale,scale,controls,0.05);
+      Check(safe.Visible&&safe.Y>=40+454*scale,"manual rail placement cannot cross navigation buttons");
+      controls[1]=new RailRegion{Top=780*scale,Bottom=806*scale};safe=Layout.PlaceInRail(p,40,850*scale,scale,controls,null);
+      Check(safe.Visible&&Math.Abs(safe.Y-p.Y)<.01,"updated control positions restore the default slot without changing their count");
+      var blocked=new System.Collections.Generic.List<RailRegion>{new RailRegion{Top=0,Bottom=850*scale}};
+      Check(!Layout.PlaceInRail(p,40,850*scale,scale,blocked,null).Visible,"occupied rail never permits overlapping placement");
+      Check(!Layout.PlaceInRail(p,40,850*scale,scale,null,null).Visible,"unknown rail geometry never guesses an upward slot that could cover navigation");
       var compact=Layout.Place(-1800,40,500*scale,680*scale,scale);
       Check(compact.Visible,"680 DIP client uses compact fallback at supported DPI");
       Check(compact.Compact,"fallback reports compact mode");

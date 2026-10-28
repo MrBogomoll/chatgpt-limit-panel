@@ -1,5 +1,12 @@
 # Changes
 
+## 1.4.0 preview
+
+- Fix vertical taskbar free-space allocation and redundant Start11 layout occupancy.
+- Add draggable taskbar and sidebar positions with free-space constraints.
+- Attach the sidebar as a verified native child and avoid accessible sidebar controls.
+- Keep transparent panels interactive and preserve saved preferences.
+
 ## 1.3.2 — 2026-10-28
 
 - Check updates against the primary public repository containing source and releases.

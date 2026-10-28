@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const api = await import('../overlay/package-plugin.mjs').catch(() => ({}));
-const version = '1.3.2';
+const version = '1.4.0-beta.3';
 const allowedFiles = [
   '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png',
   'dist/overlay/ChatGPTLimitPanelLauncher.exe', 'dist/overlay/ChatGPTLimitPanel.exe', 'dist/overlay/runtime.json',
@@ -97,7 +97,7 @@ test('beta staging uses a fresh versioned directory without overwriting an earli
   await writeFile(path.join(first.stagePath, 'review-marker.txt'), 'preserve earlier review');
   const second = api.stagePluginBundle(fixture);
   assert.notEqual(first.stagePath, second.stagePath);
-  assert.match(path.basename(second.stagePath), /chatgpt-limit-panel-1\.3\.2/);
+  assert.match(path.basename(second.stagePath), /chatgpt-limit-panel-1\.4\.0-beta\.3/);
   assert.equal(path.dirname(second.stagePath), fixture.outputDir);
   assert.equal(await readFile(path.join(first.stagePath, 'review-marker.txt'), 'utf8'), 'preserve earlier review');
 });
@@ -127,7 +127,7 @@ test('beta ZIP has upload manifests at its root, includes dotfiles, and publishe
   assert.equal(typeof api.packagePlugin, 'function', 'the beta packager must produce a ZIP');
   const fixture = await fixtureBundle(t);
   const result = api.packagePlugin(fixture);
-  assert.equal(path.basename(result.archivePath), 'chatgpt-limit-panel-1.3.2-windows-x64.zip');
+  assert.equal(path.basename(result.archivePath), 'chatgpt-limit-panel-1.4.0-beta.3-windows-x64.zip');
   assert.equal(path.dirname(result.archivePath), fixture.outputDir);
   const zip = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
     'Add-Type -AssemblyName System.IO.Compression.FileSystem; $archive = [System.IO.Compression.ZipFile]::OpenRead($env:QUOTA_TEST_ZIP); try { @($archive.Entries | ForEach-Object { $_.FullName }) | ConvertTo-Json -Compress } finally { $archive.Dispose() }'], {
@@ -138,6 +138,6 @@ test('beta ZIP has upload manifests at its root, includes dotfiles, and publishe
   assert.deepEqual(JSON.parse(zip.stdout).map(name => name.replaceAll('\\', '/')).sort(), allowedFiles);
   const digest = createHash('sha256').update(await readFile(result.archivePath)).digest('hex');
   assert.equal(result.sha256, digest);
-  assert.equal(await readFile(result.sha256Path, 'utf8'), `${digest}  chatgpt-limit-panel-1.3.2-windows-x64.zip\n`);
+  assert.equal(await readFile(result.sha256Path, 'utf8'), `${digest}  chatgpt-limit-panel-1.4.0-beta.3-windows-x64.zip\n`);
   assert.throws(() => api.packagePlugin(fixture), /already exists|overwrite/i);
 });

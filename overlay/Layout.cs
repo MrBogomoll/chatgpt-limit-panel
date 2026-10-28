@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 namespace QuotaOverlay {
+  public sealed class RailRegion {public double Top,Bottom;}
   public sealed class AppStartupGate {
     IntPtr watched;
     long readyAt;
@@ -16,6 +18,19 @@ namespace QuotaOverlay {
     public double X,Y,Width,Height;
   }
   public static class Layout {
+    public static Placement PlaceInRail(Placement preferred,double top,double height,double scale,IList<RailRegion> occupied,double? position) {
+      var result=new Placement{Visible=preferred.Visible,Compact=preferred.Compact,Mode=preferred.Mode,X=preferred.X,Y=preferred.Y,Width=preferred.Width,Height=preferred.Height};
+      if(!result.Visible)return result;
+      if(occupied==null){result.Visible=false;return result;}
+      double margin=4*scale,start=48*scale,end=height-margin,cursor=start,best=0,distance=Double.PositiveInfinity;
+      double desired=preferred.Y-top;
+      if(position.HasValue&&!Double.IsNaN(position.Value)&&!Double.IsInfinity(position.Value)&&position.Value>=0&&position.Value<=1)desired=(height-result.Height)*position.Value;
+      var spans=new List<RailRegion>();
+      foreach(var obstacle in occupied){if(Double.IsNaN(obstacle.Top)||Double.IsNaN(obstacle.Bottom)||Double.IsInfinity(obstacle.Top)||Double.IsInfinity(obstacle.Bottom)||obstacle.Bottom<obstacle.Top){result.Visible=false;return result;}spans.Add(new RailRegion{Top=Math.Max(start,obstacle.Top-margin),Bottom=Math.Min(end,obstacle.Bottom+margin)});}
+      spans.Sort(delegate(RailRegion a,RailRegion b){return a.Top.CompareTo(b.Top);});spans.Add(new RailRegion{Top=end,Bottom=end});
+      foreach(var span in spans){if(span.Top-cursor>=result.Height){double candidate=Math.Max(cursor,Math.Min(span.Top-result.Height,desired)),difference=Math.Abs(candidate-desired);if(difference<distance){distance=difference;best=candidate;}}cursor=Math.Max(cursor,span.Bottom);}
+      result.Visible=!Double.IsPositiveInfinity(distance);if(result.Visible)result.Y=top+best;return result;
+    }
     public const double PanelWidth=46, PanelHeight=192, CompactHeight=100, UltraHeight=32, BottomClearance=110;
     // Keep within the current 52 DIP rail, leaving the update button, avatar and upper navigation free.
     public static Placement Place(double left,double top,double width,double height,double scale) {

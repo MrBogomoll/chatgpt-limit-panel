@@ -8,11 +8,19 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace QuotaOverlay {
   internal sealed class TaskbarWindow:Window,IDisposable {
+    double? preferredPosition;
+    double? pointerOriginalPosition;
+    bool pointerDown,pointerDragged;
+    double pointerX,pointerY,pointerOffset;
+    public Action<double> PositionChanged;
+    [StructLayout(LayoutKind.Sequential)]struct CursorPoint{public int X,Y;}
+    [DllImport("user32.dll")]static extern bool GetCursorPos(out CursorPoint point);
     readonly Func<TaskbarSnapshot> readSnapshot;
     readonly TaskbarSnapshotSource source;
     readonly DispatcherTimer timer;
@@ -64,6 +72,10 @@ namespace QuotaOverlay {
       upper=Label();lower=Label();var rows=new Grid();rows.RowDefinitions.Add(new RowDefinition());rows.RowDefinitions.Add(new RowDefinition());
       Grid.SetRow(lower,1);rows.Children.Add(upper);rows.Children.Add(lower);
       surface=new Border{Width=TaskbarLayout.Width,Height=TaskbarLayout.Height,Padding=new Thickness(3,0,3,0),CornerRadius=new CornerRadius(3),Child=rows};
+      surface.MouseLeftButtonDown+=BeginPointer;
+      surface.MouseMove+=MovePointer;
+      surface.MouseLeftButtonUp+=delegate(object sender,MouseButtonEventArgs e){if(pointerDown){FinishPointer(true);e.Handled=true;}};
+      surface.LostMouseCapture+=delegate{if(pointerDown)FinishPointer(false);};
       var view=new Viewbox{Stretch=Stretch.Uniform,Child=surface};
       if(this.attachment==null)Content=view;
       else {childRoot=new Grid{UseLayoutRounding=true,SnapsToDevicePixels=true};childRoot.Children.Add(view);}
@@ -86,12 +98,38 @@ namespace QuotaOverlay {
       double numeric;if(!Double.TryParse(value.Substring(0,value.Length-1).Replace(',','.'),NumberStyles.AllowDecimalPoint,CultureInfo.InvariantCulture,out numeric)||!TaskbarLayout.Finite(numeric)||numeric<0||numeric>100)return "—";
       return Math.Round(numeric).ToString("0",CultureInfo.InvariantCulture)+"%";
     }
-    public void Configure(bool enabled,string side,ThemePalette palette,int transparency=50) {
+    public void Configure(bool enabled,string side,ThemePalette palette,int transparency=50,double? position=null) {
+      if(!pointerDown)preferredPosition=position.HasValue&&TaskbarLayout.Finite(position.Value)&&position.Value>=0&&position.Value<=1?position:null;
       if(disposed||closed)return;
       if(this.side!=side)InvalidateMenuLease();
       this.side=side;this.palette=palette??ThemePalette.Dark;backgroundTransparency=Math.Max(0,Math.Min(100,transparency));ApplyPalette();Enabled=enabled;
-      if(!enabled){timer.Stop();if(source!=null)source.Invalidate();InvalidateMenuLease();Conceal("disabled");return;}
+      if(!enabled){FinishPointer(false);timer.Stop();if(source!=null)source.Invalidate();InvalidateMenuLease();Conceal("disabled");return;}
       timer.Start();RefreshPlacement();
+    }
+    void BeginPointer(object sender,MouseButtonEventArgs e) {
+      CursorPoint point;if(!Enabled||!IsVisible||lastShown==null||leaseSnapshot==null||!GetCursorPos(out point))return;
+      pointerOriginalPosition=preferredPosition;pointerDown=true;pointerDragged=false;pointerX=point.X;pointerY=point.Y;
+      pointerOffset=IsVertical?point.Y-lastShown.Bounds.Y:point.X-lastShown.Bounds.X;
+      if(!surface.CaptureMouse())pointerDown=false;e.Handled=true;
+    }
+    void MovePointer(object sender,MouseEventArgs e) {
+      if(!pointerDown||e.LeftButton!=MouseButtonState.Pressed)return;
+      CursorPoint point;if(!GetCursorPos(out point)||leaseSnapshot==null||lastShown==null)return;
+      double scale=leaseSnapshot.Scale;
+      if(!pointerDragged&&Math.Abs(point.X-pointerX)<SystemParameters.MinimumHorizontalDragDistance*scale&&Math.Abs(point.Y-pointerY)<SystemParameters.MinimumVerticalDragDistance*scale)return;
+      pointerDragged=true;TaskbarArea bar=leaseSnapshot.Bounds;
+      double extent=IsVertical?bar.Height-lastShown.Bounds.Height:bar.Width-lastShown.Bounds.Width;
+      if(extent<=0)return;
+      preferredPosition=Math.Max(0,Math.Min(1,((IsVertical?point.Y-bar.Y:point.X-bar.X)-pointerOffset)/extent));
+      RefreshPlacement();e.Handled=true;
+    }
+    void FinishPointer(bool save) {
+      bool commit=pointerDown&&pointerDragged&&save;if(pointerDown&&!save)preferredPosition=pointerOriginalPosition;pointerDown=false;pointerDragged=false;
+      if(surface.IsMouseCaptured)surface.ReleaseMouseCapture();
+      if(commit&&lastShown!=null&&leaseSnapshot!=null&&PositionChanged!=null){
+        TaskbarArea bar=leaseSnapshot.Bounds;double extent=IsVertical?bar.Height-lastShown.Bounds.Height:bar.Width-lastShown.Bounds.Width;
+        if(extent>0)PositionChanged(Math.Max(0,Math.Min(1,(IsVertical?lastShown.Bounds.Y-bar.Y:lastShown.Bounds.X-bar.X)/extent)));
+      }
     }
     public void ApplyRows(string upper,string lower,string upperTone,string lowerTone,bool stale) {
       if(disposed||closed)return;
@@ -116,7 +154,7 @@ namespace QuotaOverlay {
       try {
         TaskbarSnapshotSource.Measurement measurement=null;
         TaskbarSnapshot snapshot=source==null?readSnapshot():source.Read(out measurement);diagnosticCandidate=snapshot;if(snapshot!=null&&TaskbarLayout.Valid(snapshot.Bounds))IsVertical=snapshot.Bounds.Height>snapshot.Bounds.Width;
-        TaskbarPlacement placement=TaskbarLayout.Place(snapshot,side);
+        TaskbarPlacement placement=TaskbarLayout.Place(snapshot,side,preferredPosition);
         long now=placementMilliseconds();bool transient=readTransient();diagnosticTransient=transient;
         if(!transient&&wasTransient)recoveryUntil=now+1600;
         if(transient)recoveryUntil=0;
@@ -174,7 +212,7 @@ namespace QuotaOverlay {
         TaskbarSnapshot snapshot=source==null?readSnapshot():source.Read(out receipt);
         diagnosticCandidate=snapshot;diagnosticTransient=false;
         if(snapshot!=null&&TaskbarLayout.Valid(snapshot.Bounds))IsVertical=snapshot.Bounds.Height>snapshot.Bounds.Width;
-        TaskbarPlacement placement=TaskbarLayout.Place(snapshot,side);
+        TaskbarPlacement placement=TaskbarLayout.Place(snapshot,side,preferredPosition);
         long now=placementMilliseconds();
         if(placement.Visible) {
           if(!IsVisible){SetChildOpacity(0);childSurface.Show();}
@@ -302,6 +340,14 @@ namespace QuotaOverlay {
       }
       // In-process deskbands may have Explorer's PID and expose only a Pane in UIA.
       return nativeLeaf;
+    }
+    internal static bool RedundantLegacyLayoutPeer(ControlType type,string nativeClass,bool verifiedShellChild,bool modernButtonsKnown) {
+      return modernButtonsKnown&&verifiedShellChild&&type==ControlType.Custom&&(nativeClass=="MSTaskSwWClass"||nativeClass=="MSTaskListWClass");
+    }
+    internal static bool MatchesLegacyLayoutArea(TaskbarArea area,IList<TaskbarArea> nativeAreas,double scale) {
+      double tolerance=Math.Max(1,3*scale);
+      foreach(TaskbarArea native in nativeAreas)if(Math.Abs(area.X-native.X)<=tolerance&&Math.Abs(area.Y-native.Y)<=tolerance&&Math.Abs(area.Width-native.Width)<=tolerance&&Math.Abs(area.Height-native.Height)<=tolerance)return true;
+      return false;
     }
     internal static bool IsTaskbarFullyRevealed(TaskbarArea bar,TaskbarArea monitor,double scale) {
       if(!TaskbarLayout.Valid(bar)||!TaskbarLayout.Valid(monitor)||!TaskbarLayout.Finite(scale)||scale<=0)return false;
@@ -517,6 +563,7 @@ namespace QuotaOverlay {
       uint explorer;GetWindowThreadProcessId(taskbar,out explorer);if(explorer==0)return result;
       bool consistent=true,startFound=false,trayFound=false;
       var automationRoots=new List<IntPtr>();
+      var legacyLayoutAreas=new List<TaskbarArea>();
       uint ownProcess=(uint)Process.GetCurrentProcess().Id;
       bool taskbarFound=childMode||ForEachWindowAbove(taskbar,delegate(IntPtr window) {
         if(window==own||!IsWindowVisible(window)||IsIconic(window)||Cloaked(window)||BackgroundClass(ClassName(window))||TaskbarTransient.IsCaptureWindow(window)||TaskbarTransient.IsMenuWindow(window))return;
@@ -533,6 +580,7 @@ namespace QuotaOverlay {
         uint process;GetWindowThreadProcessId(child,out process);string name=ClassName(child);
         Rect bounds;if(!GetWindowRect(child,out bounds)){consistent=false;return true;}
         TaskbarArea area=bounds.Area();if(!TaskbarLayout.Valid(area)||!Intersects(area,result.Bounds))return true;
+        if(process==explorer&&(name=="MSTaskSwWClass"||name=="MSTaskListWClass"))legacyLayoutAreas.Add(area);
         if(name=="Start")startFound=true;
         if(name=="TrayNotifyWnd")trayFound=true;
         if(process==explorer&&(name=="Windows.UI.Composition.DesktopWindowContentBridge"||name=="ReBarWindow32"||name=="MSTaskListWClass"))automationRoots.Add(child);
@@ -542,6 +590,8 @@ namespace QuotaOverlay {
       if(readAutomation==null)readAutomation=delegate(IntPtr root,IList<IntPtr> children,IList<TaskbarArea> occupied){return ReadTaskbarAutomationElements(root,children,occupied);};
       IList<AutomationElement> elements=readAutomation(taskbar,automationRoots,result.Occupied);if(elements==null)return result;
       if(elements.Count==0||elements.Count>4096)return result;
+      bool modernFrame=false,modernApp=false;
+      foreach(AutomationElement element in elements){var item=element.Cached;if(item.ProcessId!=(int)explorer||item.BoundingRectangle.IsEmpty)continue;if(item.AutomationId=="TaskbarFrameRepeater")modernFrame=true;if(item.ControlType==ControlType.Button&&item.AutomationId!=null&&item.AutomationId.StartsWith("Appid: ",StringComparison.Ordinal))modernApp=true;}
       for(int index=0;index<elements.Count;index++) {
         AutomationElement element=elements[index];var cached=element.Cached;
         if(childMode&&IsOwnAutomationElement(element,own,taskbar))continue;
@@ -550,9 +600,17 @@ namespace QuotaOverlay {
         // elements may be ignored, never visible buttons with usable bounds.
         string id=cached.AutomationId;ControlType type=cached.ControlType;
         bool structural=type==ControlType.Pane||type==ControlType.Group||type==ControlType.ToolBar||type==ControlType.Window||type==ControlType.List;
+        if(!structural&&cached.ProcessId==(int)explorer&&cached.NativeWindowHandle!=0){
+          IntPtr native=new IntPtr(cached.NativeWindowHandle);uint nativeProcess;GetWindowThreadProcessId(native,out nativeProcess);
+          if(RedundantLegacyLayoutPeer(type,ClassName(native),nativeProcess==explorer&&ChildIsChild(taskbar,native),modernFrame&&modernApp))structural=true;
+        }
         System.Windows.Rect rect=cached.BoundingRectangle;
         if(rect.IsEmpty||rect.Width<=0||rect.Height<=0){if(!structural&&!cached.IsOffscreen)consistent=false;continue;}
         var area=new TaskbarArea{X=rect.X,Y=rect.Y,Width=rect.Width,Height=rect.Height};if(!TaskbarLayout.Valid(area)){consistent=false;continue;}if(!Intersects(area,result.Bounds))continue;
+        // Start11 exposes a virtual Custom peer for its unused classic task
+        // container. Match it to a proved native shell layout rectangle only
+        // when a separate modern provider has supplied the application buttons.
+        if(!structural&&cached.NativeWindowHandle==0&&cached.ProcessId==(int)explorer&&type==ControlType.Custom&&modernFrame&&modernApp&&MatchesLegacyLayoutArea(area,legacyLayoutAreas,result.Scale))structural=true;
         if(id=="StartButton")startFound=true;
         if(id=="SystemTrayIcon"||id=="NotifyItemIcon"||id=="SystemTrayFrame"||id=="NotificationCenterButton"||id=="ClockButton")trayFound=true;
         if(!structural||cached.ProcessId!=(int)explorer)result.Occupied.Add(area);

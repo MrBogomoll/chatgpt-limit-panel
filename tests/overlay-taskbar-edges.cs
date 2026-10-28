@@ -56,7 +56,7 @@ internal static class TaskbarEdgesTest {
   static void ProtectedAndUnknown() {
     var snapshot=Snapshot(Area(0,0,48,1080));
     snapshot.Occupied.Add(Area(0,0,48,540));
-    Check(!TaskbarLayout.Place(snapshot,"left").Visible,"full first half must not silently switch to the other half");
+    Fits(snapshot,TaskbarLayout.Place(snapshot,"left"),"vertical Start preference searches past the midpoint when its first half is occupied");
     Fits(snapshot,TaskbarLayout.Place(snapshot,"right"),"free second half");
     snapshot.Occupied.Add(Area(0,540,48,540));
     Check(!TaskbarLayout.Place(snapshot,"right").Visible,"full vertical taskbar must hide");

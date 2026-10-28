@@ -9,10 +9,11 @@ namespace QuotaOverlay {
   // child must be created as a child, with modern per-pixel transparency.
   internal sealed class TaskbarChildSurface:IDisposable {
     readonly FrameworkElement root;
+    readonly string name;
     HwndSource source;
     Action closed;
     bool disposed,reported;
-    internal TaskbarChildSurface(FrameworkElement root){if(root==null)throw new ArgumentNullException("root");this.root=root;}
+    internal TaskbarChildSurface(FrameworkElement root,string name="ChatGPT Limit Panel taskbar"){if(root==null)throw new ArgumentNullException("root");this.root=root;this.name=name;}
     internal IntPtr Handle {get{return source==null||disposed?IntPtr.Zero:source.Handle;}}
     internal bool IsAlive {get{return Handle!=IntPtr.Zero&&IsWindow(Handle);}}
     internal bool IsVisible {get{return IsAlive&&IsWindowVisible(Handle);}}
@@ -24,7 +25,7 @@ namespace QuotaOverlay {
         IntPtr thread=GetThreadDpiAwarenessContext(),host=GetWindowDpiAwarenessContext(parent);
         if(parent==IntPtr.Zero||!IsWindow(parent)||thread==IntPtr.Zero||host==IntPtr.Zero||!AreDpiAwarenessContextsEqual(thread,host)){reason="child-creation-dpi-mismatch";return false;}
         closed=onClosed;
-        var parameters=new HwndSourceParameters("ChatGPT Limit Panel taskbar"){
+        var parameters=new HwndSourceParameters(name){
           ParentWindow=parent,WindowStyle=0x46000000,ExtendedWindowStyle=0x08000080,
           Width=1,Height=1,UsesPerPixelTransparency=true,
           AcquireHwndFocusInMenuMode=false,TreatAsInputRoot=true

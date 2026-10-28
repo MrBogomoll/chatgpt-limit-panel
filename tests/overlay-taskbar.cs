@@ -51,6 +51,20 @@ internal static class TaskbarNativeTest {
     Check(scaled.Visible&&Near(scaled.Bounds.Width/1.5,left.Bounds.Width)&&Near(scaled.Bounds.Height/1.5,left.Bounds.Height),"physical footprint must scale at fractional DPI");
     Check(scaled.Bounds.X<0&&scaled.Bounds.Y<0&&scaled.Bounds.X+scaled.Bounds.Width<-480,"negative monitor coordinates must remain physical pixels");
     var merged=Snapshot();merged.Occupied.Add(Area(1400,1032,300,48));merged.Occupied.Add(Area(1300,1032,200,48));var mergedPlacement=TaskbarLayout.Place(merged,"right");foreach(var block in merged.Occupied)Check(!Overlap(mergedPlacement.Bounds,block),"overlapping obstacles must merge");
+    var vertical=Snapshot();vertical.Bounds=Area(0,0,72,1440);vertical.Scale=1.5;
+    vertical.Occupied.Add(Area(0,0,72,820));vertical.Occupied.Add(Area(0,1170,72,270));
+    var afterApps=TaskbarLayout.Place(vertical,"left");
+    Check(afterApps.Visible&&afterApps.Bounds.Y>820&&afterApps.Bounds.Y+afterApps.Bounds.Height<1170,"vertical Start-side placement must find the real gap after a long top-aligned application group, even past the monitor midpoint");
+    vertical.Occupied[0]=Area(0,0,72,1120);vertical.Occupied[1]=Area(0,1124,72,316);
+    Check(!TaskbarLayout.Place(vertical,"left").Visible,"a genuinely full vertical bar must hide");
+    vertical.Occupied[0]=Area(0,0,72,820);vertical.Occupied[1]=Area(0,1170,72,270);
+    Check(TaskbarLayout.Place(vertical,"left").Visible,"moving the same number of occupied rectangles must immediately restore a newly available vertical gap");
+    var manual=Snapshot();manual.Occupied.Add(Area(0,1032,600,48));manual.Occupied.Add(Area(1500,1032,420,48));
+    var moved=TaskbarLayout.Place(manual,"right",0.5);Check(moved.Visible&&Near(moved.Bounds.X,936),"manual positioning can use free space across the midpoint");
+    moved=TaskbarLayout.Place(manual,"right",0.95);Check(moved.Visible&&moved.Bounds.X+moved.Bounds.Width<1500,"dragging toward the tray snaps to a free slot without covering controls");
+    moved=TaskbarLayout.Place(vertical,"left",0.5);Check(moved.Visible&&moved.Bounds.Y>820,"vertical manual positioning respects actual obstacles");
+    Check(!TaskbarLayout.Place(full,"left",0.5).Visible,"manual positioning never exposes a full taskbar");
+    moved=TaskbarLayout.Place(manual,"right",0.333);Check(moved.Visible&&moved.Bounds.X==Math.Round(moved.Bounds.X),"persisted fractional placement resolves to whole physical pixels accepted by the native child attachment");
   }
   static void FailClosed() {
     Check(!TaskbarLayout.Place(null,"right").Visible,"missing snapshot must hide");
@@ -64,6 +78,13 @@ internal static class TaskbarNativeTest {
     Check(!TaskbarLayout.Place(Snapshot(),"invalid").Visible,"invalid persisted side must hide rather than guess");
   }
   static void NativeWidgetClassification() {
+    Check(TaskbarNative.RedundantLegacyLayoutPeer(ControlType.Custom,"MSTaskSwWClass",true,true),"an empty legacy layout peer must not mask gaps already measured from the modern taskbar buttons");
+    Check(!TaskbarNative.RedundantLegacyLayoutPeer(ControlType.Custom,"MSTaskSwWClass",true,false),"legacy-only or unreadable app buttons must retain conservative occupancy");
+    Check(!TaskbarNative.RedundantLegacyLayoutPeer(ControlType.Custom,"MSTaskSwWClass",false,true),"a foreign window cannot borrow the shell layout exemption");
+    Check(!TaskbarNative.RedundantLegacyLayoutPeer(ControlType.Custom,"NetWorxDeskband",true,true),"painted widgets remain protected even inside Explorer");
+    var legacyAreas=new List<TaskbarArea>{Area(2488,85,80,801)};
+    Check(TaskbarNative.MatchesLegacyLayoutArea(Area(2490,83,80,801),legacyAreas,1.5),"virtual Start11 layout peer matches its measured native container despite a two-pixel provider inset");
+    Check(!TaskbarNative.MatchesLegacyLayoutArea(Area(2490,83,80,500),legacyAreas,1.5),"an arbitrary custom region inside the container must remain occupied");
     foreach(string name in new[]{"ToolbarWindow32","NetWorxDeskband","UnknownPaintedStatus"})Check(TaskbarNative.ProtectNativeWindow(name,true,true),"an Explorer-process painted leaf must protect its rectangle: "+name);
     foreach(string name in new[]{"ReBarWindow32","MSTaskSwWClass","MSTaskListWClass","Windows.UI.Composition.DesktopWindowContentBridge","Windows.UI.Input.InputSite.WindowClass","XamlExplorerHostIslandWindow"}) {
       Check(!TaskbarNative.ProtectNativeWindow(name,true,true),"known shell layout HWND may span unused taskbar space: "+name);

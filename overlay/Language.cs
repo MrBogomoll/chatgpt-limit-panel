@@ -19,6 +19,7 @@ namespace QuotaOverlay {
       {"dismiss",new[]{"Закрыть","Close"}},
       {"openReleaseError",new[]{"Не удалось открыть страницу релиза.","Could not open the release page."}},
       {"view",new[]{"Вид панели","Panel view"}},
+      {"resetPosition",new[]{"Расположение по умолчанию","Reset position"}},
       {"taskbar",new[]{"Панель задач","Taskbar"}},
       {"taskbarShow",new[]{"Показывать проценты","Show percentages"}},
       {"taskbarLeft",new[]{"Слева","Left"}},
