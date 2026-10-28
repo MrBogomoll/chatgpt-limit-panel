@@ -5,6 +5,19 @@ class LayoutTest {
   static void Main() { try { Run(); } catch(Exception e) { Console.Error.WriteLine(e.Message);Environment.ExitCode=1; } }
   static void Run() {
     foreach(double scale in new double[]{1,1.25,1.5,2}) {
+      foreach(string choice in new[]{"full","compact"}) {
+        var automaticUltra=Layout.Place(-1800,40,500*scale,600*scale,scale,choice);
+        Check(automaticUltra.Visible&&automaticUltra.Mode=="ultra"&&automaticUltra.Height==32*scale,"further window reduction must automatically reach ultracompact at every DPI");
+        var restored=Layout.Place(-1800,40,500*scale,850*scale,scale,choice);
+        Check(restored.Mode==choice,"growing the window restores the preferred view");
+        var narrowGap=new System.Collections.Generic.List<RailRegion>{new RailRegion{Top=0,Bottom=600*scale},new RailRegion{Top=650*scale,Bottom=850*scale}};
+        var fit=Layout.PlaceInAvailableRail(-1800,40,500*scale,850*scale,scale,choice,narrowGap,null);
+        Check(fit.Visible&&fit.Mode=="ultra"&&fit.Y>=40+604*scale&&fit.Y+fit.Height<=40+646*scale,"only ultracompact fits a measured short gap without covering controls");
+        var shortRail=new System.Collections.Generic.List<RailRegion>{new RailRegion{Top=0,Bottom=470*scale},new RailRegion{Top=530*scale,Bottom=570*scale}};
+        fit=Layout.PlaceInAvailableRail(-1800,40,500*scale,570*scale,scale,choice,shortRail,null);
+        Check(fit.Visible&&fit.Mode=="ultra"&&fit.Y>=40+474*scale&&fit.Y+fit.Height<=40+526*scale,"measured short windows can use ultra below the conservative unknown-geometry cutoff");
+        Check(!Layout.PlaceInAvailableRail(0,0,500*scale,570*scale,scale,choice,null,null).Visible,"unknown geometry cannot authorize any measured fallback");
+      }
       var p=Layout.Place(-1800,40,1200*scale,850*scale,scale);
       Check(p.Visible,"visible at supported DPI");
       Check(p.X>=-1800 && p.X+p.Width<=-1800+52*scale,"stays in rail at negative monitor coordinates");
@@ -41,8 +54,8 @@ class LayoutTest {
       Check(Layout.Place(0,0,320*scale,759*scale,scale,false).Compact,"below full minimum selects compact mode");
       Check(Layout.Place(0,0,320*scale,650*scale,scale,false).Visible,"compact minimum remains visible");
       Check(Layout.Place(0,0,320*scale,650*scale,scale,false).Compact,"650 DIP selects compact mode");
-      Check(!Layout.Place(0,0,500*scale,649*scale,scale,false).Visible,"below compact minimum hides automatic mode");
-      Check(!Layout.Place(0,0,500*scale,649*scale,scale,true).Visible,"below compact minimum hides preferred compact mode");
+      Check(Layout.Place(0,0,500*scale,649*scale,scale,false).Visible&&Layout.Place(0,0,500*scale,649*scale,scale,false).Mode=="ultra","below compact minimum selects automatic ultra");
+      Check(Layout.Place(0,0,500*scale,649*scale,scale,true).Visible&&Layout.Place(0,0,500*scale,649*scale,scale,true).Mode=="ultra","compact preference permits smaller effective ultra");
       Check(!Layout.Place(0,0,319*scale,850*scale,scale,true).Visible,"below minimum width hides compact mode");
       Check(!Layout.Place(0,0,319*scale,850*scale,scale,false).Visible,"below minimum width hides full mode");
     }

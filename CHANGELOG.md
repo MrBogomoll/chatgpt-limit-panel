@@ -1,5 +1,11 @@
 # Changes
 
+## 1.4.1 preview
+
+- Select ultracompact automatically when a smaller window or measured free gap cannot fit compact view, preserving the preferred view on growth.
+- Keep verified relative rail coordinates during pure translation and reject changed/partially acquired geometry.
+- Windows 11 Snap preview handling remains under investigation.
+
 ## 1.4.0 — 2026-10-28
 
 - Add saved draggable taskbar and sidebar positions with occupied-control clearance.

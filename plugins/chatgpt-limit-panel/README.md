@@ -1,4 +1,4 @@
-# ChatGPT Limit Panel 1.4.0
+# ChatGPT Limit Panel 1.4.1-beta.1
 
 Панель оставшихся лимитов Codex / Work в настольном ChatGPT для Windows x64. Показывает проценты и серверные даты сброса в боковой полосе и, при включении, на панели задач Windows. В Instant отображаются те же лимиты.
 
@@ -18,8 +18,8 @@ Requires a Windows x64 local executor and installed Codex signed in to your acco
 
 [Project, installation and releases](https://github.com/MrBogomoll/chatgpt-limit-panel).
 
-## Известные ограничения 1.4.0 / Known limitations
+## Превью 1.4.1 / Preview
 
-Автоматический переход из компактного вида в ультракомпактный при дальнейшем уменьшении окна пока отсутствует; ультракомпактный вид доступен вручную. При перемещении окна боковая панель может кратковременно скрываться или оставаться поверх предпросмотра Snap Layouts Windows 11. Эти замечания отложены для возможного следующего патча.
+Добавлен автоматический переход в ультракомпактный вид при уменьшении окна или недостатке свободного места. Изменён расчёт координат при перемещении окна. Эти изменения требуют проверки в текущем клиенте. Поведение в Snap Layouts Windows 11 пока исследуется отдельно.
 
-Automatic compact-to-ultracompact switching on further window reduction is not yet implemented; choose ultracompact manually. The sidebar can briefly hide during movement or remain above the Windows 11 Snap Layouts preview. These reports are deferred for a possible following patch.
+Adds automatic ultracompact fallback when the window or measured free slot becomes smaller. Revises coordinate handling during movement. These changes require acceptance in the current client; Windows 11 Snap Layouts remains under investigation.

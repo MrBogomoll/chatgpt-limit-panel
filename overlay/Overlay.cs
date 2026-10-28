@@ -103,30 +103,60 @@ namespace QuotaOverlay {
     public void Dispose() {Stop();disposed=true;}
   }
 
+  internal sealed class SidebarControlSnapshot {
+    internal Rect RootBounds;
+    internal readonly List<Rect> Controls=new List<Rect>();
+    internal int Candidates;
+    internal IList<RailRegion> Project(Native.Point before,Native.Point after,int width,int height,int afterWidth,int afterHeight,double scale,double afterScale,bool verifiedClientDocument,out bool verified,IList<RailRegion> expectedControls=null) {
+      verified=false;
+      if(width<=0||height<=0||width!=afterWidth||height!=afterHeight||scale<=0||Double.IsNaN(scale)||Double.IsInfinity(scale)||afterScale<=0||Double.IsNaN(afterScale)||Double.IsInfinity(afterScale)||Math.Abs(scale-afterScale)>.001||RootBounds.IsEmpty)return null;
+      bool moved=before.X!=after.X||before.Y!=after.Y;
+      bool fullClient=Math.Abs(RootBounds.Width-width)<=2&&Math.Abs(RootBounds.Height-height)<=2;
+      verified=fullClient&&(moved?verifiedClientDocument:Math.Abs(RootBounds.Left-before.X)<=2&&Math.Abs(RootBounds.Top-before.Y)<=2);
+      if(!moved&&fullClient&&!verified)return null;
+      if(moved&&!verified)return null;
+      // During translation, root and control bounds come from one cache receipt.
+      // Never combine its screen coordinates with a later native window origin.
+      double left=moved?RootBounds.Left:before.X,top=moved?RootBounds.Top:before.Y;
+      var result=new List<RailRegion>();
+      foreach(var b in Controls)if(!b.IsEmpty&&b.Width>0&&b.Height>0&&b.Left<left+49*scale&&b.Right>left+3*scale&&b.Top<top+height&&b.Bottom>top)result.Add(new RailRegion{Top=b.Top-top,Bottom=b.Bottom-top});
+      // UIA batching is not an atomic frame guarantee. While moving, accept a
+      // receipt only when it confirms the last verified relative control map.
+      if(moved) {
+        if(expectedControls==null||expectedControls.Count!=result.Count)return null;
+        var expected=new List<RailRegion>(expectedControls);var actual=new List<RailRegion>(result);
+        Comparison<RailRegion> order=delegate(RailRegion a,RailRegion b){int c=a.Top.CompareTo(b.Top);return c!=0?c:a.Bottom.CompareTo(b.Bottom);};expected.Sort(order);actual.Sort(order);
+        for(int i=0;i<expected.Count;i++)if(Math.Abs(expected[i].Top-actual[i].Top)>2||Math.Abs(expected[i].Bottom-actual[i].Bottom)>2)return null;
+        return new List<RailRegion>(expectedControls);
+      }
+      return result;
+    }
+  }
   internal sealed class SidebarGeometrySource:IDisposable {
     sealed class Sample {internal IntPtr Target;internal int Width,Height;internal double Scale;internal long At;internal IList<RailRegion> Controls;}
     readonly object gate=new object();readonly Stopwatch clock=Stopwatch.StartNew();Sample sample;
     bool busy,disposed;long next;
-    AutomationElement document;IntPtr documentTarget;
+    AutomationElement document;IntPtr documentTarget;bool documentFillsClient;
     long lastDuration;int lastControls,lastVisited;bool lastBottom;string lastError;
     internal object Debug {get{lock(gate)return new{busy=busy,duration=lastDuration,controls=lastControls,candidates=lastVisited,bottom=lastBottom,error=lastError,age=sample==null?-1:clock.ElapsedMilliseconds-sample.At};}}
-    internal static IList<RailRegion> MeasureControls(AutomationElement root,double left,double top,double height,double scale,uint excludedProcess,out int visited) {
+    internal static SidebarControlSnapshot MeasureSnapshot(AutomationElement root,uint excludedProcess) {
       var filters=new List<System.Windows.Automation.Condition>();
-      foreach(var type in new[]{ControlType.Button,ControlType.Hyperlink,ControlType.MenuItem,ControlType.TabItem,ControlType.ComboBox,ControlType.CheckBox,ControlType.Edit})filters.Add(new PropertyCondition(AutomationElement.ControlTypeProperty,type));
-      var request=new CacheRequest{TreeFilter=Automation.RawViewCondition,AutomationElementMode=AutomationElementMode.None};
-      request.Add(AutomationElement.BoundingRectangleProperty);request.Add(AutomationElement.ProcessIdProperty);
-      var result=new List<RailRegion>();
-      // Filter at the provider: do not materialize transcript text, and do not
-      // assume that a parent's rectangle encloses its descendants.
-      using(request.Activate()) {
-        var controls=root.FindAll(TreeScope.Descendants,new OrCondition(filters.ToArray()));visited=controls.Count;
-        if(visited>4096)return null;
-        for(int i=0;i<controls.Count;i++) {
-          var c=controls[i].Cached;if(c.ProcessId==excludedProcess)continue;var b=c.BoundingRectangle;
-          if(!b.IsEmpty&&b.Width>0&&b.Height>0&&b.Left<left+49*scale&&b.Right>left+3*scale&&b.Top<top+height&&b.Bottom>top)result.Add(new RailRegion{Top=b.Top-top,Bottom=b.Bottom-top});
-        }
+      foreach(var type in new[]{ControlType.Window,ControlType.Document,ControlType.Button,ControlType.Hyperlink,ControlType.MenuItem,ControlType.TabItem,ControlType.ComboBox,ControlType.CheckBox,ControlType.Edit})filters.Add(new PropertyCondition(AutomationElement.ControlTypeProperty,type));
+      var request=new CacheRequest{TreeScope=TreeScope.Subtree,TreeFilter=new OrCondition(filters.ToArray()),AutomationElementMode=AutomationElementMode.None};
+      foreach(var property in new[]{AutomationElement.BoundingRectangleProperty,AutomationElement.ProcessIdProperty,AutomationElement.ControlTypeProperty})request.Add(property);
+      var cachedRoot=root.GetUpdatedCache(request);var result=new SidebarControlSnapshot{RootBounds=cachedRoot.Cached.BoundingRectangle};
+      var pending=new Stack<AutomationElement>();pending.Push(cachedRoot);
+      while(pending.Count>0) {
+        if(++result.Candidates>4096)return null;var element=pending.Pop();var c=element.Cached;
+        if(c.ProcessId==excludedProcess)continue;
+        if(c.ControlType!=ControlType.Document&&c.ControlType!=ControlType.Window)result.Controls.Add(c.BoundingRectangle);
+        var children=element.CachedChildren;for(int i=children.Count-1;i>=0;i--)pending.Push(children[i]);
       }
       return result;
+    }
+    internal static IList<RailRegion> MeasureControls(AutomationElement root,double left,double top,double height,double scale,uint excludedProcess,out int visited) {
+      var snapshot=MeasureSnapshot(root,excludedProcess);visited=snapshot==null?4097:snapshot.Candidates;if(snapshot==null)return null;
+      var result=new List<RailRegion>();foreach(var b in snapshot.Controls)if(!b.IsEmpty&&b.Width>0&&b.Height>0&&b.Left<left+49*scale&&b.Right>left+3*scale&&b.Top<top+height&&b.Bottom>top)result.Add(new RailRegion{Top=b.Top-top,Bottom=b.Bottom-top});return result;
     }
     internal IList<RailRegion> Read(IntPtr target,int width,int height,double scale){
       lock(gate){long now=clock.ElapsedMilliseconds;if(disposed||target==IntPtr.Zero)return null;
@@ -137,16 +167,22 @@ namespace QuotaOverlay {
               var controls=new List<RailRegion>();
               // Query the app web document only. Our own monitor window must
               // stay outside the accessibility query.
-              if(document==null||documentTarget!=target){document=AutomationElement.FromHandle(target).FindFirst(TreeScope.Descendants,new PropertyCondition(AutomationElement.ControlTypeProperty,ControlType.Document));documentTarget=target;}
+              if(document==null||documentTarget!=target){document=AutomationElement.FromHandle(target).FindFirst(TreeScope.Descendants,new PropertyCondition(AutomationElement.ControlTypeProperty,ControlType.Document));documentTarget=target;documentFillsClient=false;}
               var root=document;if(root==null)throw new InvalidOperationException("Document unavailable");measuredAt=clock.ElapsedMilliseconds;
-              var measured=MeasureControls(root,origin.X,origin.Y,height,scale,(uint)Process.GetCurrentProcess().Id,out visited);
-              if(measured==null)throw new InvalidOperationException("Incomplete rail measurement");controls.AddRange(measured);
-              bool bottomKnown=false;foreach(var control in controls)if(control.Bottom>height-120*scale&&control.Top>height/2)bottomKnown=true;count=controls.Count;bottom=bottomKnown;
-              var afterOrigin=new Native.Point();Native.Rect afterRect;
-              if(controls.Count>=3&&bottomKnown&&Native.GetClientRect(target,out afterRect)&&afterRect.Right==width&&afterRect.Bottom==height&&Native.ClientToScreen(target,ref afterOrigin)&&afterOrigin.X==origin.X&&afterOrigin.Y==origin.Y&&Math.Abs(Native.GetDpiForWindow(target)/96.0-scale)<.001)value=new Sample{Target=target,Width=width,Height=height,Scale=scale,At=measuredAt,Controls=controls};
+              var snapshot=MeasureSnapshot(root,(uint)Process.GetCurrentProcess().Id);if(snapshot==null)throw new InvalidOperationException("Incomplete rail measurement");visited=snapshot.Candidates;
+              var afterOrigin=new Native.Point();Native.Rect afterRect;bool verified;
+              if(Native.GetClientRect(target,out afterRect)&&Native.ClientToScreen(target,ref afterOrigin)) {
+                Sample previous;lock(gate)previous=sample;
+                var expected=previous!=null&&previous.Target==target&&previous.Width==width&&previous.Height==height&&Math.Abs(previous.Scale-scale)<.001?previous.Controls:null;
+                var measured=snapshot.Project(origin,afterOrigin,width,height,afterRect.Right,afterRect.Bottom,scale,Native.GetDpiForWindow(target)/96.0,documentFillsClient,out verified,expected);documentFillsClient=verified;
+                if(measured!=null) {
+                  controls.AddRange(measured);bool bottomKnown=false;foreach(var control in controls)if(control.Bottom>height-120*scale&&control.Top>height/2)bottomKnown=true;count=controls.Count;bottom=bottomKnown;
+                  if(controls.Count>=3&&bottomKnown)value=new Sample{Target=target,Width=width,Height=height,Scale=scale,At=measuredAt,Controls=controls};
+                }
+              }
             }
-          }catch(Exception exception){document=null;error=exception.GetType().Name;}
-          lock(gate){busy=false;lastDuration=clock.ElapsedMilliseconds-measuredAt;lastControls=count;lastVisited=visited;lastBottom=bottom;lastError=error;if(!disposed){sample=lastDuration<=1600?value:null;}}
+          }catch(Exception exception){document=null;documentFillsClient=false;error=exception.GetType().Name;}
+          lock(gate){busy=false;lastDuration=clock.ElapsedMilliseconds-measuredAt;lastControls=count;lastVisited=visited;lastBottom=bottom;lastError=error;if(!disposed&&lastDuration<=1600&&value!=null)sample=value;}
         });}
         return sample!=null&&sample.Target==target&&sample.Width==width&&sample.Height==height&&Math.Abs(sample.Scale-scale)<.001&&now>=sample.At&&now-sample.At<=3000?sample.Controls:null;
       }
@@ -853,8 +889,7 @@ namespace QuotaOverlay {
       double scale=valid?Native.GetDpiForWindow(target)/96.0:1;
       var placement=Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode);
       var controls=valid&&targetMatcher==null?sidebarGeometry.Read(target,rect.Right-rect.Left,rect.Bottom-rect.Top,scale):null;
-      if(valid&&targetMatcher==null){placement=Layout.PlaceInRail(placement,origin.Y,rect.Bottom-rect.Top,scale,controls,sidebarPosition);
-        if(!placement.Visible&&preferredMode=="full")placement=Layout.PlaceInRail(Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,"compact"),origin.Y,rect.Bottom-rect.Top,scale,controls,sidebarPosition);}
+      if(valid&&targetMatcher==null)placement=Layout.PlaceInAvailableRail(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,controls,sidebarPosition);
       bool modeChanged=presentationMode!=placement.Mode;
       if(modeChanged)SetMode(placement.Mode);
       bool show=valid&&!paused&&placement.Visible&&appReady;

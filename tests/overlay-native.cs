@@ -1070,6 +1070,37 @@ class OverlayNativeTest {
     Invoke(window,"SelectLanguage","ru");Check(Field<TextBlock[]>(window,"periods")[0].Text=="15 мин","Russian minute duration must restore exactly");
     Console.WriteLine("PASS native language: live translation, unchanged quota, all mode bounds, restart persistence and Russian restoration");
   }
+  static void RailTranslationTest(OverlayWindow window) {
+    var before=new Native.Point{X=500,Y=200};var after=new Native.Point{X=540,Y=225};bool verified;
+    var snapshot=new SidebarControlSnapshot{RootBounds=new Rect(525,212,1200,900)};
+    snapshot.Controls.Add(new Rect(531,312,36,36));snapshot.Controls.Add(new Rect(531,1052,36,36));
+    var expected=new List<RailRegion>{new RailRegion{Top=100,Bottom=136},new RailRegion{Top=840,Bottom=876}};
+    var controls=snapshot.Project(before,after,1200,900,1200,900,1,1,true,out verified,expected);
+    Check(controls!=null&&controls.Count==2&&controls[0].Top==100&&controls[1].Top==840,"translation keeps rail coordinates from the same cached document snapshot");
+    Check(verified,"translation preserves verified full-client document mapping");
+    Check(snapshot.Project(before,after,1200,900,1200,900,1,1,false,out verified)==null,"unverified document cannot infer moving client coordinates");
+    Check(snapshot.Project(before,after,1200,900,1200,900,1,1,true,out verified)==null,"moving receipts require a prior verified control map");
+    snapshot.Controls[0]=new Rect(531,352,36,36);
+    Check(snapshot.Project(before,after,1200,900,1200,900,1,1,true,out verified,expected)==null,"torn/mutated control coordinates cannot renew a moving receipt");
+    snapshot.Controls[0]=new Rect(531,312,36,36);
+    var baseline=expected;
+    for(int step=1;step<=6;step++) {
+      snapshot.Controls[0]=new Rect(531,312+2*step,36,36);snapshot.Controls[1]=new Rect(531,1052+2*step,36,36);
+      var next=snapshot.Project(before,after,1200,900,1200,900,1,1,true,out verified,baseline);if(next!=null)baseline=new List<RailRegion>(next);
+    }
+    Check(baseline[0].Top==100&&baseline[1].Top==840,"rounding tolerance must never accumulate across moving receipts");
+    snapshot.Controls[0]=new Rect(531,312,36,36);snapshot.Controls[1]=new Rect(531,1052,36,36);
+    Check(snapshot.Project(before,after,1200,900,1100,900,1,1,true,out verified)==null,"resize rejects old coordinate frame");
+    Check(snapshot.Project(before,after,1200,900,1200,900,1,1.5,true,out verified)==null,"DPI change rejects old coordinate frame");
+    var steady=new Native.Point{X=525,Y=212};controls=snapshot.Project(steady,steady,1200,900,1200,900,1,1,false,out verified);
+    Check(controls!=null&&verified,"steady full-client document verifies its mapping");
+    snapshot.RootBounds=new Rect(525,222,1200,900);
+    Check(snapshot.Project(steady,steady,1200,900,1200,900,1,1,true,out verified)==null,"equal native endpoints cannot authorize a displaced full-client cached root");
+    snapshot.RootBounds=new Rect(525,262,1200,850);snapshot.Controls.Clear();snapshot.Controls.Add(new Rect(531,362,36,36));
+    controls=snapshot.Project(steady,steady,1200,900,1200,900,1,1,false,out verified);
+    Check(controls!=null&&controls.Count==1&&controls[0].Top==150&&!verified,"steady inset document retains original client projection without authorizing motion reuse");
+    Known(window);Invoke(window,"SavePreview");Console.WriteLine("PASS native rail-translation: coherent coordinates, trusted document mapping, shape/DPI rejection and inset fallback");
+  }
   static void RailOverflowTest(OverlayWindow window) {
     var canvas=new Canvas{ClipToBounds=false};var group=new GroupBox{Width=100,Height=300,ClipToBounds=false};Canvas.SetLeft(group,100);
     var content=new Canvas{ClipToBounds=false};var button=new Button{Content="Fixture",Width=30,Height=30};Canvas.SetLeft(button,-100);Canvas.SetTop(button,100);content.Children.Add(button);group.Content=content;canvas.Children.Add(group);
@@ -1110,6 +1141,7 @@ class OverlayNativeTest {
       window=NewWindow(Path.Combine(directory,"state.json"));
       AssertUnshown(window);
       switch(args[0]) {
+        case "rail-translation":RailTranslationTest(window);break;
         case "rail-overflow":RailOverflowTest(window);break;
         case "target-identity":TargetIdentityTest(window);break;
         case "layout":LayoutTest(window);break;

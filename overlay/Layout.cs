@@ -18,6 +18,19 @@ namespace QuotaOverlay {
     public double X,Y,Width,Height;
   }
   public static class Layout {
+    public static Placement PlaceInAvailableRail(double left,double top,double width,double height,double scale,string preferredMode,IList<RailRegion> occupied,double? position) {
+      if(scale<=0||Double.IsNaN(scale)||Double.IsInfinity(scale))scale=1;
+      var result=PlaceInRail(Place(left,top,width,height,scale,preferredMode),top,height,scale,occupied,position);
+      if(!result.Visible&&preferredMode=="full")result=PlaceInRail(Place(left,top,width,height,scale,"compact"),top,height,scale,occupied,position);
+      if(!result.Visible&&occupied!=null) {
+        var ultra=Place(left,top,width,height,scale,"ultra");
+        // With measured controls, the actual free interval is authoritative;
+        // retain minimum width and let PlaceInRail enforce header/control gaps.
+        ultra.Visible=width/scale>=320;
+        result=PlaceInRail(ultra,top,height,scale,occupied,position);
+      }
+      return result;
+    }
     public static Placement PlaceInRail(Placement preferred,double top,double height,double scale,IList<RailRegion> occupied,double? position) {
       var result=new Placement{Visible=preferred.Visible,Compact=preferred.Compact,Mode=preferred.Mode,X=preferred.X,Y=preferred.Y,Width=preferred.Width,Height=preferred.Height};
       if(!result.Visible)return result;
@@ -41,7 +54,7 @@ namespace QuotaOverlay {
     }
     public static Placement Place(double left,double top,double width,double height,double scale,string preferredMode) {
       if(scale<=0 || double.IsNaN(scale)) scale=1;
-      string mode=preferredMode=="ultra"?"ultra":preferredMode=="compact" || height/scale<760?"compact":"full";
+      string mode=preferredMode=="ultra"||height/scale<650?"ultra":preferredMode=="compact"||height/scale<760?"compact":"full";
       double panelHeight=mode=="ultra"?UltraHeight:mode=="compact"?CompactHeight:PanelHeight;
       return new Placement { Visible=width/scale>=320 && height/scale>=(mode=="ultra"?582:mode=="compact"?650:760),Compact=mode!="full",Mode=mode,
         X=left+3*scale,Y=top+height-(BottomClearance+panelHeight)*scale,
