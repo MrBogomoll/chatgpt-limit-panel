@@ -21,10 +21,10 @@ export function createMcpHandler({ controller, readUi, getLanguage = () => 'ru',
     const respond = result => ({ jsonrpc: '2.0', id: request.id, result });
     const error = (code, message) => ({ jsonrpc: '2.0', id: request.id, error: { code, message } });
     switch (request.method) {
-      case 'initialize': return respond({ protocolVersion: request.params?.protocolVersion || '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'quota-panel', title: 'ChatGPT Limit Panel', version: '1.3.0' } });
+      case 'initialize': return respond({ protocolVersion: request.params?.protocolVersion || '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'chatgpt-limit-panel', title: 'ChatGPT Limit Panel', version: '1.3.1' } });
       case 'ping': return respond({});
       case 'tools/list': return respond({ tools: getLanguage() === 'en' ? tools.map(tool => ({ ...tool, title: englishTools[tool.name][0], description: englishTools[tool.name][1] })) : tools });
-      case 'resources/list': return respond({ resources: [{ uri: UI_URI, name: getLanguage() === 'en' ? 'Quota panel controls' : 'Управление панелью лимитов', mimeType: 'text/html;profile=mcp-app' }] });
+      case 'resources/list': return respond({ resources: [{ uri: UI_URI, name: getLanguage() === 'en' ? 'ChatGPT Limit Panel controls' : 'Управление панелью лимитов', mimeType: 'text/html;profile=mcp-app' }] });
       case 'resources/templates/list': return respond({ resourceTemplates: [] });
       case 'resources/read': {
         const requestedUri = request.params?.uri;

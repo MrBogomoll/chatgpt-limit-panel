@@ -1,5 +1,9 @@
 # Changes
 
+## 1.3.1 — 2026-10-28
+
+- Use the current ChatGPT Limit Panel name for the MCP server in plugin settings.
+
 ## 1.3.0 — 2026-10-28
 
 - Add stable taskbar indicators and background refresh with the app window closed.

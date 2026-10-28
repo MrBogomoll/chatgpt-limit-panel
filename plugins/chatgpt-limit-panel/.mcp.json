@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "quota_panel": {
+    "chatgpt-limit-panel": {
       "command": "./runtime/node.exe",
       "args": ["./server/index.mjs"],
       "cwd": "."

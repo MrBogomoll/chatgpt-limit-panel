@@ -111,8 +111,8 @@ test('MCP translates tool and resource labels and safe failures from the saved l
   const controller={status:async()=>{throw new Error('private-token');}};
   const handle=mcpApi.createMcpHandler({controller,readUi:async()=>'',getLanguage:()=>language});
   const list=async()=> (await handle({id:1,method:'tools/list'})).result.tools;
-  assert.equal((await list())[1].title,'Start quota panel');
-  assert.equal((await handle({id:2,method:'resources/list'})).result.resources[0].name,'Quota panel controls');
+  assert.equal((await list())[1].title,'Start ChatGPT Limit Panel');
+  assert.equal((await handle({id:2,method:'resources/list'})).result.resources[0].name,'ChatGPT Limit Panel controls');
   const failure=await handle({id:3,method:'tools/call',params:{name:'show_quota_overlay'}});
   assert.match(failure.result.content[0].text,/Could not connect/);
   assert.doesNotMatch(failure.result.content[0].text,/private-token/);
@@ -124,7 +124,7 @@ test('MCP discovers a global and thread control card and marks lifecycle mutatio
   const { controller } = await controllerFor(t);
   const handle = mcpApi.createMcpHandler({ controller, readUi: async () => '<main>Панель управления</main>' });
   const init = (await handle({ id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } })).result;
-  assert.equal(init.serverInfo.version, '1.3.0');
+  assert.equal(init.serverInfo.version, '1.3.1');
   assert.equal(init.serverInfo.title, 'ChatGPT Limit Panel');
   const tools = (await handle({ id: 2, method: 'tools/list' })).result.tools;
   assert.deepEqual(tools.map(tool => tool.name), ['show_quota_overlay', 'start_quota_overlay', 'stop_quota_overlay', 'get_quota_overlay_status','check_quota_panel_updates']);
@@ -181,7 +181,7 @@ test('stdio entrypoint serves MCP resources and closes after EOF without lifecyc
   assert.equal(diagnostics, '');
   const responses = output.trim().split('\n').map(line => JSON.parse(line));
   assert.equal(responses.length, 3);
-  assert.equal(responses.find(value => value.id === 1).result.serverInfo.name, 'quota-panel');
+  assert.equal(responses.find(value => value.id === 1).result.serverInfo.name, 'chatgpt-limit-panel');
   assert.equal(responses.find(value => value.id === 2).result.tools.length, 5);
   assert.match(responses.find(value => value.id === 3).result.contents[0].text, /<button id="start"/);
 });

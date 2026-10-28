@@ -1,4 +1,4 @@
-export const CURRENT_VERSION='1.3.0';
+export const CURRENT_VERSION='1.3.1';
 export const RELEASE_ORIGIN='https://github.com/MrBogomoll/chatgpt-limit-panel';
 // Repository names can change. The verified public repository ID stays stable.
 const endpoint='https://api.github.com/repositories/1433486830/releases/latest';

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
   "mcpServers": {
-    "quota_panel": {
+    "chatgpt-limit-panel": {
       "type": "stdio",
       "command": "${PLUGIN_ROOT}/runtime/node.exe",
       "args": ["${PLUGIN_ROOT}/server/index.mjs"],
