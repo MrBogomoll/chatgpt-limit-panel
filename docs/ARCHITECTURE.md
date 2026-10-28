@@ -6,7 +6,7 @@
 - overlay/TaskbarWindow.cs, TaskbarAttachment.cs and TaskbarChildSurface.cs: allocate a verified free taskbar gap, create a layered native child and preserve nonactivating input.
 - overlay/Launcher.cs and TaskHost.cs: cooperative start/stop and a per-user Windows logon task.
 - overlay/Preferences.cs: persisted preferences and coordinated writes.
-- server/updates.mjs: an explicit GitHub release check using a stable repository ID; validates owner, release and asset links. It never installs an update.
+- plugins/chatgpt-limit-panel/server/updates.mjs: an explicit GitHub release check using a stable repository ID; validates owner, release and asset links. It never installs an update.
 - tests/: backend, protocol, UI, native placement and packaging regression checks.
 - tools/: reproducible documentation rendering from production controls with demo data.
 
