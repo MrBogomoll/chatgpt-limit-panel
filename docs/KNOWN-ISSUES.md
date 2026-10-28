@@ -1,5 +1,11 @@
 # Известные ограничения / Known issues
 
+## 1.4.1
+
+При использовании Snap Layouts в Windows 11 боковая панель может оставаться видимой поверх полупрозрачного предпросмотра окна. Совместимость с Windows 10 исследуется: причина сообщения о неработающей панели пока неизвестна.
+
+The sidebar may remain visible over the translucent Windows 11 Snap Layouts preview. Windows 10 compatibility is under investigation; the cause of the reported failure is not yet known.
+
 ## 1.4.0 — Русский
 
 Эти наблюдения сохранены по сообщению пользователя от 28 октября 2026 года.

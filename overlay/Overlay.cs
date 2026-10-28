@@ -720,6 +720,16 @@ namespace QuotaOverlay {
     }
     void SelectMode(string mode) {
       if(mode!="full" && mode!="compact" && mode!="ultra")return;
+      if(lastSidebarFrame!=null&&lastSidebarFrame.Show) {
+        var frame=lastSidebarFrame;
+        double height=frame.Rect.Bottom-frame.Rect.Top;
+        var next=Layout.Place(frame.Origin.X,frame.Origin.Y,frame.Rect.Right-frame.Rect.Left,height,frame.Scale,mode);
+        var position=Layout.PositionForBottom(frame.Placement.Y+frame.Placement.Height,frame.Origin.Y,height,next.Height);
+        if(position.HasValue) {
+          sidebarPosition=position;
+          try{Preferences.Update(settingsFile,p=>p["sidebarPosition"]=position.Value);}catch{}
+        }
+      }
       preferredMode=mode;preferCompact=mode!="full";
       SavePreferences();
       lastState="";

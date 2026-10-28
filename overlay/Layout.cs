@@ -18,6 +18,11 @@ namespace QuotaOverlay {
     public double X,Y,Width,Height;
   }
   public static class Layout {
+    public static double? PositionForBottom(double bottom,double top,double height,double panelHeight) {
+      double extent=height-panelHeight;
+      if(extent<=0||Double.IsNaN(bottom)||Double.IsInfinity(bottom))return null;
+      return Math.Max(0,Math.Min(1,(bottom-top-panelHeight)/extent));
+    }
     public static Placement PlaceInAvailableRail(double left,double top,double width,double height,double scale,string preferredMode,IList<RailRegion> occupied,double? position) {
       if(scale<=0||Double.IsNaN(scale)||Double.IsInfinity(scale))scale=1;
       var result=PlaceInRail(Place(left,top,width,height,scale,preferredMode),top,height,scale,occupied,position);

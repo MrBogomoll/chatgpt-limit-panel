@@ -25,6 +25,13 @@ class LayoutTest {
       Check(Math.Abs(p.Width-46*scale)<1,"width scales");
       Check(Math.Abs(p.Height-192*scale)<0.01,"full height including bars scales");
       Check(!p.Compact,"full mode preferred when space allows");
+      var empty=new System.Collections.Generic.List<RailRegion>();
+      foreach(string mode in new[]{"compact","ultra","full"}) {
+        var next=Layout.Place(-1800,40,1200*scale,850*scale,scale,mode);
+        var position=Layout.PositionForBottom(p.Y+p.Height,40,850*scale,next.Height);
+        var placed=Layout.PlaceInRail(next,40,850*scale,scale,empty,position);
+        Check(placed.Visible&&Math.Abs(placed.Y+placed.Height-(p.Y+p.Height))<.01&&Math.Abs(placed.X-p.X)<.01,"mode change retains bottom edge and horizontal center");
+      }
       var controls=new System.Collections.Generic.List<RailRegion>{new RailRegion{Top=0,Bottom=450*scale},new RailRegion{Top=712*scale,Bottom=748*scale},new RailRegion{Top=806*scale,Bottom=850*scale}};
       var safe=Layout.PlaceInRail(p,40,850*scale,scale,controls,null);
       Check(safe.Visible&&safe.Y+safe.Height<=40+708*scale,"new native quota button moves our panel into the nearest actual free gap");
