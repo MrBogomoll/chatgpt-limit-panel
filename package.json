@@ -13,11 +13,12 @@
     "x64"
   ],
   "scripts": {
-    "test": "node --test tests/plugin-reader.test.mjs tests/plugin-limits.test.mjs tests/chatgpt-limit-panel-*.test.mjs tests/overlay-*.test.mjs",
-    "test:overlay": "node --test tests/overlay-*.test.mjs",
+    "test": "node --test --test-concurrency=1 tests/plugin-reader.test.mjs tests/plugin-limits.test.mjs tests/chatgpt-limit-panel-*.test.mjs tests/overlay-*.test.mjs",
+    "test:overlay": "node --test --test-concurrency=1 tests/overlay-*.test.mjs",
     "test:plugin": "node --test tests/plugin-reader.test.mjs tests/plugin-limits.test.mjs tests/chatgpt-limit-panel-*.test.mjs",
     "build:overlay": "node overlay/build.mjs",
-    "package:plugin": "node --input-type=module -e \"import { packagePlugin } from './overlay/package-plugin.mjs'; console.log(JSON.stringify(packagePlugin({ nodeLicensePath: 'third-party/NODE-LICENSE.txt' }), null, 2));\""
+    "package:plugin": "node --input-type=module -e \"import { packagePlugin } from './overlay/package-plugin.mjs'; console.log(JSON.stringify(packagePlugin({ nodeLicensePath: 'third-party/NODE-LICENSE.txt' }), null, 2));\"",
+    "render:previews": "node tools/render-previews.mjs"
   },
   "devDependencies": {
     "playwright": "1.62.1"

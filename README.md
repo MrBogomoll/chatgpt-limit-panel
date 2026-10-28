@@ -20,11 +20,22 @@
 
 ## Как выглядит
 
-| Полный | Компактный | Ультракомпактный |
-| :---: | :---: | :---: |
-| <img src="https://raw.githubusercontent.com/MrBogomoll/chatgpt-limit-panel/main/images/full.png" width="92" alt="Полный вид"> | <img src="https://raw.githubusercontent.com/MrBogomoll/chatgpt-limit-panel/main/images/compact.png" width="92" alt="Компактный вид"> | <img src="https://raw.githubusercontent.com/MrBogomoll/chatgpt-limit-panel/main/images/ultracompact.png" width="92" alt="Ультракомпактный вид"> |
+| Тема | Полный | Компактный | Ультракомпактный |
+| :--- | :---: | :---: | :---: |
+| Тёмная | <img src="images/full-dark.png" width="80" alt="Полный тёмный"> | <img src="images/compact-dark.png" width="80" alt="Компактный тёмный"> | <img src="images/ultracompact-dark.png" width="80" alt="Ультракомпактный тёмный"> |
+| Светлая | <img src="images/full-light.png" width="80" alt="Полный светлый"> | <img src="images/compact-light.png" width="80" alt="Компактный светлый"> | <img src="images/ultracompact-light.png" width="80" alt="Ультракомпактный светлый"> |
 
-На изображениях демонстрационные значения.
+### Рядом с чатом
+
+<img src="images/sidebar-dark.png" width="360" alt="Расположение на тёмной теме"> <img src="images/sidebar-light.png" width="360" alt="Расположение на светлой теме">
+
+### На панели задач Windows
+
+<img src="images/taskbar-dark.png" width="1000" alt="Тёмная панель задач: сверху процент за 5 часов, снизу за неделю">
+
+<img src="images/taskbar-light.png" width="1000" alt="Светлая панель задач с индикатором лимитов">
+
+Сами панели отрисованы из компонентов программы. Значения демонстрационные; окружение чата и панели задач показано схематично. Это иллюстрации размещения, а не снимки рабочего стола.
 
 ## Возможности
 
@@ -70,6 +81,6 @@
 
 Используется собственная локальная авторизация Codex. Данные входа автора, его переписка и настройки аккаунта в архив не входят. Клиент ChatGPT не изменяется. ChatGPT Limit Panel — независимый проект, не официальный продукт OpenAI.
 
-## Разработка
+## Исходники и разработка
 
-Приватные исходники: [chatgpt-limit-panel-code](https://github.com/MrBogomoll/chatgpt-limit-panel-code). Проверки: `npm test`, сборка Windows: `npm run build:overlay`. Пакет формируется командой `npm run package:plugin`; требуется лицензия Node.js из third-party/NODE-LICENSE.txt.
+Здесь находятся исходники программы, тесты, инструменты сборки и примеры интерфейса. Инструкции: [сборка и проверки](docs/BUILDING.md), [архитектура](docs/ARCHITECTURE.md), [участие в разработке](CONTRIBUTING.md). Основная ветка — `main`, экспериментальные ветки имеют префикс `beta/`.

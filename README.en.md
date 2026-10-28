@@ -20,11 +20,22 @@ Choose **chatgpt-limit-panel-1.3.0-windows-x64.zip** under Assets. The complete 
 
 ## Preview
 
-| Full | Compact | Ultracompact |
-| :---: | :---: | :---: |
-| <img src="https://raw.githubusercontent.com/MrBogomoll/chatgpt-limit-panel/main/images/full.png" width="92" alt="Full view"> | <img src="https://raw.githubusercontent.com/MrBogomoll/chatgpt-limit-panel/main/images/compact.png" width="92" alt="Compact view"> | <img src="https://raw.githubusercontent.com/MrBogomoll/chatgpt-limit-panel/main/images/ultracompact.png" width="92" alt="Ultracompact view"> |
+| Theme | Full | Compact | Ultracompact |
+| :--- | :---: | :---: | :---: |
+| Dark | <img src="images/full-dark.png" width="80" alt="Full dark"> | <img src="images/compact-dark.png" width="80" alt="Compact dark"> | <img src="images/ultracompact-dark.png" width="80" alt="Ultracompact dark"> |
+| Light | <img src="images/full-light.png" width="80" alt="Full light"> | <img src="images/compact-light.png" width="80" alt="Compact light"> | <img src="images/ultracompact-light.png" width="80" alt="Ultracompact light"> |
 
-Screenshots use demonstration values.
+### Beside the chat
+
+<img src="images/sidebar-dark.png" width="360" alt="Dark sidebar placement"> <img src="images/sidebar-light.png" width="360" alt="Light sidebar placement">
+
+### On the Windows taskbar
+
+<img src="images/taskbar-dark.png" width="1000" alt="Dark taskbar, five-hour percentage above weekly percentage">
+
+<img src="images/taskbar-light.png" width="1000" alt="Light taskbar with the limit indicator">
+
+The panels are rendered from the actual application controls. Values are demonstration data; the surrounding chat and taskbar are schematic illustrations, not desktop screenshots.
 
 ## Features
 
@@ -70,6 +81,6 @@ Actually checked on Windows 11, including Start11 and an adjacent NetWorx indica
 
 The panel uses your own local Codex sign-in. Author credentials, conversations and account settings are not included. ChatGPT files are unchanged. ChatGPT Limit Panel is an independent project, not an official OpenAI product.
 
-## Development
+## Source and development
 
-Private source: [chatgpt-limit-panel-code](https://github.com/MrBogomoll/chatgpt-limit-panel-code). Run `npm test`, `npm run build:overlay` and `npm run package:plugin`. Packaging uses third-party/NODE-LICENSE.txt.
+This repository contains the application source, tests, build tools and documentation previews. See [building and testing](docs/BUILDING.md), [architecture](docs/ARCHITECTURE.md) and [contribution guide](CONTRIBUTING.md). The default branch is `main`; experimental branches use `beta/`.
