@@ -6,9 +6,17 @@
 
 Панель оставшихся лимитов Codex / Work для настольного ChatGPT в Windows. Показывает проценты и время сброса в боковой полосе приложения, а по желанию — два процента на панели задач Windows. В Instant отображается тот же общий счётчик Codex / Work.
 
-**[Скачать ChatGPT Limit Panel 1.3.2 для Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.3.2/chatgpt-limit-panel-1.3.2-windows-x64.zip)** · [Все релизы](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Обновление установленной панели](UPGRADING.md)
+**[Скачать ChatGPT Limit Panel 1.4.0 для Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.0/chatgpt-limit-panel-1.4.0-windows-x64.zip)** · [Все релизы](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Обновление установленной панели](UPGRADING.md)
 
-Выбирай готовый ZIP **chatgpt-limit-panel-1.3.2-windows-x64.zip** в Assets. В него входят программы панели, Node.js и лицензия. Git и отдельная установка Node.js не требуются. Автоматические архивы GitHub **Source code** содержат материалы репозитория.
+Выбирай готовый ZIP **chatgpt-limit-panel-1.4.0-windows-x64.zip** в Assets. В него входят программы панели, Node.js и лицензия. Git и отдельная установка Node.js не требуются. Автоматические архивы GitHub **Source code** содержат материалы репозитория.
+
+## Новое в 1.4.0
+
+- Перетаскивание индикатора вдоль панели задач и боковой панели вверх/вниз с сохранением выбранного места. Размещение учитывает занятые элементы.
+- Исправлен поиск свободного места на вертикальной панели задач с «Пуском» сверху, включая избыточную область классической раскладки Start11.
+- Снижена нагрузка при слежении за окном ChatGPT; сохранено рабочее отображение боковой панели отдельным неактивирующим окном.
+
+Известные ограничения изменения размеров и поведения при перетаскивании перечислены в [KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md). Ультракомпактный вид доступен вручную через меню или переключение видов.
 
 ## Исправлено в 1.3.2
 
@@ -78,7 +86,7 @@
 
 ## Контрольная сумма и данные
 
-[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.3.2/chatgpt-limit-panel-1.3.2-windows-x64.zip.sha256):
+[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.0/chatgpt-limit-panel-1.4.0-windows-x64.zip.sha256):
 
 ```text
 f9d407f06e4a31e0b10f55a1bbde04a663a082684aa3b0908a75f749c23ccddc

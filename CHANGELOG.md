@@ -1,11 +1,12 @@
 # Changes
 
-## 1.4.0 preview
+## 1.4.0 — 2026-10-28
 
+- Add saved draggable taskbar and sidebar positions with occupied-control clearance.
 - Fix vertical taskbar free-space allocation and redundant Start11 layout occupancy.
-- Add draggable taskbar and sidebar positions with free-space constraints.
-- Attach the sidebar as a verified native child and avoid accessible sidebar controls.
-- Keep transparent panels interactive and preserve saved preferences.
+- Reduce process-identification and accessibility-query overhead.
+- Keep the sidebar in its working independent nonactivating window and preserve preferences.
+- Record remaining automatic-size and Windows11 dragging/Snap limitations in [known issues](docs/KNOWN-ISSUES.md).
 
 ## 1.3.2 — 2026-10-28
 

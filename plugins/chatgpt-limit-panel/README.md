@@ -1,4 +1,4 @@
-# ChatGPT Limit Panel 1.4.0-beta.7
+# ChatGPT Limit Panel 1.4.0
 
 Панель оставшихся лимитов Codex / Work в настольном ChatGPT для Windows x64. Показывает проценты и серверные даты сброса в боковой полосе и, при включении, на панели задач Windows. В Instant отображаются те же лимиты.
 
@@ -17,3 +17,9 @@ Open ChatGPT Limit Panel from plugins and click Start in its control card. Right
 Requires a Windows x64 local executor and installed Codex signed in to your account. No API key, Git or separate Node.js installation is needed. Preferences are preserved.
 
 [Project, installation and releases](https://github.com/MrBogomoll/chatgpt-limit-panel).
+
+## Известные ограничения 1.4.0 / Known limitations
+
+Автоматический переход из компактного вида в ультракомпактный при дальнейшем уменьшении окна пока отсутствует; ультракомпактный вид доступен вручную. При перемещении окна боковая панель может кратковременно скрываться или оставаться поверх предпросмотра Snap Layouts Windows 11. Эти замечания отложены для возможного следующего патча.
+
+Automatic compact-to-ultracompact switching on further window reduction is not yet implemented; choose ultracompact manually. The sidebar can briefly hide during movement or remain above the Windows 11 Snap Layouts preview. These reports are deferred for a possible following patch.

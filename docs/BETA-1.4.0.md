@@ -1,6 +1,6 @@
 # 1.4.0 preview
 
-This branch contains a local preview. The latest public stable release is 1.3.2.
+Development notes for the 1.4.0 preview. The finalized build is described in [release notes](RELEASE-1.4.0.md); deferred reports are in [known issues](KNOWN-ISSUES.md).
 
 - Vertical taskbar placement searches actual free gaps beyond the midpoint.
 - A verified redundant Start11 legacy layout peer no longer masks free space
