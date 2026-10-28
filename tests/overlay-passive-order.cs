@@ -87,7 +87,50 @@ internal static class PassiveOrderContractTest {
     Check(!TaskbarNative.PlacementAnchor(null,footprint,own,false,eligible).HasValue,"missing taskbar evidence fails closed");
     Check(before==GetForegroundWindow(),"Every fixture creation, show and positioning step preserves the real foreground HWND");
   }
-  static int Main(){try{FirstPlacementAndMenuOrder();Console.WriteLine("PASS passive canvas native ordering contract ("+assertions+" assertions)");return 0;}catch(Exception error){Console.Error.WriteLine(error.GetType().Name+": "+error.Message);return 1;}finally{foreach(IntPtr window in windows)DestroyWindow(window);}}
+  static void ClearWindows(){foreach(IntPtr window in windows)DestroyWindow(window);windows.Clear();}
+  static void PassiveLeaseMembership(){
+    IntPtr before=GetForegroundWindow();
+    IntPtr boundary=Window(true,false),own=Window(true,false),canvas=Window(true,true);
+    Position(boundary,Top,Show);Position(own,Top,Show);
+    var sample=new TaskbarSnapshot{Handle=boundary,Bounds=FixtureArea(boundary),Visible=true,OccupancyKnown=true};
+    bool nativeSafe=true;int safetyCalls=0;
+    Func<TaskbarSnapshot,IntPtr,bool> safety=delegate(TaskbarSnapshot value,IntPtr widget){safetyCalls++;return nativeSafe&&Object.ReferenceEquals(value,sample)&&widget==own;};
+    Func<IntPtr,bool> passive=delegate(IntPtr window){return window==canvas;};
+    Func<string> fingerprint=delegate{return TaskbarNative.LeaseFingerprintCore(sample,sample.Bounds,own,safety,passive,0);};
+    string baseline=fingerprint();Check(baseline!=null&&safetyCalls==2,"complete native lease collection checks the injected shell boundary twice");
+    Check(TaskbarNative.LeaseFingerprint(sample,sample.Bounds,own)==null,"production wrapper refuses a fake taskbar instead of borrowing the fixture guard");
+    Position(canvas,Top,Show);
+    Check(ProtectedOrder(own,boundary,canvas),"a newly visible passive canvas is above the widget while the widget remains above the fake bar");
+    string added=fingerprint();Check(added!=null&&TaskbarNative.LastFingerprintReason=="ok","new passive canvas with protected order keeps a complete native proof");
+    Check(ShowWindow(canvas,0),"hide only the fixture canvas after its delayed appearance");
+    string removed=fingerprint();Check(removed==baseline,"removing a passive canvas restores the same occupied controls evidence");
+    Position(canvas,boundary,Show);
+    Check(Above(boundary,canvas)&&Above(own,boundary),"a passive fixture may remain visible behind the fake taskbar");
+    Check(fingerprint()==baseline,"a passive canvas below the taskbar does not change the occupied controls evidence");
+    Position(canvas,Top,Show);Position(own,Top,0);
+    Check(fingerprint()==null&&TaskbarNative.LastFingerprintReason=="above-taskbar-overlap","a canvas below the widget cannot claim the passive lease exemption");
+    Position(own,boundary,0);
+    Check(fingerprint()==null&&TaskbarNative.LastFingerprintReason=="above-taskbar-overlap","a widget below its taskbar cannot claim safe passive underlay order");
+    Position(own,canvas,0);
+    IntPtr blocker=Window(true,false);Position(blocker,Top,Show);
+    Check(fingerprint()==null&&TaskbarNative.LastFingerprintReason=="above-taskbar-overlap","an ordinary foreign overlap cannot borrow the passive canvas exemption");
+    ShowWindow(blocker,0);nativeSafe=false;
+    Check(fingerprint()==null&&TaskbarNative.LastFingerprintReason=="initial-native-unsafe","missing live shell-order proof rejects even an otherwise protected passive canvas");
+    nativeSafe=true;
+    Check(ProtectedOrder(own,boundary,canvas),"native control regression starts with the passive canvas safely above the widget");
+    // This is a child of the fully transparent offscreen fake bar, never a
+    // top-level application/taskbar button and never a real shell control.
+    IntPtr control=CreateWindowEx((uint)NoActivateStyle,"STATIC",null,0x50000000U,2,2,16,16,boundary,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero);
+    Check(control!=IntPtr.Zero&&IsWindowVisible(control),"create a visible own native child inside the fake taskbar footprint");windows.Add(control);
+    Check(fingerprint()==null&&TaskbarNative.LastFingerprintReason=="protected-child-overlap","a new native taskbar control revokes the lease even beneath a safe passive canvas");
+    Check(ShowWindow(control,0),"hide only the fixture's native taskbar child");
+    Check(fingerprint()==baseline,"hiding the native taskbar child restores baseline evidence with the passive canvas present");
+    Check(DestroyWindow(control),"destroy only the fixture's native taskbar child");windows.Remove(control);
+    Check(fingerprint()==baseline,"removing the native taskbar child retains baseline evidence with the passive canvas present");
+    Check(before==GetForegroundWindow(),"lease membership fixture preserves the real foreground");
+    Check(added==baseline,"a delayed passive canvas above the widget must not change occupied-controls lease evidence");
+  }
+  static int Main(){try{FirstPlacementAndMenuOrder();ClearWindows();PassiveLeaseMembership();Console.WriteLine("PASS passive canvas native ordering contract ("+assertions+" assertions)");return 0;}catch(Exception error){Console.Error.WriteLine(error.GetType().Name+": "+error.Message);return 1;}finally{ClearWindows();}}
   [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)]static extern IntPtr CreateWindowEx(uint extended,string className,string title,uint style,int x,int y,int width,int height,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr parameter);
   [DllImport("user32.dll")]static extern bool DestroyWindow(IntPtr window);
   [DllImport("user32.dll")]static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
@@ -97,4 +140,5 @@ internal static class PassiveOrderContractTest {
   [DllImport("user32.dll")]static extern IntPtr GetWindow(IntPtr window,uint command);
   [DllImport("user32.dll")]static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")]static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll")]static extern bool ShowWindow(IntPtr window,int command);
 }

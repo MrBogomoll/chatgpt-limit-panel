@@ -8,7 +8,7 @@ function checker(options={}) {assert.equal(typeof api.createUpdateChecker,'funct
 
 test('the local beta reports its own version and does not offer the older stable release',async()=>{
   const value=await api.createUpdateChecker({fetchImpl:async()=>reply(release('1.2.0')),cooldownMs:0}).check();
-  assert.equal(value.currentVersion,'1.2.1-beta.1');assert.equal(value.latestVersion,'1.2.0');
+  assert.equal(value.currentVersion,'1.2.1-beta.2');assert.equal(value.latestVersion,'1.2.0');
   assert.equal(value.state,'ahead');assert.equal(value.url,null);
 });
 

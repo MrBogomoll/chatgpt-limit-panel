@@ -297,6 +297,11 @@ namespace QuotaOverlay {
       }catch{return null;}
     }
     internal static string LeaseFingerprint(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own) {
+      return LeaseFingerprintCore(snapshot,footprint,own,CanDisplaySnapshot,TaskbarPassiveOverlay.IsPassiveCanvas,(uint)Process.GetCurrentProcess().Id);
+    }
+    // Testable native collector: the production entry always supplies the live
+    // snapshot guard, protected passive-canvas identity and actual own PID.
+    internal static string LeaseFingerprintCore(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own,Func<TaskbarSnapshot,IntPtr,bool> canDisplay,Func<IntPtr,bool> passive,uint ownProcess) {
       LastFingerprintReason="running";LastFingerprintParts=null;
       var shellRows=new List<string>();var childRows=new List<string>();var appRows=new List<string>();
       int childCount=0,appCount=0;object blocker=null;
@@ -312,9 +317,9 @@ namespace QuotaOverlay {
       try {
         if(snapshot==null)return finish("snapshot-missing");
         if(!TaskbarLayout.Valid(footprint))return finish("footprint-invalid");
-        if(!CanDisplaySnapshot(snapshot,own))return finish("initial-native-unsafe");
+        if(!canDisplay(snapshot,own))return finish("initial-native-unsafe");
         uint shell;GetWindowThreadProcessId(snapshot.Handle,out shell);if(shell==0)return finish("shell-process-unavailable");
-        uint ownProcess=(uint)Process.GetCurrentProcess().Id;bool safe=true,above=true;int count=0;
+        bool safe=true,above=true;int count=0;
         string unsafeReason=null;
         double margin=Math.Ceiling(TaskbarLayout.Clearance*snapshot.Scale);
         var protectedFootprint=new TaskbarArea{X=footprint.X-margin,Y=footprint.Y-margin,Width=footprint.Width+2*margin,Height=footprint.Height+2*margin};
@@ -344,8 +349,11 @@ namespace QuotaOverlay {
           if(!WindowBounds(window,out rect)){safe=false;unsafeReason="app-bounds-unavailable";blocker=new {handle=window.ToInt64(),process=process,@class=ClassName(window)};return false;}
           TaskbarArea area=rect.Area();bool iconic=IsIconic(window);
           if(above&&!iconic&&TaskbarLayout.Valid(area)&&Intersects(area,protectedFootprint)){
-            if(TaskbarPassiveOverlay.IsPassiveCanvas(window)&&TaskbarPassiveOverlay.IsAbove(window,own)&&TaskbarPassiveOverlay.IsAbove(own,snapshot.Handle)){
-              string passiveRow=LeaseArea("passive-underlay|"+window.ToInt64()+"|"+process,area);rows.Add(passiveRow);appRows.Add(passiveRow);return true;
+            if(passive(window)&&TaskbarPassiveOverlay.IsAbove(window,own)&&TaskbarPassiveOverlay.IsAbove(own,snapshot.Handle)){
+              // This layer is already outside occupied controls under the live
+              // canvas > widget > taskbar proof. Its arrival or removal must not
+              // invalidate a menu lease whose protected controls are unchanged.
+              return true;
             }
             safe=false;unsafeReason="above-taskbar-overlap";blocker=new {handle=window.ToInt64(),process=process,@class=ClassName(window),rect=area};return false;
           }
@@ -361,7 +369,7 @@ namespace QuotaOverlay {
         if(!safe)return finish(unsafeReason??"app-enumeration-unsafe");
         if(above)return finish("taskbar-z-order-missing");
         if(current!=shell)return finish("shell-process-changed");
-        if(!CanDisplaySnapshot(snapshot,own))return finish("final-native-unsafe");
+        if(!canDisplay(snapshot,own))return finish("final-native-unsafe");
         rows.Sort(StringComparer.Ordinal);
         finish("ok");
         using(var sha=System.Security.Cryptography.SHA256.Create())return Convert.ToBase64String(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(String.Join("\n",rows.ToArray()))));

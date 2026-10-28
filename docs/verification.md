@@ -537,3 +537,45 @@ background polling, NOT a fresh game replay or live canvas>own>bar ordering. Use
 must repeat game->Alt+Tab and Start-over-game. Do not call all game cases fixed
 before that replay. A direct Start-over-game case may expose the separate unchanged
 fullscreen/transient hold-only policy and must be diagnosed from fresh evidence.
+
+
+## Repeated Start opening: safe canvas changed lease hash — beta2 (2026-10-28)
+
+User confirms beta1 fixed AltTab but Start openings briefly display then hide.
+Actual native replay and temporary internal diagnostics proved the precise gate:
+DV2ControlHost Start11 foreground HWND10236/Explorer17040; auxiliary#32770 HWND10240.
+At04:01:34Z GUI135488 records a valid three-app-row lease. At35.132Z passive NVIDIA
+HWND103E4 appears ABOVE the widget. Native proof remains ok, shell and child hashes
+stay identical, but adding passive-underlay to the app list raises rows3->4 and
+changes fingerprint C4yTUr... to FEK2Yg..., causing lease evidence-changed. The same
+transition repeats at45->46Z. This is not a reason to relax fullscreen or grant a
+generic Start/context-menu exception. Root evidence: start-cycle-debug-1793160110801.jsonl
+and final start-cycle-debug-1793160211776.jsonl; native two-replay metadata also saved.
+
+Fix: passive underlay identity/bounds are omitted from occupied-controls evidence.
+Eligibility, canvas>widget>taskbar, placement pre/post proofs and generic overlap
+rejection are still checked live. Context-menu hold, no hidden-widget revival,
+fullscreen memory and all actual app/native-control rows are unchanged.
+
+A native regression uses the actual collector with injected fake-bar boundary;
+production wrapper always supplies the original live guard, protected classifier
+and actual PID. RED reproduced changed fingerprint on delayed passive arrival.
+GREEN96 assertions include arrival/removal, wrong order, ordinary overlap,
+unavailable boundary and a new protected native child control. Production wrapper
+rejects the fake taskbar. All fixture windows are transparent/offscreen and own;
+no real taskbar button or foreign HWND was modified. Native build and combined
+suite150/150 pass, no skips. An independent review approved the narrow hash fix.
+
+The bounded diagnostic session changed only the launch environment of our own
+monitor; it was restored to normal registered task startup and the temporary task
+was removed. Actual settings compare identical. No game/NVIDIA/ChatGPT/Explorer
+settings or processes were changed.
+
+Local1.2.1-beta.2 archive SHA256:
+8f09e623f94c2a016c05b5b62fcb330cf9222418033eb0bbf8aa075c3eb90c72.
+Originalsource+CLI migration beta1->beta2 verified all24 payload hashes and exact
+physical preferences preservation. InstalledMCP5tools/currentbeta2, real public
+check ahead vs1.1.0 with no downgradeURL/lifecycle change. Root metadata files
+v121-beta2-package.json/v121-beta2-installed.json/v121-beta2-installed-check.json.
+Actual Start-cycle acceptance after installation is pending; do not claim verified
+until the user replay and current native recording complete. No public release.
