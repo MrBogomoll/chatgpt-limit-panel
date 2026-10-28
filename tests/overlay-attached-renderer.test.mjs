@@ -18,7 +18,7 @@ test('native attached renderer recovers fresh layout without a desktop transitio
     `/win32manifest:${path.join(root, 'overlay', 'app.manifest')}`,
     ...['PresentationCore','PresentationFramework','WindowsBase','UIAutomationClient','UIAutomationTypes'].map(name=>'/reference:'+path.join(framework,'WPF',name+'.dll')),
     '/reference:'+path.join(framework,'System.Xaml.dll'),'/reference:'+path.join(framework,'System.Web.Extensions.dll'),
-    ...['Theme.cs','TaskbarLayout.cs','TaskbarTransient.cs','TaskbarMenuLease.cs','TaskbarDiagnostics.cs','TaskbarAppearance.cs','TaskbarPassiveOverlay.cs','TaskbarWindow.cs','TaskbarAttachment.cs'].map(name=>path.join(root,'overlay',name)),
+    ...['Theme.cs','TaskbarLayout.cs','TaskbarTransient.cs','TaskbarMenuLease.cs','TaskbarDiagnostics.cs','TaskbarAppearance.cs','TaskbarPassiveOverlay.cs','TaskbarWindow.cs','TaskbarChildSurface.cs','TaskbarAttachment.cs'].map(name=>path.join(root,'overlay',name)),
     path.join(root, 'tests', 'overlay-attached-renderer.cs'),
   ], { encoding: 'utf8', windowsHide: true, timeout: 15000 });
   assert.ifError(compiled.error);

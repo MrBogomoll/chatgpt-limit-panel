@@ -611,3 +611,49 @@ found no remaining critical issue after the measured retention repair.
 Version metadata is coherently1.2.1-beta.3. Installation and actual Explorer pixels,
 ПКМ and game/Start acceptance are still pending at this source checkpoint. No
 physical Windows10 validation or public stable release is claimed.
+
+## Layered native child composition candidate 1.2.1-beta.4 (2026-10-28)
+
+User acceptance disproved beta3 rendering: its HWND was hit-testable but invisible
+at all background transparencies. UIA confirmed the text was within the native
+client. Isolated screen-composition comparison showed that reparenting a WPF
+Window remained blank with either manifest; creating HwndSource as WS_CHILD with
+UsesPerPixelTransparency and a Windows10-compatible manifest rendered correctly.
+The compatibility manifest alone was necessary but insufficient.
+
+TaskbarChildSurface now creates the child directly after guarded host and current
+thread DPI verification, with no awareness setter, top-level fallback or global
+TOPMOST. It shares existing quota visuals, transparency, theme and menu. Native
+WM_CONTEXTMENU is explicitly handled because HwndSource lacks the Window handler;
+the corresponding native regression failed before the handler and passed after.
+Clear background keeps alpha-one hit testing, while text remains opaque.
+
+Actual production TaskbarWindow screen-composition QA passed both default and
+SoftwareOnly rendering: 212/194 white text pixels in a bounded own opaque parent,
+with unchanged foreground. Root artifacts: dist/child-composition-beta4-1793171894673.
+RazerVideoRecorderOverlay was above the own fixture; persistence required native
+hit tests to prove all four parent corners plus exact opaque matte corner pixels.
+No foreign screenshot region or overlay configuration was used or changed.
+
+Focused native checks passed: attached renderer45, attachment52, childreader55,
+manifest10. The renderer checks real native context-menu dispatch, full-clear
+HTCLIENT/alpha-one input, no ghost top-level Window, exact native child composition,
+parent lifecycle and source-stall retention. Full suite and installed acceptance
+are recorded separately after they run. No physical Windows10 validation is claimed.
+
+Final native build and combined suite passed155/155 with zero skips. Beta4 archive
+SHA256: 28483e847b469b0b16f0781d1e7129a6ccb05ac240047ca498b2f35883a9d6c0.
+Original registered source + Codex CLI migration verified all24 staged/source/cache
+payload hashes, true physical settings equality, RU, auto theme, full preferred mode,
+both indicators, short contour, right taskbar, transparency34 and autostart enabled.
+Physical GUI135964 reports attached/visible; actual own HWND3C0C74 is a direct child
+of Shell_TrayWnd3001A, WS_CHILD, no independent TOPMOST,144DPI,72x48physical pixels.
+Installed MCP reports beta4 and5tools; manual public check returns ahead vs1.1.0,
+no downgrade URL and no monitor lifecycle change. No public release was created.
+
+Actual user acceptance after installation: percentages visible, right-click menu
+works, repeated Start open/close over the game and Alt+Tab to ChatGPT no longer hide
+the indicator. This confirms the reported scenario on this Windows11/Start11 setup;
+it is not a physical Windows10 or all-games compatibility claim. Root installed
+metadata: v121-beta4-installed.json, v121-beta4-installed-check.json and native-child-
+beta4-1793172221369.jsonl. Previous beta/stable archives and tags remain unchanged.

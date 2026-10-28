@@ -33,6 +33,21 @@ namespace QuotaOverlay {
     internal bool IsAlive {get{try{Host host;string reason;return !disposed&&own!=IntPtr.Zero&&Owned(own)&&ReadHost(out host,out reason)&&SameGeneration(host)&&Alive(parentProcess);}catch{return false;}}}
     internal bool IsAttached {get{try{long style,extended;return IsAlive&&GetParent(own)==parent&&ReadLong(own,-16,out style)&&ReadLong(own,-20,out extended)&&(style&Child)!=0&&(style&Popup)==0&&(extended&Topmost)==0&&SameDpi(own,parent);}catch{return false;}}}
 
+    // Prove the destination before HwndSource creates any child. Never change
+    // thread/process awareness to accommodate a differently configured host.
+    internal bool TryGetCreationParent(out IntPtr window,out string reason) {
+      window=IntPtr.Zero;reason="host-unavailable";
+      try {
+        if(disposed){reason="attachment-disposed";return false;}
+        Host host;if(!ReadHost(out host,out reason))return false;
+        IntPtr thread=GetThreadDpiAwarenessContext();
+        if(thread==IntPtr.Zero||!AreDpiAwarenessContextsEqual(thread,host.Context)){reason="dpi-context-mismatch";return false;}
+        if(parent!=IntPtr.Zero&&(!SameGeneration(host)||!Alive(parentProcess))){reason="host-generation-changed";return false;}
+        Host current;if(!ReadHost(out current,out reason)||!EqualIdentity(host,current)){reason="host-changed-before-create";return false;}
+        window=host.Window;reason="host-verified";return true;
+      }catch{reason="host-native-error";return false;}
+    }
+
     internal bool TryAttach(IntPtr candidate,out string reason) {
       reason="attachment-unavailable";SafeFileHandle process=null;long originalStyle=0,originalExtended=0;bool changedStyle=false;IntPtr requestedParent=IntPtr.Zero;
       try {
@@ -137,6 +152,7 @@ namespace QuotaOverlay {
     [DllImport("user32.dll")]static extern bool GetClientRect(IntPtr window,out Rect rect);
     [DllImport("user32.dll")]static extern uint GetDpiForWindow(IntPtr window);
     [DllImport("user32.dll")]static extern IntPtr GetWindowDpiAwarenessContext(IntPtr window);
+    [DllImport("user32.dll")]static extern IntPtr GetThreadDpiAwarenessContext();
     [DllImport("user32.dll")]static extern bool AreDpiAwarenessContextsEqual(IntPtr first,IntPtr second);
     [DllImport("user32.dll",SetLastError=true)]static extern int MapWindowPoints(IntPtr from,IntPtr to,ref Point point,uint count);
     [DllImport("user32.dll",EntryPoint="SetParent",SetLastError=true)]static extern IntPtr NativeSetParent(IntPtr child,IntPtr parent);

@@ -35,6 +35,7 @@ internal static class AttachmentNativeTest {
     IntPtr foreground=GetForegroundWindow();var host=StartHost(root);var window=OwnWindow();IntPtr own=new WindowInteropHelper(window).Handle;string reason;
     var strict=new TaskbarAttachment(delegate{return host.Handle;});Check(!strict.TryAttach(own,out reason),"Default shell identity rejects a fake parent without touching real Explorer");Check(GetParent(own)!=host.Handle,"Rejected fake identity does not reparent own HWND");Check(GetParent(own)==IntPtr.Zero,"Ownerless own fixture exercises successful SetParent zero return with last-error zero");
     var boundary=new TaskbarAttachment(delegate{return host.Handle;},delegate(IntPtr h){return h==host.Handle;});
+    IntPtr creation;Check(boundary.TryGetCreationParent(out creation,out reason)&&creation==host.Handle,"matching host is verified before any child creation");Check(boundary.Parent==IntPtr.Zero,"creation proof does not commit a live attachment");
     Check(!boundary.TryAttach(host.Handle,out reason),"A foreign-process HWND cannot be passed as the own indicator");
     Check(boundary.TryAttach(own,out reason),"Owned PMv2 WPF HWND attaches to separately owned matching fake host: "+reason);
     Check(boundary.Parent==host.Handle&&boundary.IsAlive&&boundary.IsAttached,"Attachment publishes verified parent and live child relation");

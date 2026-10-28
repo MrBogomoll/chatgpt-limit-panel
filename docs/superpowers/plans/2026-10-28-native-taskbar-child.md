@@ -52,6 +52,8 @@
 ### 4. Private candidate and actual acceptance
 
 - [x] Run native build, focused native regressions and the required combined suite.
-- [ ] Bump coherent metadata to 1.2.1-beta.3, package to a new immutable folder, back up registered source/task, install via original source and CLI, compare all payload hashes and true physical preferences.
-- [ ] Inspect real parent/child/non-topmost/DPI/geometry and visible pixels, verify ПКМ/transparency, then repeat actual Start/game/AltTab acceptance with the user.
-- [ ] Record verified scope and remaining constraints; commit/push only private source. Do not mark the bug fixed merely because tests pass.
+- [x] Install beta3 via original source and CLI, preserving preferences and verifying payload hashes. Actual user acceptance found blank but hit-testable pixels; beta3 is not accepted.
+- [x] Prove and repair composition: Windows10/11 manifest plus HwndSource created as WS_CHILD with UsesPerPixelTransparency. Verify actual production screen pixels in default/software modes and native context-menu dispatch.
+- [x] Package beta4 to a new immutable folder; back up registered source/task, install via original source and CLI, compare all payload hashes and true physical preferences.
+- [x] Inspect real parent/child/non-topmost/DPI/geometry and visible pixels, verify ПКМ/transparency, then repeat actual Start/game/AltTab acceptance with the user. User confirmed visible percentages, working menu and no game disappearance.
+- [x] Record verified scope and remaining constraints; save only private source. Acceptance applies to the actual Windows11/Start11 scenario, with no physical Windows10 claim.

@@ -34,6 +34,8 @@ namespace QuotaOverlay {
     long diagnosticAge;
     readonly TextBlock upper,lower;
     readonly Border surface;
+    readonly Grid childRoot;
+    TaskbarChildSurface childSurface;
     ThemePalette palette=ThemePalette.Dark;
     string side="right",upperTone="unknown",lowerTone="unknown";
     bool stale,disposed,closed;
@@ -42,6 +44,8 @@ namespace QuotaOverlay {
     public bool Enabled {get;private set;}
     public string PlacementStatus {get;private set;}
     public bool IsVertical {get;private set;}
+    public IntPtr NativeHandle {get{return hwnd;}}
+    public new bool IsVisible {get{return attachment==null?base.IsVisible:childSurface!=null&&childSurface.IsVisible;}}
     public bool NeedsRecreation {get{return closed||disposed||(hwnd!=IntPtr.Zero&&!NativeHandleExists(hwnd))||(attachment!=null&&attachment.Parent!=IntPtr.Zero&&!attachment.IsAlive);}}
     public Func<bool> IsOtherMenuOpen {get;set;}
     [DllImport("user32.dll",EntryPoint="IsWindow")]static extern bool NativeHandleExists(IntPtr value);
@@ -60,10 +64,13 @@ namespace QuotaOverlay {
       upper=Label();lower=Label();var rows=new Grid();rows.RowDefinitions.Add(new RowDefinition());rows.RowDefinitions.Add(new RowDefinition());
       Grid.SetRow(lower,1);rows.Children.Add(upper);rows.Children.Add(lower);
       surface=new Border{Width=TaskbarLayout.Width,Height=TaskbarLayout.Height,Padding=new Thickness(3,0,3,0),CornerRadius=new CornerRadius(3),Child=rows};
-      Content=new Viewbox{Stretch=Stretch.Uniform,Child=surface};
+      var view=new Viewbox{Stretch=Stretch.Uniform,Child=surface};
+      if(this.attachment==null)Content=view;
+      else {childRoot=new Grid{UseLayoutRounding=true,SnapsToDevicePixels=true};childRoot.Children.Add(view);}
       PlacementStatus="disabled";
       timer=new DispatcherTimer(DispatcherPriority.Background,Dispatcher);timer.Interval=TimeSpan.FromMilliseconds(200);timer.Tick+=delegate{RefreshPlacement();};
       SourceInitialized+=delegate {
+        if(this.attachment!=null)return;
         hwnd=new WindowInteropHelper(this).Handle;
         long style=TaskbarNative.GetWindowLongPtr(hwnd,-20).ToInt64();TaskbarNative.SetWindowLongPtr(hwnd,-20,new IntPtr(style|0x08000000L|0x80L));
         HwndSource.FromHwnd(hwnd).AddHook(WindowMessage);
@@ -90,8 +97,9 @@ namespace QuotaOverlay {
       if(disposed||closed)return;
       this.upper.Text=Percentage(upper);this.lower.Text=Percentage(lower);this.upperTone=upperTone;this.lowerTone=lowerTone;this.stale=stale;ApplyPalette();
     }
-    void ApplyPalette() {Background=TaskbarAppearance.InputSurface(backgroundTransparency);surface.Background=Color(palette.Background(backgroundTransparency));upper.Foreground=Color(palette.Tone(upperTone));lower.Foreground=Color(palette.Tone(lowerTone));upper.Opacity=lower.Opacity=stale?0.55:1;}
-    void Conceal(string reason) {PlacementStatus=reason;if(IsVisible)Hide();TracePlacement(null);}
+    void ApplyPalette() {Background=TaskbarAppearance.InputSurface(backgroundTransparency);if(childRoot!=null)childRoot.Background=Background;surface.Background=Color(palette.Background(backgroundTransparency));upper.Foreground=Color(palette.Tone(upperTone));lower.Foreground=Color(palette.Tone(lowerTone));upper.Opacity=lower.Opacity=stale?0.55:1;}
+    void SetChildOpacity(double value){Opacity=value;if(childSurface!=null)childSurface.Opacity=value;}
+    void Conceal(string reason) {PlacementStatus=reason;if(attachment!=null){if(childSurface!=null)childSurface.Hide();}else if(IsVisible)Hide();TracePlacement(null);}
     void TracePlacement(string message) {
       if(source==null||!TaskbarDiagnostics.Enabled)return;
       try {
@@ -153,8 +161,14 @@ namespace QuotaOverlay {
         // Establish a native child before querying accessibility, so our own
         // subtree can be excluded using a proved HWND identity. No pixels are
         // exposed until allocation and the resulting attachment are verified.
-        if(hwnd==IntPtr.Zero){Opacity=0;Show();}
         string reason;
+        if(hwnd==IntPtr.Zero){
+          IntPtr parent;if(!attachment.TryGetCreationParent(out parent,out reason)){RejectChildFrame(reason);return;}
+          childSurface=new TaskbarChildSurface(childRoot);SetChildOpacity(0);
+          if(!childSurface.TryCreate(parent,WindowMessage,delegate{closed=true;Stop();},out reason)){RejectChildFrame(reason);return;}
+          hwnd=childSurface.Handle;if(source!=null)source.OwnWindow=hwnd;
+        }
+        childRoot.ContextMenu=ContextMenu;
         if(!attachment.TryAttach(hwnd,out reason)){RejectChildFrame(reason);return;}
         TaskbarSnapshotSource.Measurement receipt=null;
         TaskbarSnapshot snapshot=source==null?readSnapshot():source.Read(out receipt);
@@ -163,7 +177,7 @@ namespace QuotaOverlay {
         TaskbarPlacement placement=TaskbarLayout.Place(snapshot,side);
         long now=placementMilliseconds();
         if(placement.Visible) {
-          if(!IsVisible){Opacity=0;Show();}
+          if(!IsVisible){SetChildOpacity(0);childSurface.Show();}
           if(!attachment.TryPlace(hwnd,snapshot,placement.Bounds,out reason)){RejectChildFrame(reason);return;}
           string evidence=readLeaseFingerprint(snapshot,placement.Bounds);
           if(evidence==null){RejectChildFrame("layout-unverified");return;}
@@ -180,7 +194,7 @@ namespace QuotaOverlay {
           leaseSnapshot=snapshot;lastShown=placement;
           diagnosticAge=age;diagnosticFingerprint=evidence;
           diagnosticProof=new {reason=TaskbarNative.LastFingerprintReason,parts=TaskbarNative.LastFingerprintParts};diagnosticBaselineProof=diagnosticProof;
-          PlacementStatus="attached";Opacity=1;TracePlacement(null);return;
+          PlacementStatus="attached";SetChildOpacity(1);TracePlacement(null);return;
         }
         // A complete contradiction takes precedence over retention. An absent
         // measurement may retain only a currently visible, natively proved slot.
@@ -188,17 +202,24 @@ namespace QuotaOverlay {
         string fingerprint=leaseSnapshot!=null&&lastShown!=null&&IsVisible?readLeaseFingerprint(leaseSnapshot,lastShown.Bounds):null;
         TaskbarPlacement retained;
         if(menuLease.TryHold(true,IsVisible,fingerprint!=null,fingerprint,now,out retained)&&retained!=null&&attachment.TryPlace(hwnd,leaseSnapshot,retained.Bounds,out reason)) {
-          diagnosticFingerprint=fingerprint;PlacementStatus="layout-held";Opacity=1;TracePlacement(null);return;
+          diagnosticFingerprint=fingerprint;PlacementStatus="layout-held";SetChildOpacity(1);TracePlacement(null);return;
         }
         RejectChildFrame(placement.Reason);
       }catch {RejectChildFrame("provider-error");}
     }
     IntPtr WindowMessage(IntPtr window,int message,IntPtr wParam,IntPtr lParam,ref bool handled) {
       if(message==0x0021){handled=true;return new IntPtr(3);}
+      // HwndSource has no Window-level context-menu handler. Consume the native
+      // request here rather than let DefWindowProc forward it to the taskbar.
+      if(attachment!=null&&message==0x007B&&IsVisible&&ContextMenu!=null) {
+        ContextMenu.PlacementTarget=childRoot;
+        ContextMenu.Placement=System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        ContextMenu.IsOpen=true;handled=true;return IntPtr.Zero;
+      }
       if(message==0x007E||message==0x001A||message==0x02E0){TracePlacement("native-message:"+message.ToString("X")+":"+wParam.ToInt64().ToString("X"));if(source!=null)source.Invalidate();InvalidateMenuLease();Conceal("layout-changed");}
       return IntPtr.Zero;
     }
-    void Stop() {Enabled=false;timer.Stop();InvalidateMenuLease();if(source!=null)source.Dispose();if(attachment!=null)attachment.Dispose();PlacementStatus="disposed";}
+    void Stop() {Enabled=false;timer.Stop();InvalidateMenuLease();if(source!=null)source.Dispose();if(attachment!=null)attachment.Dispose();if(childSurface!=null)childSurface.Dispose();PlacementStatus="disposed";}
     public void Dispose() {if(disposed)return;disposed=true;Stop();if(!closed)Close();}
   }
 

@@ -4,7 +4,9 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 using QuotaOverlay;
 
@@ -50,12 +52,25 @@ internal static class AttachedRendererTest {
     TaskbarSnapshot current=sample;bool transient=true;
     var attachment=new TaskbarAttachment(delegate{return host;},delegate(IntPtr value){return value==host;});
     window=new TaskbarWindow(delegate{return current;},delegate{return transient;},delegate{return "verified-native-controls";},null,null,attachment);
+    window.ContextMenu=new ContextMenu{Visibility=Visibility.Collapsed};window.ContextMenu.Items.Add(new MenuItem{Header="Own fixture"});
     window.ApplyRows("73%","42%","normal","normal",false);
     window.Configure(true,"right",ThemePalette.Dark,100);
     ((DispatcherTimer)typeof(TaskbarWindow).GetField("timer",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(window)).Stop();Pump();
-    IntPtr own=new WindowInteropHelper(window).Handle;
+    IntPtr own=window.NativeHandle;
     Check(window.IsVisible&&GetParent(own)==host,"fresh complete evidence can first show a native child while Start-like transient remains active");
     Check((GetWindowLongPtr(own,-16).ToInt64()&0x40000000L)!=0&&(GetWindowLongPtr(own,-20).ToInt64()&8)==0,"renderer uses a child without independent topmost");
+    Check(new WindowInteropHelper(window).Handle==IntPtr.Zero,"native path creates no top-level WPF Window to reparent");
+    var nativeSource=HwndSource.FromHwnd(own);var root=(Grid)nativeSource.RootVisual;
+    Check(nativeSource.UsesPerPixelOpacity,"source created as a child uses the modern per-pixel composition path");
+    Check(root.ContextMenu==window.ContextMenu,"actual child visual owns the configured context menu");
+    Check(((SolidColorBrush)root.Background).Color.A==1,"completely clear child keeps a full-area native input surface");
+    Check(root.InputHitTest(new Point(5,5))!=null,"clear background remains WPF hit-testable");
+    Check((GetWindowLongPtr(own,-20).ToInt64()&0x20)==0,"native child never uses input-transparent extended style");
+    Check(SendMessage(own,0x21,host,IntPtr.Zero).ToInt64()==3,"child refuses mouse activation");
+    Rect hit;Check(GetWindowRect(own,out hit),"read own native input rectangle");long packed=((long)(short)(hit.Top+5)<<16)|(ushort)(hit.Left+5);
+    Check(SendMessage(own,0x84,IntPtr.Zero,new IntPtr(packed)).ToInt64()==1,"clear native background is HTCLIENT at full transparency");
+    SendMessage(own,0x7B,own,new IntPtr(packed));Pump();
+    Check(window.ContextMenu.IsOpen,"native context-menu message reaches the child visual");window.ContextMenu.IsOpen=false;Pump();
     for(int cycle=0;cycle<3;cycle++){
       sample.Occupied.Add(sample.Bounds);Refresh(window);
       Check(!window.IsVisible,"an actual control contradiction conceals the indicator");
@@ -91,5 +106,6 @@ internal static class AttachedRendererTest {
   [DllImport("user32.dll")]static extern uint GetDpiForWindow(IntPtr window);
   [DllImport("user32.dll")]static extern IntPtr GetParent(IntPtr window);
   [DllImport("user32.dll")]static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr h,uint m,IntPtr w,IntPtr l);
   [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")]static extern IntPtr GetWindowLongPtr(IntPtr window,int index);
 }

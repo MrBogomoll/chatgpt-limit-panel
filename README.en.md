@@ -1,6 +1,6 @@
 # Quota Panel
 
-Private preview **1.2.1-beta.3**: native child attachment to the taskbar, matching the observed NetWorx host model. The parent controls stacking and visibility; actual game and menu transitions are still being verified. The prepared 1.2.0 archive is unchanged.
+Private preview **1.2.1-beta.4** fixes transparent taskbar child rendering and native right-click menu handling. Actual game and Start11 menu transitions are still being verified. The prepared 1.2.0 archive is unchanged.
 
 [Русская документация](README.md)
 
