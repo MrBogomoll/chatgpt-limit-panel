@@ -11,6 +11,8 @@
 
 Для первой установки используй [README](README.md). Проверка новой версии открывает страницу выпуска; перенос выполняется вручную.
 
+Если после обновления пропал только закреплённый ярлык в левой панели ChatGPT, открой ChatGPT Limit Panel из меню плагинов и закрепи его на боковой панели снова. Старое закрепление могло сохранить прежний внутренний адрес; переустанавливать плагин и удалять настройки для этого не нужно.
+
 ## English
 
 If version 1.3.1 or earlier is installed, download the new build manually from the [primary repository](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/latest): the previous update source is retired. Check for updates does not install updates. Keep the preferences directory `%LOCALAPPDATA%/ChatGPTQuotaOverlay`.
@@ -21,3 +23,5 @@ If version 1.3.1 or earlier is installed, download the new build manually from t
 4. Click Start. The new program receives its own task while language, theme, view, indicators and transparency are preserved.
 
 For first installation, follow the [README](README.en.md). Update checking opens the release page; migration is manual.
+
+If only the pinned shortcut in ChatGPT’s left rail disappears after an update, open ChatGPT Limit Panel from the plugin menu and pin it to the sidebar again. An older pin may retain the previous internal address; reinstalling the plugin or deleting preferences is unnecessary.

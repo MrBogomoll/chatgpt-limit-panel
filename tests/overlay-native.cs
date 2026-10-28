@@ -1070,6 +1070,36 @@ class OverlayNativeTest {
     Invoke(window,"SelectLanguage","ru");Check(Field<TextBlock[]>(window,"periods")[0].Text=="15 мин","Russian minute duration must restore exactly");
     Console.WriteLine("PASS native language: live translation, unchanged quota, all mode bounds, restart persistence and Russian restoration");
   }
+  static void RailOverflowTest(OverlayWindow window) {
+    var canvas=new Canvas{ClipToBounds=false};var group=new GroupBox{Width=100,Height=300,ClipToBounds=false};Canvas.SetLeft(group,100);
+    var content=new Canvas{ClipToBounds=false};var button=new Button{Content="Fixture",Width=30,Height=30};Canvas.SetLeft(button,-100);Canvas.SetTop(button,100);content.Children.Add(button);group.Content=content;canvas.Children.Add(group);
+    var owner=new Window{Left=-28000,Top=-28000,Width=400,Height=900,Opacity=0,ShowActivated=false,ShowInTaskbar=false,Content=canvas};
+    try {
+      owner.Show();owner.UpdateLayout();var handle=new WindowInteropHelper(owner).Handle;
+      var peer=System.Windows.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(button);var b=peer.GetBoundingRectangle();var g=System.Windows.Automation.Peers.FrameworkElementAutomationPeer.CreatePeerForElement(group).GetBoundingRectangle();
+      Check(!g.Contains(b),"fixture control lies outside its container bounds");double scale=Native.GetDpiForWindow(handle)/96.0;
+      var task=System.Threading.Tasks.Task.Factory.StartNew(delegate {int visited;return SidebarGeometrySource.MeasureControls(System.Windows.Automation.AutomationElement.FromHandle(handle),b.X-3*scale,b.Y-100*scale,900*scale,scale,0,out visited);});
+      var frame=new DispatcherFrame();var timer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(10)};timer.Tick+=delegate{if(task.IsCompleted)frame.Continue=false;};timer.Start();Dispatcher.PushFrame(frame);timer.Stop();
+      var controls=task.GetAwaiter().GetResult();Check(controls!=null&&controls.Count>0,"rail query must detect a control outside its parent bounds");
+      Known(window);Invoke(window,"SavePreview");Console.WriteLine("PASS native rail-overflow: off-rail containers do not mask rail controls");
+    } finally {owner.Close();}
+  }
+  static void TargetIdentityTest(OverlayWindow window) {
+    // Deliberately named ChatGPT.exe, but outside the verified application
+    // package: reject it, without enumerating all processes on each frame.
+    IntPtr own=CreateWindowEx(0x08000080,"STATIC","Own target identity fixture",0x90000000u,-32000,-32000,100,100,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero);
+    try {
+      Check(own!=IntPtr.Zero,"own offscreen identity fixture exists");
+      var method=Method("IsTarget");
+      Check(!(bool)method.Invoke(window,new object[]{own}),"same filename outside trusted package is rejected");
+      double cpu=System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime.TotalMilliseconds;
+      for(int i=0;i<50;i++)Check(!(bool)method.Invoke(window,new object[]{own}),"untrusted process stays rejected");
+      cpu=System.Diagnostics.Process.GetCurrentProcess().TotalProcessorTime.TotalMilliseconds-cpu;
+      Check(cpu<250,"50 identity checks must not enumerate process modules on the GUI thread; cpuMs="+cpu);
+      Known(window);Invoke(window,"SavePreview");
+      Console.WriteLine("PASS native target-identity: rejects untrusted ChatGPT filename with bounded GUI CPU; cpuMs="+cpu);
+    } finally {if(own!=IntPtr.Zero)DestroyWindow(own);}
+  }
   [STAThread] public static int Main(string[] args) {
     if(args.Length==1&&args[0]=="motion-fixture")return MotionFixture();
     Application app=null;OverlayWindow window=null;
@@ -1080,6 +1110,8 @@ class OverlayNativeTest {
       window=NewWindow(Path.Combine(directory,"state.json"));
       AssertUnshown(window);
       switch(args[0]) {
+        case "rail-overflow":RailOverflowTest(window);break;
+        case "target-identity":TargetIdentityTest(window);break;
         case "layout":LayoutTest(window);break;
         case "language":LanguageTest(ref window,directory);break;
         case "tones":ToneTest(window);break;

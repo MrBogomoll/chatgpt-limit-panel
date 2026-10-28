@@ -8,9 +8,11 @@ This branch contains a local preview. The latest public stable release is 1.3.2.
 - Drag the taskbar indicator along the taskbar to choose a position. Placement
   snaps to a free gap and preserves other widgets, task buttons and the tray.
   Choosing a side in the context menu restores automatic placement on that side.
-- The sidebar panel uses a native child of the verified ChatGPT window when the
-  native DPI/ownership checks permit it. Button geometry comes from the app's
-  accessible web document; unknown geometry temporarily hides the panel.
+- The sidebar panel keeps its independent nonactivating window: the experimental
+  native child did not reliably render inside the current ChatGPT client. Only interactive-control
+  geometry is requested from the accessibility provider; transcript text nodes
+  are excluded. Unknown geometry hides the panel. Target identity checks use a
+  native image query rather than repeatedly enumerating processes.
 - Drag the sidebar panel vertically to choose a free slot. A regular click still
   cycles display modes. **Reset position** restores automatic placement.
 - Saved positions are relative to the available length, so display scaling and
