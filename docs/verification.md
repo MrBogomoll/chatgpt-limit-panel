@@ -750,3 +750,14 @@ lifecycle mutation. Publication is the final step; root stable-130-published.jso
 final checkpoint record its actual result separately. Public release text contains
 user changes without test counts or user-confirmation claims. No all-games bug-free
 or physical Windows10 claim is made.
+
+Publication completed: public release426418957 and private release426418844 are
+published/non-prerelease Latest v1.3.0. Release source commits are db5c3da (private)
+and4086b1e (public documentation). Each has exactly the new ZIP and SHA256 sidecar;
+GitHub asset digests match local bytes. Anonymous public latest feed returns1.3.0;
+an actual unauthenticated ZIP download returned35237980bytes and the same SHA256,
+and its downloaded sidecar matches. Previous release tags/assets and repository
+visibility were verified unchanged. Installed MCP now reports current1.3.0 vs1.3.0
+without changing lifecycle/settings. Root stable-130-public-verification.json and
+stable-130-published.json contain final evidence. This subsequent commit changes
+verification documentation only; v1.3.0 stays on its exact reviewed release commit.
