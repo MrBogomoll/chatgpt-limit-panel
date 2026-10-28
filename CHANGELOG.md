@@ -1,5 +1,9 @@
 # Changes
 
+## 1.3.2 — 2026-10-28
+
+- Check updates against the primary public repository containing source and releases.
+
 ## 1.3.1 — 2026-10-28
 
 - Use the current ChatGPT Limit Panel name for the MCP server in plugin settings.

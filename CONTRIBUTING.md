@@ -9,5 +9,3 @@ Read README and docs/BUILDING.md before changing the project. Use main for the c
 - Public release notes should describe changes for users.
 
 For bugs, report Windows/client versions, display scale, view/theme and reproduction steps. Share cropped images with personal information removed.
-
-Repository visibility and licensing are publication decisions; this preparation does not assign a new license or change repository visibility.

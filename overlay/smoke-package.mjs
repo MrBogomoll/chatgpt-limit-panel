@@ -31,7 +31,7 @@ async function control(session,name) {
 let needsRecovery=false;
 try {
   const session=connect();
-  assert((await session.request('initialize',{protocolVersion:'2025-06-18'})).result.serverInfo.name==='quota-panel');
+  assert((await session.request('initialize',{protocolVersion:'2025-06-18'})).result.serverInfo.name==='chatgpt-limit-panel');
   const discovery=await session.request('tools/list');assert.equal(discovery.result.tools.length,5);
   const before=await control(session,'get_quota_overlay_status');
   const started=await control(session,'start_quota_overlay');assert(started.running);

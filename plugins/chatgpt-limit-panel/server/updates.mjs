@@ -1,7 +1,7 @@
-export const CURRENT_VERSION='1.3.1';
+export const CURRENT_VERSION='1.3.2';
 export const RELEASE_ORIGIN='https://github.com/MrBogomoll/chatgpt-limit-panel';
 // Repository names can change. The verified public repository ID stays stable.
-const endpoint='https://api.github.com/repositories/1433486830/releases/latest';
+const endpoint='https://api.github.com/repositories/1433242334/releases/latest';
 function version(value,allowPrerelease=false) {
   if(typeof value!=='string'||value.length>64)throw new Error('Invalid version');
   const parsed=/^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(value);

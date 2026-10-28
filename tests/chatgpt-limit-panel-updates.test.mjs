@@ -6,9 +6,16 @@ function release(version='1.2.0',slug='chatgpt-limit-panel') {const base='https:
 const reply=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers});
 function checker(options={}) {assert.equal(typeof api.createUpdateChecker,'function');return api.createUpdateChecker({currentVersion:'1.1.0',cooldownMs:0,...options});}
 
+test('updates use the primary source repository after the release-only repository is retired',async()=>{
+  let requested;
+  const value=await checker({fetchImpl:async url=>{requested=url;return reply(release());}}).check();
+  assert.equal(requested,'https://api.github.com/repositories/1433242334/releases/latest');
+  assert.equal(value.state,'available');
+});
+
 test('the current release reports its own version and does not offer the older stable release',async()=>{
   const value=await api.createUpdateChecker({fetchImpl:async()=>reply(release('1.2.0')),cooldownMs:0}).check();
-  assert.equal(value.currentVersion,'1.3.1');assert.equal(value.latestVersion,'1.2.0');
+  assert.equal(value.currentVersion,'1.3.2');assert.equal(value.latestVersion,'1.2.0');
   assert.equal(value.state,'ahead');assert.equal(value.url,null);
 });
 
@@ -41,7 +48,7 @@ test('a beta installation can find its stable release while the public feed rema
 });
 test('checks are explicit, public, coalesced and briefly cached without lifecycle or authentication',async()=>{
   let calls=0,finish,clock=1000;
-  const check=checker({cooldownMs:15000,now:()=>clock,fetchImpl:(url,options)=>{calls++;assert.equal(url,'https://api.github.com/repositories/1433486830/releases/latest');assert.equal(options.headers.Authorization,undefined);assert.equal(options.redirect,'error');return new Promise(resolve=>{finish=resolve;});}});
+  const check=checker({cooldownMs:15000,now:()=>clock,fetchImpl:(url,options)=>{calls++;assert.equal(url,'https://api.github.com/repositories/1433242334/releases/latest');assert.equal(options.headers.Authorization,undefined);assert.equal(options.redirect,'error');return new Promise(resolve=>{finish=resolve;});}});
   assert.equal(calls,0);const first=check.check();const second=check.check();await Promise.resolve();assert.equal(calls,1);
   finish(reply(release()));assert.deepEqual(await first,await second);await check.check();assert.equal(calls,1);
   clock+=16000;const third=check.check();await Promise.resolve();assert.equal(calls,2);finish(reply(release('1.1.0')));assert.equal((await third).state,'current');
