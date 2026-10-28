@@ -579,3 +579,35 @@ check ahead vs1.1.0 with no downgradeURL/lifecycle change. Root metadata files
 v121-beta2-package.json/v121-beta2-installed.json/v121-beta2-installed-check.json.
 Actual Start-cycle acceptance after installation is pending; do not claim verified
 until the user replay and current native recording complete. No public release.
+
+
+## Native child taskbar candidate 1.2.1-beta.3 (2026-10-28)
+
+Actual NetWorx native hosting was measured before choosing this architecture:
+separate-process direct child of Shell_TrayWnd, no independent TOPMOST, bothPMv2.
+An isolated productionWPF cross-process child spike passed48checks; WPFvisual
+rendering is not a claim of actual Explorer compositor output.
+
+TaskbarAttachment changes only own HWND after exactprotectedExplorerhost and DPI
+context equality proof, then verifies parent/client-coordinate placement. It holds
+parent process identity, handles zero-return SetParent/error rollback, never calls
+DPI setters and never falls back to a floating TOPMOST indicator. Child-mode source
+keeps native/UIA control allocation while excluding only proved own subtree. Native
+parent order handles games/popups; foreground fullscreen and top-level overlays do
+not poison child acquisition. Fresh complete evidence wins over old menu rejection.
+An existing visible slot can retain only current unchanged native control evidence.
+Review found and reproduced stalled-source expiry1601ms: retention is now activated
+at the first proved fresh frame, without renewing acquisition timestamps. A new
+complete frame recovers after native control changes; unknown cannot revive it.
+
+Closed/destroyed children and menus are recreated on ordinary tracking, with local
+watcher callbacks and no main/backend/preferences mutation or motion-path work.
+Native focused checks: attachment50, childreader55, renderer35, oldtaskbar174,
+passiveorder96/classifier63; lifecycle3cycles and settings/transparency/motion/menu
+checks passed. Final native build and required combined suite154/154 passed, no
+skips; private log dist/native-child-beta3-verification.txt. Independent reviews
+found no remaining critical issue after the measured retention repair.
+
+Version metadata is coherently1.2.1-beta.3. Installation and actual Explorer pixels,
+ПКМ and game/Start acceptance are still pending at this source checkpoint. No
+physical Windows10 validation or public stable release is claimed.

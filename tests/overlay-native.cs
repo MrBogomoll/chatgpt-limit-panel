@@ -594,6 +594,64 @@ class OverlayNativeTest {
     Check(taskbar!=null,"enabled taskbar fixture must create its own percentage view");
     return (Border)typeof(TaskbarWindow).GetField("surface",PrivateInstance).GetValue(taskbar);
   }
+  static void TaskbarRecreationTest(OverlayWindow window,string directory) {
+    var sample=new TaskbarSnapshot{Handle=new IntPtr(123),Bounds=new TaskbarArea{X=-32000,Y=-32000,Width=1920,Height=48},Scale=1,Visible=true,OccupancyKnown=true};
+    typeof(OverlayWindow).GetField("taskbarSnapshotReader",PrivateInstance).SetValue(window,new Func<TaskbarSnapshot>(delegate{return sample;}));
+    typeof(OverlayWindow).GetField("targetMatcher",PrivateInstance).SetValue(window,new Func<IntPtr,bool>(delegate{return false;}));
+    Apply(window,Row("5 ч","73%","31.12","23:59","","normal"),Row("Нед.","29%","31.12","00:00","устар.","warning"));Invoke(window,"SelectLanguage","en");Invoke(window,"SelectTheme","light");Invoke(window,"SelectMode","ultra");
+    MenuClick(Field<MenuItem>(window,"taskbarRightItem"));MenuClick(Field<MenuItem>(window,"taskbarEnabledItem"));Invoke(window,"SetBackgroundTransparency",100);
+    var mainHandle=new WindowInteropHelper(window).EnsureHandle();IntPtr foreground=Native.GetForegroundWindow();
+    typeof(OverlayWindow).GetField("appSignalSent",PrivateInstance).SetValue(window,true);
+    typeof(OverlayWindow).GetField("lastAppReady",PrivateInstance).SetValue(window,false);
+    string preferencesPath=Path.Combine(directory,"settings.json"),before=File.ReadAllText(preferencesPath);DateTime modified=File.GetLastWriteTimeUtc(preferencesPath);
+    var commands=new StringWriter(CultureInfo.InvariantCulture);TextWriter output=Console.Out;Console.SetOut(commands);
+    try {
+      for(int cycle=0;cycle<3;cycle++) {
+        var previous=Field<TaskbarWindow>(window,"taskbarWindow");var previousMenu=Field<ContextMenu>(window,"taskbarMenu");var previousWatcher=Field<MenuDismissWatcher>(window,"taskbarMenuDismiss");
+        Check(previous!=null&&previous.IsVisible,"recreation fixture begins with a visible own offscreen percentage window");
+        previousMenu.Visibility=Visibility.Collapsed;previousMenu.IsOpen=true;PumpDispatcher();
+        previousMenu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent));Check(previousWatcher.Hook!=IntPtr.Zero,"old menu owns its own dismissal observer before recreation");
+        if(cycle==1)Check(DestroyWindow(new WindowInteropHelper(previous).Handle),"only the own fixture native HWND is destroyed");else previous.Close();
+        if(cycle==0) {
+          typeof(OverlayWindow).GetField("motionDeadline",PrivateInstance).SetValue(window,(long)(System.Diagnostics.Stopwatch.GetTimestamp()*1000.0/System.Diagnostics.Stopwatch.Frequency)+5000);
+          var movement=Field<DispatcherTimer>(window,"motionTracker");movement.Start();
+          Invoke(window,"UpdatePlacement");Invoke(window,"SyncTaskbar");
+          Check(Object.ReferenceEquals(previous,Field<TaskbarWindow>(window,"taskbarWindow")),"frame-rate movement defers taskbar reconstruction until ordinary tracking resumes");movement.Stop();
+        }
+        Invoke(window,"UpdatePlacement");PumpDispatcher();
+        var replacement=Field<TaskbarWindow>(window,"taskbarWindow");var replacementMenu=Field<ContextMenu>(window,"taskbarMenu");var replacementWatcher=Field<MenuDismissWatcher>(window,"taskbarMenuDismiss");
+        Check(replacement!=null&&!Object.ReferenceEquals(previous,replacement)&&replacement.IsVisible,"the ordinary placement tick must replace a permanently closed or destroyed percentage window");
+        Check(!Object.ReferenceEquals(previousMenu,replacementMenu)&&!Object.ReferenceEquals(previousWatcher,replacementWatcher),"the recreated percentage window receives a new menu and observer");
+        Check(!previousMenu.IsOpen&&previousWatcher.Hook==IntPtr.Zero,"old popup and native observer are released before replacement");
+        previousWatcher.Start();Check(previousWatcher.Hook==IntPtr.Zero,"the retired observer is disposed and cannot restart");
+        Check(replacement.Background is SolidColorBrush&&ColorOf(replacement.Background).A>0,"a completely clear recreated panel preserves a native input surface");
+        Check(ColorOf(TaskbarSurface(window).Background).A==0,"the recreated percentage background retains full saved transparency");
+        foreach(string name in new[]{"upper","lower"}) {
+          var label=(TextBlock)typeof(TaskbarWindow).GetField(name,PrivateInstance).GetValue(replacement);
+          Check(label.Text==(name=="upper"?"73%":"29%")&&ColorOf(label.Foreground).A==255,"current ordered quota text remains opaque and survives recreation");
+          Check(ColorOf(label.Foreground)==ParseColor(ThemePalette.Light.Tone(name=="upper"?"normal":"warning"))&&label.Opacity<1,"current light-theme quota tones and stale state survive recreation");
+        }
+        Check(Field<Slider>(window,"transparencySlider").Value==100&&Convert.ToString(((MenuItem)replacementMenu.Items[0]).Header).Contains("Show"),"recreated controls preserve transparency and selected English language");
+        replacementMenu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent));IntPtr newHook=replacementWatcher.Hook;Check(newHook!=IntPtr.Zero,"new menu registers a fresh observer");
+        previousMenu.RaiseEvent(new RoutedEventArgs(ContextMenu.ClosedEvent));Check(replacementWatcher.Hook==newHook,"a late close notification from the retired menu cannot stop the replacement observer");
+        replacementMenu.RaiseEvent(new RoutedEventArgs(ContextMenu.ClosedEvent));Check(replacementWatcher.Hook==IntPtr.Zero,"replacement menu still releases its own observer normally");
+        Check(Native.IsWindow(mainHandle)&&!Field<bool>(window,"closing")&&!window.IsVisible,"replacing only the percentage child leaves the main GUI process and hidden main HWND intact");
+        Check(Field<string>(window,"language")=="en"&&Field<string>(window,"themeMode")=="light"&&Field<string>(window,"preferredMode")=="ultra"&&Field<string>(window,"taskbarSide")=="right","all unrelated presentation settings survive recreation");
+      }
+      var active=Field<TaskbarWindow>(window,"taskbarWindow");
+      typeof(OverlayWindow).GetField("paused",PrivateInstance).SetValue(window,true);Invoke(window,"SyncTaskbar");active.Close();Invoke(window,"UpdatePlacement");
+      var paused=Field<TaskbarWindow>(window,"taskbarWindow");Check(paused!=null&&!Object.ReferenceEquals(active,paused)&&!paused.Enabled&&!paused.IsVisible&&Field<bool>(window,"paused"),"recreation while paused must not enable, display or resume the percentage view");
+      typeof(OverlayWindow).GetField("taskbarEnabled",PrivateInstance).SetValue(window,false);Invoke(window,"SyncMenu");paused.Close();Invoke(window,"UpdatePlacement");
+      Check(Field<TaskbarWindow>(window,"taskbarWindow")==null&&Field<ContextMenu>(window,"taskbarMenu")==null&&Field<MenuDismissWatcher>(window,"taskbarMenuDismiss")==null,"disabled percentage mode disposes a destroyed instance without creating a replacement");
+      Check(File.ReadAllText(preferencesPath)==before&&File.GetLastWriteTimeUtc(preferencesPath)==modified,"recreation must not rewrite saved preferences");
+      Check(commands.ToString().Length==0,"recreation must not emit backend, pause, resume or lifecycle commands");
+      Check(Native.GetForegroundWindow()==foreground,"every recovery phase preserves the user's actual foreground window");
+    }finally{Console.SetOut(output);}
+    typeof(OverlayWindow).GetField("paused",PrivateInstance).SetValue(window,false);
+    MenuClick(Field<MenuItem>(window,"taskbarEnabledItem"));var slider=Field<Slider>(window,"transparencySlider");slider.Value=35;
+    Check(Field<bool>(window,"taskbarEnabled")&&Field<int>(window,"backgroundTransparency")==35,"percentage controls remain functional after disable, reenable and recreation");
+    Console.WriteLine("PASS native taskbar-recreation: closed/native-destroyed child recovery, retired menus, preserved rows/preferences/pause/focus and current inputs");
+  }
   static void AssertBackgroundAlpha(OverlayWindow window,byte alpha) {
     Check(ColorOf(Field<Border>(window,"panel").Background).A==alpha,"main panel must apply the selected transparency only to its background");
     Check(ColorOf(TaskbarSurface(window).Background).A==alpha,"taskbar percentages must apply the same selected background transparency");
@@ -1055,6 +1113,7 @@ class OverlayNativeTest {
         case "motion-hook":MotionHookTest(window);break;
         case "updates":UpdatesTest(window);break;
         case "taskbar-settings":TaskbarSettingsTest(ref window,directory);break;
+        case "taskbar-recreation":TaskbarRecreationTest(window,directory);break;
         case "transparency":TransparencyTest(ref window,directory);break;
         case "combined-zero":CombinedZeroTest(ref window,directory);break;
         case "resize-aspect":ResizeAspectTest(window);break;
@@ -1064,7 +1123,7 @@ class OverlayNativeTest {
         case "viewport-en":Invoke(window,"SelectTheme","light");Invoke(window,"SelectLanguage","en");ViewportTest(window,directory);break;
         default:throw new Exception("unknown native test scenario "+args[0]);
       }
-      AssertUnshown(window,args[0]=="styles"||args[0]=="resize-native"||args[0]=="viewport"||args[0]=="viewport-light"||args[0]=="viewport-en"||args[0]=="focus-persistence"||args[0]=="motion"||args[0]=="motion-hook");
+      AssertUnshown(window,args[0]=="styles"||args[0]=="resize-native"||args[0]=="viewport"||args[0]=="viewport-light"||args[0]=="viewport-en"||args[0]=="focus-persistence"||args[0]=="motion"||args[0]=="motion-hook"||args[0]=="taskbar-recreation");
       return 0;
     } catch(Exception error) {
       // Avoid an unhandled .NET Framework exception invoking Windows Error Reporting.

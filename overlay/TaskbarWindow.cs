@@ -21,6 +21,7 @@ namespace QuotaOverlay {
     readonly Func<bool> readTransient;
     readonly Func<TaskbarSnapshot,TaskbarArea,string> readLeaseFingerprint;
     readonly Func<TaskbarSnapshot,TaskbarArea,bool,IntPtr?> readPlacementAnchor;
+    readonly TaskbarAttachment attachment;
     readonly Func<long> placementMilliseconds;
     TaskbarSnapshot leaseSnapshot;
     TaskbarPlacement lastShown;
@@ -41,12 +42,16 @@ namespace QuotaOverlay {
     public bool Enabled {get;private set;}
     public string PlacementStatus {get;private set;}
     public bool IsVertical {get;private set;}
+    public bool NeedsRecreation {get{return closed||disposed||(hwnd!=IntPtr.Zero&&!NativeHandleExists(hwnd))||(attachment!=null&&attachment.Parent!=IntPtr.Zero&&!attachment.IsAlive);}}
     public Func<bool> IsOtherMenuOpen {get;set;}
+    [DllImport("user32.dll",EntryPoint="IsWindow")]static extern bool NativeHandleExists(IntPtr value);
 
-    public TaskbarWindow(Func<TaskbarSnapshot> readSnapshot=null,Func<bool> readTransient=null,Func<TaskbarSnapshot,TaskbarArea,string> readLeaseFingerprint=null,Func<long> nowMilliseconds=null,Func<TaskbarSnapshot,TaskbarArea,bool,IntPtr?> readPlacementAnchor=null) {
-      if(readSnapshot==null){source=new TaskbarSnapshotSource();this.readSnapshot=source.Read;}else this.readSnapshot=readSnapshot;
+    public TaskbarWindow(Func<TaskbarSnapshot> readSnapshot=null,Func<bool> readTransient=null,Func<TaskbarSnapshot,TaskbarArea,string> readLeaseFingerprint=null,Func<long> nowMilliseconds=null,Func<TaskbarSnapshot,TaskbarArea,bool,IntPtr?> readPlacementAnchor=null,TaskbarAttachment attachment=null,TaskbarSnapshotSource snapshotSource=null) {
+      if(readSnapshot!=null&&snapshotSource!=null)throw new ArgumentException("Use either a snapshot reader or a snapshot source.");
+      this.attachment=attachment??(readSnapshot==null?new TaskbarAttachment():null);
+      if(readSnapshot==null){source=snapshotSource??new TaskbarSnapshotSource(childMode:this.attachment!=null);this.readSnapshot=source.Read;}else this.readSnapshot=readSnapshot;
       this.readTransient=readTransient??delegate{IntPtr capture;return TaskbarTransient.IsActive(out capture);};
-      this.readLeaseFingerprint=readLeaseFingerprint??delegate(TaskbarSnapshot value,TaskbarArea bounds){return TaskbarNative.LeaseFingerprint(value,bounds,hwnd);};
+      this.readLeaseFingerprint=readLeaseFingerprint??delegate(TaskbarSnapshot value,TaskbarArea bounds){return TaskbarNative.LeaseFingerprint(value,bounds,hwnd,this.attachment!=null);};
       this.readPlacementAnchor=readPlacementAnchor??delegate(TaskbarSnapshot value,TaskbarArea bounds,bool preserve){return source==null?(IntPtr?)new IntPtr(-1):TaskbarNative.PlacementAnchor(value,bounds,hwnd,preserve);};
       placementMilliseconds=nowMilliseconds??delegate{return placementClock.ElapsedMilliseconds;};
       Width=TaskbarLayout.Width;Height=TaskbarLayout.Height;WindowStartupLocation=WindowStartupLocation.Manual;
@@ -99,6 +104,7 @@ namespace QuotaOverlay {
     void InvalidateMenuLease(){menuLease.Invalidate();leaseSnapshot=null;lastShown=null;wasTransient=false;recoveryUntil=0;}
     void RefreshPlacement() {
       if(disposed||closed||!Enabled)return;
+      if(attachment!=null){RefreshChildPlacement();return;}
       try {
         TaskbarSnapshotSource.Measurement measurement=null;
         TaskbarSnapshot snapshot=source==null?readSnapshot():source.Read(out measurement);diagnosticCandidate=snapshot;if(snapshot!=null&&TaskbarLayout.Valid(snapshot.Bounds))IsVertical=snapshot.Bounds.Height>snapshot.Bounds.Width;
@@ -141,12 +147,58 @@ namespace QuotaOverlay {
         TracePlacement(null);
       }catch {Conceal("provider-error");}
     }
+    void RejectChildFrame(string reason) {InvalidateMenuLease();Conceal(reason);}
+    void RefreshChildPlacement() {
+      try {
+        // Establish a native child before querying accessibility, so our own
+        // subtree can be excluded using a proved HWND identity. No pixels are
+        // exposed until allocation and the resulting attachment are verified.
+        if(hwnd==IntPtr.Zero){Opacity=0;Show();}
+        string reason;
+        if(!attachment.TryAttach(hwnd,out reason)){RejectChildFrame(reason);return;}
+        TaskbarSnapshotSource.Measurement receipt=null;
+        TaskbarSnapshot snapshot=source==null?readSnapshot():source.Read(out receipt);
+        diagnosticCandidate=snapshot;diagnosticTransient=false;
+        if(snapshot!=null&&TaskbarLayout.Valid(snapshot.Bounds))IsVertical=snapshot.Bounds.Height>snapshot.Bounds.Width;
+        TaskbarPlacement placement=TaskbarLayout.Place(snapshot,side);
+        long now=placementMilliseconds();
+        if(placement.Visible) {
+          if(!IsVisible){Opacity=0;Show();}
+          if(!attachment.TryPlace(hwnd,snapshot,placement.Bounds,out reason)){RejectChildFrame(reason);return;}
+          string evidence=readLeaseFingerprint(snapshot,placement.Bounds);
+          if(evidence==null){RejectChildFrame("layout-unverified");return;}
+          // A prior rejected frame must not poison a new complete measurement.
+          TaskbarPlacement ignored;menuLease.TryHold(false,false,false,null,now,out ignored);
+          long age=source==null?0:source.SnapshotAge(receipt);
+          if(age<0||age>TaskbarSnapshotSource.LifetimeMilliseconds){RejectChildFrame("stale-layout");return;}
+          menuLease.Record(snapshot,placement,evidence,placementMilliseconds()-age);
+          // Continuously prove this displayed slot from its first fresh frame.
+          // If acquisition later stalls past the cache lifetime, retention must
+          // already be active; its UIA measurement time is never renewed here.
+          TaskbarPlacement activated;
+          if(!menuLease.TryHold(true,true,true,evidence,placementMilliseconds(),out activated)){RejectChildFrame("layout-unverified");return;}
+          leaseSnapshot=snapshot;lastShown=placement;
+          diagnosticAge=age;diagnosticFingerprint=evidence;
+          diagnosticProof=new {reason=TaskbarNative.LastFingerprintReason,parts=TaskbarNative.LastFingerprintParts};diagnosticBaselineProof=diagnosticProof;
+          PlacementStatus="attached";Opacity=1;TracePlacement(null);return;
+        }
+        // A complete contradiction takes precedence over retention. An absent
+        // measurement may retain only a currently visible, natively proved slot.
+        if(snapshot!=null&&snapshot.OccupancyKnown){RejectChildFrame(placement.Reason);return;}
+        string fingerprint=leaseSnapshot!=null&&lastShown!=null&&IsVisible?readLeaseFingerprint(leaseSnapshot,lastShown.Bounds):null;
+        TaskbarPlacement retained;
+        if(menuLease.TryHold(true,IsVisible,fingerprint!=null,fingerprint,now,out retained)&&retained!=null&&attachment.TryPlace(hwnd,leaseSnapshot,retained.Bounds,out reason)) {
+          diagnosticFingerprint=fingerprint;PlacementStatus="layout-held";Opacity=1;TracePlacement(null);return;
+        }
+        RejectChildFrame(placement.Reason);
+      }catch {RejectChildFrame("provider-error");}
+    }
     IntPtr WindowMessage(IntPtr window,int message,IntPtr wParam,IntPtr lParam,ref bool handled) {
       if(message==0x0021){handled=true;return new IntPtr(3);}
       if(message==0x007E||message==0x001A||message==0x02E0){TracePlacement("native-message:"+message.ToString("X")+":"+wParam.ToInt64().ToString("X"));if(source!=null)source.Invalidate();InvalidateMenuLease();Conceal("layout-changed");}
       return IntPtr.Zero;
     }
-    void Stop() {Enabled=false;timer.Stop();InvalidateMenuLease();if(source!=null)source.Dispose();PlacementStatus="disposed";}
+    void Stop() {Enabled=false;timer.Stop();InvalidateMenuLease();if(source!=null)source.Dispose();if(attachment!=null)attachment.Dispose();PlacementStatus="disposed";}
     public void Dispose() {if(disposed)return;disposed=true;Stop();if(!closed)Close();}
   }
 
@@ -158,7 +210,8 @@ namespace QuotaOverlay {
       internal readonly int Generation;
       internal Measurement(TaskbarSnapshotSource owner,long measuredAt,long readAt,int generation){Owner=owner;MeasuredAt=measuredAt;ReadAt=readAt;Generation=generation;}
     }
-    const long LifetimeMilliseconds=1600,ScanIntervalMilliseconds=350,MaximumScanMilliseconds=1200;
+    internal const long LifetimeMilliseconds=1600;
+    const long ScanIntervalMilliseconds=350,MaximumScanMilliseconds=1200;
     readonly object gate=new object();
     readonly Stopwatch clock=Stopwatch.StartNew();
     readonly Func<TaskbarSnapshot> scan;
@@ -169,10 +222,10 @@ namespace QuotaOverlay {
     int generation;
     bool running,disposed;
     public IntPtr OwnWindow;
-    public TaskbarSnapshotSource(Func<TaskbarSnapshot> scan=null,Func<long> nowMilliseconds=null,Func<TaskbarSnapshot,bool> safety=null) {
-      this.scan=scan??delegate{return TaskbarNative.ReadSnapshot(OwnWindow);};
+    public TaskbarSnapshotSource(Func<TaskbarSnapshot> scan=null,Func<long> nowMilliseconds=null,Func<TaskbarSnapshot,bool> safety=null,bool childMode=false) {
+      this.scan=scan??delegate{return TaskbarNative.ReadSnapshot(OwnWindow,childMode);};
       this.nowMilliseconds=nowMilliseconds??delegate{return clock.ElapsedMilliseconds;};
-      this.safety=safety??delegate(TaskbarSnapshot value){return TaskbarNative.CanDisplaySnapshot(value,OwnWindow);};
+      this.safety=safety??delegate(TaskbarSnapshot value){return TaskbarNative.CanDisplaySnapshot(value,OwnWindow,childMode);};
     }
     public TaskbarSnapshot Read(){Measurement ignored;return Read(out ignored);}
     public TaskbarSnapshot Read(out Measurement measurement) {
@@ -256,13 +309,52 @@ namespace QuotaOverlay {
       Rect rect;if(!WindowBounds(foreground,out rect))return RememberFullscreen(foreground,monitor,monitorBounds,true);
       return RememberFullscreen(foreground,monitor,monitorBounds,IsFullscreenBounds(rect.Area(),monitorBounds.Area(),IsZoomed(foreground),GetWindowLongPtr(foreground,-16).ToInt64()));
     }
-    internal static bool CanDisplaySnapshot(TaskbarSnapshot snapshot,IntPtr own) {
+    internal static bool CanDisplaySnapshot(TaskbarSnapshot snapshot,IntPtr own) {return CanDisplaySnapshot(snapshot,own,false);}
+    internal static bool CanDisplaySnapshot(TaskbarSnapshot snapshot,IntPtr own,bool childMode) {
       try {
-        if(snapshot.Handle==IntPtr.Zero||FindWindow("Shell_TrayWnd",null)!=snapshot.Handle||!IsWindowVisible(snapshot.Handle)||Cloaked(snapshot.Handle))return false;
-        Rect current;if(!GetWindowRect(snapshot.Handle,out current))return false;TaskbarArea area=current.Area();
-        if(area.X!=snapshot.Bounds.X||area.Y!=snapshot.Bounds.Y||area.Width!=snapshot.Bounds.Width||area.Height!=snapshot.Bounds.Height||Math.Abs(GetDpiForWindow(snapshot.Handle)/96.0-snapshot.Scale)>0.01)return false;
+        if(!ParentSnapshotMatches(snapshot,own,FindWindow("Shell_TrayWnd",null),childMode))return false;
+        TaskbarArea area=snapshot.Bounds;
         IntPtr monitor=MonitorFromWindow(snapshot.Handle,MonitorNearest);var information=new MonitorInfo{Size=Marshal.SizeOf(typeof(MonitorInfo))};
-        return GetMonitorInfo(monitor,ref information)&&IsTaskbarFullyRevealed(area,information.Monitor.Area(),snapshot.Scale)&&!Fullscreen(own,monitor,information.Monitor);
+        return GetMonitorInfo(monitor,ref information)&&IsTaskbarFullyRevealed(area,information.Monitor.Area(),snapshot.Scale)&&(childMode||!Fullscreen(own,monitor,information.Monitor));
+      }catch{return false;}
+    }
+    internal static bool ParentSnapshotMatches(TaskbarSnapshot snapshot,IntPtr own,IntPtr expectedParent,bool childMode) {
+      try {
+        if(snapshot==null||snapshot.Handle==IntPtr.Zero||expectedParent!=snapshot.Handle||!TaskbarLayout.Valid(snapshot.Bounds)||!TaskbarLayout.Finite(snapshot.Scale)||snapshot.Scale<=0||!IsWindowVisible(snapshot.Handle)||IsIconic(snapshot.Handle)||Cloaked(snapshot.Handle))return false;
+        if(childMode&&!IsVerifiedOwnChild(own,snapshot.Handle))return false;
+        Rect current;if(!GetWindowRect(snapshot.Handle,out current))return false;TaskbarArea area=current.Area();uint dpi=GetDpiForWindow(snapshot.Handle);
+        return dpi!=0&&area.X==snapshot.Bounds.X&&area.Y==snapshot.Bounds.Y&&area.Width==snapshot.Bounds.Width&&area.Height==snapshot.Bounds.Height&&Math.Abs(dpi/96.0-snapshot.Scale)<=0.01;
+      }catch{return false;}
+    }
+    // No visibility requirement on our child: initial allocation is measured
+    // while it is attached at opacity zero. Never accept a foreign or DPI-reset
+    // child as evidence that our UIA/native subtree may be omitted.
+    internal static bool IsVerifiedOwnChild(IntPtr own,IntPtr parent) {
+      try {
+        if(own==IntPtr.Zero||parent==IntPtr.Zero||!ChildIsWindow(own)||!ChildIsWindow(parent)||ChildGetParent(own)!=parent)return false;
+        uint process;if(GetWindowThreadProcessId(own,out process)==0||process!=(uint)Process.GetCurrentProcess().Id)return false;
+        long style=GetWindowLongPtr(own,-16).ToInt64();if((style&0x40000000L)==0||(style&0x80000000L)!=0)return false;
+        IntPtr childContext=ChildGetWindowDpiAwarenessContext(own),parentContext=ChildGetWindowDpiAwarenessContext(parent);
+        return childContext!=IntPtr.Zero&&parentContext!=IntPtr.Zero&&ChildAreDpiAwarenessContextsEqual(childContext,parentContext)&&GetDpiForWindow(own)>0&&GetDpiForWindow(own)==GetDpiForWindow(parent);
+      }catch{return false;}
+    }
+    internal static bool IsOwnNativeSubtree(IntPtr candidate,IntPtr own) {
+      try {
+        if(candidate==IntPtr.Zero||own==IntPtr.Zero||(candidate!=own&&!ChildIsChild(own,candidate)))return false;
+        uint actual,expected;return GetWindowThreadProcessId(own,out expected)!=0&&expected==(uint)Process.GetCurrentProcess().Id&&GetWindowThreadProcessId(candidate,out actual)!=0&&actual==expected;
+      }catch{return false;}
+    }
+    internal static bool IsOwnAutomationElement(AutomationElement element,IntPtr own,IntPtr parent) {
+      try {
+        if(element==null||!IsVerifiedOwnChild(own,parent))return false;
+        var cached=element.Cached;if(cached.ProcessId!=(int)Process.GetCurrentProcess().Id)return false;
+        int native=cached.NativeWindowHandle;
+        if(native!=0)return IsOwnNativeSubtree(new IntPtr(native),own);
+        // WPF text peers have no HWND. Only our process's virtual peers wholly
+        // inside the proven child are excluded. Foreign sibling native HWNDs
+        // remain in occupancy even if they share our PID or overlap its bounds.
+        Rect owner;if(!GetWindowRect(own,out owner))return false;var area=cached.BoundingRectangle;
+        return !area.IsEmpty&&area.Width>=0&&area.Height>=0&&area.Left>=owner.Left-0.5&&area.Top>=owner.Top-0.5&&area.Right<=owner.Right+0.5&&area.Bottom<=owner.Bottom+0.5;
       }catch{return false;}
     }
     internal static IntPtr? PlacementAnchor(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own,bool preserve,Func<IntPtr,bool> passive=null) {
@@ -296,12 +388,12 @@ namespace QuotaOverlay {
         return anchor;
       }catch{return null;}
     }
-    internal static string LeaseFingerprint(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own) {
-      return LeaseFingerprintCore(snapshot,footprint,own,CanDisplaySnapshot,TaskbarPassiveOverlay.IsPassiveCanvas,(uint)Process.GetCurrentProcess().Id);
+    internal static string LeaseFingerprint(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own,bool childMode=false) {
+      return LeaseFingerprintCore(snapshot,footprint,own,delegate(TaskbarSnapshot value,IntPtr window){return CanDisplaySnapshot(value,window,childMode);},TaskbarPassiveOverlay.IsPassiveCanvas,(uint)Process.GetCurrentProcess().Id,childMode);
     }
     // Testable native collector: the production entry always supplies the live
     // snapshot guard, protected passive-canvas identity and actual own PID.
-    internal static string LeaseFingerprintCore(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own,Func<TaskbarSnapshot,IntPtr,bool> canDisplay,Func<IntPtr,bool> passive,uint ownProcess) {
+    internal static string LeaseFingerprintCore(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own,Func<TaskbarSnapshot,IntPtr,bool> canDisplay,Func<IntPtr,bool> passive,uint ownProcess,bool childMode=false) {
       LastFingerprintReason="running";LastFingerprintParts=null;
       var shellRows=new List<string>();var childRows=new List<string>();var appRows=new List<string>();
       int childCount=0,appCount=0;object blocker=null;
@@ -318,6 +410,7 @@ namespace QuotaOverlay {
         if(snapshot==null)return finish("snapshot-missing");
         if(!TaskbarLayout.Valid(footprint))return finish("footprint-invalid");
         if(!canDisplay(snapshot,own))return finish("initial-native-unsafe");
+        if(childMode&&!IsVerifiedOwnChild(own,snapshot.Handle))return finish("own-child-unverified");
         uint shell;GetWindowThreadProcessId(snapshot.Handle,out shell);if(shell==0)return finish("shell-process-unavailable");
         bool safe=true,above=true;int count=0;
         string unsafeReason=null;
@@ -328,6 +421,7 @@ namespace QuotaOverlay {
         EnumChildWindows(snapshot.Handle,delegate(IntPtr child,IntPtr unused) {
           childCount=++count;
           if(count>512){safe=false;unsafeReason="child-window-limit";return false;}if(!IsWindowVisible(child))return true;
+          if(childMode&&IsOwnNativeSubtree(child,own))return true;
           uint process;GetWindowThreadProcessId(child,out process);Rect rect;
           if(process==0){safe=false;unsafeReason="child-process-unavailable";blocker=new {handle=child.ToInt64(),@class=ClassName(child)};return false;}
           if(!GetWindowRect(child,out rect)){safe=false;unsafeReason="child-bounds-unavailable";blocker=new {handle=child.ToInt64(),process=process,@class=ClassName(child)};return false;}
@@ -348,7 +442,7 @@ namespace QuotaOverlay {
           if(process==0){safe=false;unsafeReason="app-process-unavailable";blocker=new {handle=window.ToInt64(),@class=ClassName(window)};return false;}
           if(!WindowBounds(window,out rect)){safe=false;unsafeReason="app-bounds-unavailable";blocker=new {handle=window.ToInt64(),process=process,@class=ClassName(window)};return false;}
           TaskbarArea area=rect.Area();bool iconic=IsIconic(window);
-          if(above&&!iconic&&TaskbarLayout.Valid(area)&&Intersects(area,protectedFootprint)){
+          if(!childMode&&above&&!iconic&&TaskbarLayout.Valid(area)&&Intersects(area,protectedFootprint)){
             if(passive(window)&&TaskbarPassiveOverlay.IsAbove(window,own)&&TaskbarPassiveOverlay.IsAbove(own,snapshot.Handle)){
               // This layer is already outside occupied controls under the live
               // canvas > widget > taskbar proof. Its arrival or removal must not
@@ -376,9 +470,10 @@ namespace QuotaOverlay {
       }catch(Exception error){LastFingerprintReason="exception/"+error.GetType().Name;return null;}
     }
     static string LeaseArea(string key,TaskbarArea area) {return key+"|"+area.X.ToString("R",CultureInfo.InvariantCulture)+"|"+area.Y.ToString("R",CultureInfo.InvariantCulture)+"|"+area.Width.ToString("R",CultureInfo.InvariantCulture)+"|"+area.Height.ToString("R",CultureInfo.InvariantCulture);}
-    internal static TaskbarSnapshot ReadSnapshot(IntPtr own) {
+    internal static TaskbarSnapshot ReadSnapshot(IntPtr own,bool childMode=false) {
       var result=new TaskbarSnapshot();IntPtr taskbar=FindWindow("Shell_TrayWnd",null);result.Handle=taskbar;
-      Rect rectangle;if(taskbar==IntPtr.Zero||!GetWindowRect(taskbar,out rectangle)||!IsWindowVisible(taskbar)||Cloaked(taskbar))return result;
+      Rect rectangle;if(taskbar==IntPtr.Zero||!GetWindowRect(taskbar,out rectangle)||!IsWindowVisible(taskbar)||IsIconic(taskbar)||Cloaked(taskbar))return result;
+      if(childMode&&!IsVerifiedOwnChild(own,taskbar))return result;
       result.Bounds=rectangle.Area();uint dpi=GetDpiForWindow(taskbar);if(dpi==0)return result;result.Scale=dpi/96.0;
       IntPtr monitor=MonitorFromWindow(taskbar,MonitorNearest);var monitorInfo=new MonitorInfo{Size=Marshal.SizeOf(typeof(MonitorInfo))};if(!GetMonitorInfo(monitor,ref monitorInfo))return result;
       // Auto-hide enablement is not hidden state: a fully revealed bar can host the label safely.
@@ -387,12 +482,22 @@ namespace QuotaOverlay {
       // Only a complete revealed primary edge is supported; sliding/offscreen bars hide.
       if(!IsTaskbarFullyRevealed(result.Bounds,monitorInfo.Monitor.Area(),result.Scale))return result;
       result.Visible=true;
-      result.Fullscreen=Fullscreen(own,monitor,monitorInfo.Monitor);if(result.Fullscreen)return result;
+      result.Fullscreen=!childMode&&Fullscreen(own,monitor,monitorInfo.Monitor);if(result.Fullscreen)return result;
+      return CompleteSnapshot(result,own,childMode,delegate{return FindWindow("Shell_TrayWnd",null);});
+    }
+    // Production supplies a natively measured parent and the live shell resolver.
+    // Tests can supply their own offscreen parent and accessibility subtree;
+    // allocation never needs to query or modify the real taskbar in that case.
+    internal static TaskbarSnapshot CompleteSnapshot(TaskbarSnapshot result,IntPtr own,bool childMode,Func<IntPtr> currentTaskbar,Func<IntPtr,IList<IntPtr>,IList<TaskbarArea>,IList<AutomationElement>> readAutomation=null) {
+      if(result==null)return new TaskbarSnapshot();result.OccupancyKnown=false;
+      IntPtr taskbar=result.Handle;
+      if(!ParentSnapshotMatches(result,own,currentTaskbar(),childMode))return result;
+      if(result.Occupied==null)result.Occupied=new List<TaskbarArea>();
       uint explorer;GetWindowThreadProcessId(taskbar,out explorer);if(explorer==0)return result;
       bool consistent=true,startFound=false,trayFound=false;
       var automationRoots=new List<IntPtr>();
       uint ownProcess=(uint)Process.GetCurrentProcess().Id;
-      bool taskbarFound=ForEachWindowAbove(taskbar,delegate(IntPtr window) {
+      bool taskbarFound=childMode||ForEachWindowAbove(taskbar,delegate(IntPtr window) {
         if(window==own||!IsWindowVisible(window)||IsIconic(window)||Cloaked(window)||BackgroundClass(ClassName(window))||TaskbarTransient.IsCaptureWindow(window)||TaskbarTransient.IsMenuWindow(window))return;
         uint process;GetWindowThreadProcessId(window,out process);if(process==ownProcess)return;
         Rect bounds;if(!WindowBounds(window,out bounds)){consistent=false;return;}
@@ -403,6 +508,7 @@ namespace QuotaOverlay {
       });
       EnumChildWindows(taskbar,delegate(IntPtr child,IntPtr unused) {
         if(!IsWindowVisible(child))return true;
+        if(childMode&&IsOwnNativeSubtree(child,own))return true;
         uint process;GetWindowThreadProcessId(child,out process);string name=ClassName(child);
         Rect bounds;if(!GetWindowRect(child,out bounds)){consistent=false;return true;}
         TaskbarArea area=bounds.Area();if(!TaskbarLayout.Valid(area)||!Intersects(area,result.Bounds))return true;
@@ -412,10 +518,12 @@ namespace QuotaOverlay {
         if(ProtectNativeWindow(name,process==explorer,GetWindow(child,5)==IntPtr.Zero))result.Occupied.Add(area);
         return true;
       },IntPtr.Zero);
-      IList<AutomationElement> elements=ReadTaskbarAutomationElements(taskbar,automationRoots,result.Occupied);if(elements==null)return result;
+      if(readAutomation==null)readAutomation=delegate(IntPtr root,IList<IntPtr> children,IList<TaskbarArea> occupied){return ReadTaskbarAutomationElements(root,children,occupied);};
+      IList<AutomationElement> elements=readAutomation(taskbar,automationRoots,result.Occupied);if(elements==null)return result;
       if(elements.Count==0||elements.Count>4096)return result;
       for(int index=0;index<elements.Count;index++) {
         AutomationElement element=elements[index];var cached=element.Cached;
+        if(childMode&&IsOwnAutomationElement(element,own,taskbar))continue;
         // Explorer popup activation can mark real taskbar controls offscreen.
         // Their fresh valid rectangles still reserve space; only empty hidden
         // elements may be ignored, never visible buttons with usable bounds.
@@ -429,7 +537,7 @@ namespace QuotaOverlay {
         if(!structural||cached.ProcessId!=(int)explorer)result.Occupied.Add(area);
       }
       uint currentExplorer;GetWindowThreadProcessId(taskbar,out currentExplorer);
-      result.OccupancyKnown=consistent&&taskbarFound&&startFound&&trayFound&&currentExplorer==explorer&&FindWindow("Shell_TrayWnd",null)==taskbar;
+      result.OccupancyKnown=consistent&&taskbarFound&&startFound&&trayFound&&currentExplorer==explorer&&currentTaskbar()==taskbar&&ParentSnapshotMatches(result,own,taskbar,childMode);
       return result;
     }
     internal static IList<AutomationElement> ReadTaskbarAutomationElements(IntPtr taskbar,IList<IntPtr> children,IList<TaskbarArea> occupied,Func<IntPtr,AutomationElementCollection> read=null) {
@@ -462,13 +570,18 @@ namespace QuotaOverlay {
       // The root must retain a live provider handle; only returned descendants are cache-only objects.
       var root=AutomationElement.FromHandle(window);if(root==null)return null;
       var request=new CacheRequest();request.TreeFilter=Automation.RawViewCondition;request.AutomationElementMode=AutomationElementMode.None;
-      foreach(AutomationProperty property in new[]{AutomationElement.BoundingRectangleProperty,AutomationElement.IsOffscreenProperty,AutomationElement.AutomationIdProperty,AutomationElement.ControlTypeProperty,AutomationElement.ProcessIdProperty})request.Add(property);
+      foreach(AutomationProperty property in new[]{AutomationElement.BoundingRectangleProperty,AutomationElement.IsOffscreenProperty,AutomationElement.AutomationIdProperty,AutomationElement.ControlTypeProperty,AutomationElement.ProcessIdProperty,AutomationElement.NativeWindowHandleProperty})request.Add(property);
       using(request.Activate())return root.FindAll(TreeScope.Descendants,System.Windows.Automation.Condition.TrueCondition);
     }
     [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern IntPtr FindWindow(string className,string name);
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window,out Rect rectangle);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
     [DllImport("user32.dll")] static extern bool IsIconic(IntPtr window);
+    [DllImport("user32.dll",EntryPoint="IsWindow")] static extern bool ChildIsWindow(IntPtr window);
+    [DllImport("user32.dll",EntryPoint="GetParent")] static extern IntPtr ChildGetParent(IntPtr window);
+    [DllImport("user32.dll",EntryPoint="IsChild")] static extern bool ChildIsChild(IntPtr parent,IntPtr window);
+    [DllImport("user32.dll",EntryPoint="GetWindowDpiAwarenessContext")] static extern IntPtr ChildGetWindowDpiAwarenessContext(IntPtr window);
+    [DllImport("user32.dll",EntryPoint="AreDpiAwarenessContextsEqual")] static extern bool ChildAreDpiAwarenessContextsEqual(IntPtr left,IntPtr right);
     [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr window);
     [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr window);
     [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr window,uint flags);

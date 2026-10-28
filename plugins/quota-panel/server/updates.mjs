@@ -1,4 +1,4 @@
-export const CURRENT_VERSION='1.2.1-beta.2';
+export const CURRENT_VERSION='1.2.1-beta.3';
 export const RELEASE_ORIGIN='https://github.com/MrBogomoll/quota-panel-chatgpt';
 // Repository names can change. The verified public repository ID stays stable.
 const endpoint='https://api.github.com/repositories/1433486830/releases/latest';

@@ -1,6 +1,6 @@
 # Quota Panel
 
-Private preview **1.2.1-beta.2**: a targeted fix for taskbar placement after a borderless game leaves a passive NVIDIA Overlay canvas on screen. Actual game transitions are still being verified. The prepared 1.2.0 archive is unchanged.
+Private preview **1.2.1-beta.3**: native child attachment to the taskbar, matching the observed NetWorx host model. The parent controls stacking and visibility; actual game and menu transitions are still being verified. The prepared 1.2.0 archive is unchanged.
 
 [Русская документация](README.md)
 

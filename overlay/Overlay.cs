@@ -227,8 +227,7 @@ namespace QuotaOverlay {
       Closed+=delegate {
         closing=true;if(optionsMenu!=null)optionsMenu.IsOpen=false;
         if(updateDialog!=null)updateDialog.Close();
-        if(taskbarMenuDismiss!=null)taskbarMenuDismiss.Dispose();
-        if(taskbarWindow!=null)taskbarWindow.Dispose();
+        DisposeTaskbarView();
         if(menuDismiss!=null)menuDismiss.Dispose();StopTracking();
         if(stopWait!=null)stopWait.Unregister(null);if(stopEvent!=null)stopEvent.Dispose();
         tray.Visible=false;tray.Dispose();Command("exit");
@@ -399,8 +398,22 @@ namespace QuotaOverlay {
       finally{syncingTransparency=false;}
     }
     string TaskbarSideKey(bool last) {return taskbarWindow!=null&&taskbarWindow.IsVertical?(last?"taskbarBottom":"taskbarTop"):(last?"taskbarRight":"taskbarLeft");}
+    void DisposeTaskbarView() {
+      var previousWindow=taskbarWindow;var previousMenu=taskbarMenu;var previousWatcher=taskbarMenuDismiss;
+      // Retired popup callbacks must never operate on a replacement's observer.
+      taskbarWindow=null;taskbarMenu=null;taskbarMenuDismiss=null;transparencySlider=null;transparencyLabel=null;
+      if(previousWatcher!=null)previousWatcher.Dispose();
+      if(previousMenu!=null)previousMenu.IsOpen=false;
+      if(previousWindow!=null){previousWindow.ContextMenu=null;previousWindow.Dispose();}
+    }
     void SyncTaskbar() {
       if(closing)return;
+      if(taskbarWindow!=null&&taskbarWindow.NeedsRecreation) {
+        // Native attachment and menu construction belong to ordinary tracking,
+        // never to the frame-rate main-panel movement path.
+        if(MotionActive())return;
+        DisposeTaskbarView();
+      }
       if(taskbarWindow==null&&taskbarEnabled) {
         taskbarWindow=new TaskbarWindow(taskbarSnapshotReader);
         taskbarWindow.IsOtherMenuOpen=delegate {return optionsMenu.IsOpen||(tray.ContextMenuStrip!=null&&tray.ContextMenuStrip.Visible);};
@@ -416,9 +429,11 @@ namespace QuotaOverlay {
         var transparencyItem=new MenuItem {Header=transparencyContent,StaysOpenOnClick=true};
         var stop=Menu("stop");stop.Click+=delegate {Close();};
         taskbarMenu.Items.Add(enabled);taskbarMenu.Items.Add(left);taskbarMenu.Items.Add(right);taskbarMenu.Items.Add(new Separator());taskbarMenu.Items.Add(transparencyItem);taskbarMenu.Items.Add(new Separator());taskbarMenu.Items.Add(stop);
-        taskbarMenuDismiss=new MenuDismissWatcher(Dispatcher,delegate{return !closing&&taskbarMenu.IsOpen;},delegate{taskbarMenu.IsOpen=false;},null);
-        taskbarMenu.Opened+=delegate {TranslateMenu(taskbarMenu);left.Header=T(TaskbarSideKey(false));right.Header=T(TaskbarSideKey(true));SyncTransparencyControl();enabled.IsChecked=taskbarEnabled;left.IsChecked=taskbarSide=="left";right.IsChecked=taskbarSide=="right";taskbarMenuDismiss.Start();};
-        taskbarMenu.Closed+=delegate {taskbarMenuDismiss.Stop();};taskbarWindow.ContextMenu=taskbarMenu;
+        var createdMenu=taskbarMenu;
+        var createdWatcher=new MenuDismissWatcher(Dispatcher,delegate{return !closing&&Object.ReferenceEquals(taskbarMenu,createdMenu)&&createdMenu.IsOpen;},delegate{createdMenu.IsOpen=false;},null);
+        taskbarMenuDismiss=createdWatcher;
+        createdMenu.Opened+=delegate {if(closing||!Object.ReferenceEquals(taskbarMenu,createdMenu))return;TranslateMenu(createdMenu);left.Header=T(TaskbarSideKey(false));right.Header=T(TaskbarSideKey(true));SyncTransparencyControl();enabled.IsChecked=taskbarEnabled;left.IsChecked=taskbarSide=="left";right.IsChecked=taskbarSide=="right";createdWatcher.Start();};
+        createdMenu.Closed+=delegate {createdWatcher.Stop();};taskbarWindow.ContextMenu=createdMenu;
       }
       if(taskbarWindow==null)return;
       taskbarWindow.Configure(taskbarEnabled&&!paused,taskbarSide,palette,backgroundTransparency);SyncTransparencyControl();
@@ -752,6 +767,7 @@ namespace QuotaOverlay {
       if(closing||hwnd==IntPtr.Zero)return;
       // Discovery, theme reads, previews and diagnostics stay off the drag path.
       if(MotionActive()){SyncTargetFrame();return;}
+      if((taskbarWindow!=null&&taskbarWindow.NeedsRecreation)||(taskbarEnabled&&taskbarWindow==null))SyncTaskbar();
       RefreshTheme(false);
       IntPtr foreground=Native.GetForegroundWindow();
       IntPtr root=Native.GetAncestor(foreground,3);
