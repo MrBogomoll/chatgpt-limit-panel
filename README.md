@@ -6,11 +6,16 @@
 
 Панель оставшихся лимитов Codex / Work для настольного ChatGPT в Windows. Показывает проценты и время сброса в боковой полосе приложения, а по желанию — два процента на панели задач Windows. В Instant отображается тот же общий счётчик Codex / Work.
 
-**[Скачать ChatGPT Limit Panel 1.3.0 для Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.3.0/chatgpt-limit-panel-1.3.0-windows-x64.zip)** · [Все релизы](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Обновление установленной панели](UPGRADING.md)
+**[Скачать ChatGPT Limit Panel 1.3.1 для Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.3.1/chatgpt-limit-panel-1.3.1-windows-x64.zip)** · [Все релизы](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Обновление установленной панели](UPGRADING.md)
 
-Выбирай готовый ZIP **chatgpt-limit-panel-1.3.0-windows-x64.zip** в Assets. В него входят программы панели, Node.js и лицензия. Git и отдельная установка Node.js не требуются. Автоматические архивы GitHub **Source code** содержат материалы репозитория.
+Выбирай готовый ZIP **chatgpt-limit-panel-1.3.1-windows-x64.zip** в Assets. В него входят программы панели, Node.js и лицензия. Git и отдельная установка Node.js не требуются. Автоматические архивы GitHub **Source code** содержат материалы репозитория.
 
-## Новое в 1.3.0
+## Исправлено в 1.3.1
+
+- Исправлено название MCP-сервера в настройках плагина: `chatgpt-limit-panel`.
+- Обновлены английские подписи управления панелью.
+
+## Возможности, добавленные в 1.3.0
 
 - Отдельно включаемый индикатор панели задач: 5-часовой остаток сверху, недельный снизу; выбор размещения слева или справа.
 - Стабильное прикрепление к панели задач при переключении между ChatGPT и играми, открытии «Пуска» и меню Start11.
@@ -73,10 +78,10 @@
 
 ## Контрольная сумма и данные
 
-[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.3.0/chatgpt-limit-panel-1.3.0-windows-x64.zip.sha256):
+[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.3.1/chatgpt-limit-panel-1.3.1-windows-x64.zip.sha256):
 
 ```text
-1539975c672262a8815f488140fa32aeffd430e1b73cbd39c3173a26f692d398
+346298a90d0495789341211602bc3fe462783ea0f5eb6bf4cf2b75e283fb5851
 ```
 
 Используется собственная локальная авторизация Codex. Данные входа автора, его переписка и настройки аккаунта в архив не входят. Клиент ChatGPT не изменяется. ChatGPT Limit Panel — независимый проект, не официальный продукт OpenAI.
