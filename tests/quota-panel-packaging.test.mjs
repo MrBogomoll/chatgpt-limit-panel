@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { isAbsolute, join, resolve } from 'node:path';
 
-const root = new URL('../plugins/quota-panel/', import.meta.url);
+const root = new URL('../plugins/chatgpt-limit-panel/', import.meta.url);
 const json = async name => JSON.parse(await readFile(new URL(name, root), 'utf8'));
 
 test('portable and compatibility manifests resolve the same local server without author profile paths', async () => {

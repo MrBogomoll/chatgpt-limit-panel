@@ -1,4 +1,4 @@
-import { normalizeQuota, STALE_AFTER_MS } from '../plugins/quota-chips/server/quota.mjs';
+import { normalizeQuota, STALE_AFTER_MS } from '../plugins/chatgpt-limit-panel/server/quota.mjs';
 
 export function overlayView(snapshot, { now = Date.now(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone } = {}) {
   snapshot ??= normalizeQuota(null, now);

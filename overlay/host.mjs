@@ -4,10 +4,10 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { RateLimitReader } from '../plugins/quota-chips/server/reader.mjs';
-import { normalizeQuota } from '../plugins/quota-chips/server/quota.mjs';
+import { RateLimitReader } from '../plugins/chatgpt-limit-panel/server/reader.mjs';
+import { normalizeQuota } from '../plugins/chatgpt-limit-panel/server/quota.mjs';
 import { overlayView } from './model.mjs';
-import {createUpdateChecker,CURRENT_VERSION} from '../plugins/quota-panel/server/updates.mjs';
+import {createUpdateChecker,CURRENT_VERSION} from '../plugins/chatgpt-limit-panel/server/updates.mjs';
 
 const executablePath = fileURLToPath(new URL('../dist/overlay/QuotaOverlay.exe', import.meta.url));
 const defaultStatePath = () => join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ChatGPTQuotaOverlay', 'state.json');

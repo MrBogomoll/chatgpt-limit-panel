@@ -10,10 +10,10 @@ const payloadFiles = [
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
   'assets/quota.svg', 'assets/quota.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
-  'plugins/quota-chips/server/reader.mjs', 'plugins/quota-chips/server/quota.mjs',
+  'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/quota.mjs',
   'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe', 'dist/overlay/runtime.json',
   'runtime/node.exe', 'runtime/NODE-LICENSE.txt',
-  'server/updates.mjs','plugins/quota-panel/server/updates.mjs',
+  'server/updates.mjs','plugins/chatgpt-limit-panel/server/updates.mjs',
 ];
 
 /** Install a complete release through the native Codex plugin commands. */
@@ -38,7 +38,7 @@ export function installPlugin({
   const sources = path.join(home, 'plugins', 'local-sources');
   mkdirSync(sources, { recursive: true });
   const marketplaceRoot = mkdtempSync(path.join(sources, 'quota-panel-'));
-  const sourcePath = path.join(marketplaceRoot, 'plugins', 'quota-panel');
+  const sourcePath = path.join(marketplaceRoot, 'plugins', 'chatgpt-limit-panel');
   for (const relative of payloadFiles) {
     const destination = path.join(sourcePath, relative);
     mkdirSync(path.dirname(destination), { recursive: true });
@@ -49,7 +49,7 @@ export function installPlugin({
   writeFileSync(catalogPath, JSON.stringify({
     name: marketplaceName,
     interface: { displayName: 'ChatGPT Limit Panel' },
-    plugins: [{ name: 'quota-panel', source: { source: 'local', path: './plugins/quota-panel' },
+    plugins: [{ name: 'quota-panel', source: { source: 'local', path: './plugins/chatgpt-limit-panel' },
       policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' }, category: 'Productivity' }],
   }, null, 2) + '\n', { flag: 'wx' });
 

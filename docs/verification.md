@@ -692,3 +692,27 @@ fab6fc7eb25ce63b7bd9c182fb713c2f26de9096b4435b801071045bea60450d.
 Public README download links match canonical existing release assets; no new public
 release or replacement of an old archive was performed. Root migration and repository
 audit files preserve exact before/after identity and preferences evidence.
+
+## Canonical source folders (2026-10-28)
+
+User pointed out old folder names in GitHub/plugins after display/repository rename.
+Moved plugins/quota-panel to plugins/chatgpt-limit-panel and consolidated the two
+remaining quota-chips backend modules into its server directory. plugins now has
+one actual plugin directory; no legacy source directory remains. All current host,
+model, installer, packaging, README and test imports reference the canonical folder.
+Historical verification/research notes retain their original paths as dated evidence.
+
+Existing reader/quota/manifest tests first failed against the new missing source
+paths, then passed after the moves. The affected JavaScript suite passed69/69 with
+zero skips: backend reader/normalization, host lifecycle, UI/MCP, model, installer and
+packaging. Staging the real production payload also passed: all24 files present,
+packaged host relative imports resolve, MCP initialize/tools returns the unchanged
+quota-panel identity, ChatGPT Limit Panel title and5tools. No old plugin directory
+is present in the new staging payload. Root artifacts: source-folder-rename-
+verification.txt and source-folder-stage-verification.json.
+
+This is source organization for subsequent builds. Installed1.2.1-beta.5, physical
+settings, autostart, existing releases and immutable archives were left untouched;
+no new archive or release was produced and no native renderer logic changed.
+The next distributable build must receive its own version instead of replacing a
+previous beta5 ZIP. Public release repository content required no further changes.

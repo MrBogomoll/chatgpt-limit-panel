@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
-const api = await import('../plugins/quota-panel/server/ui.mjs').catch(() => ({}));
+const api = await import('../plugins/chatgpt-limit-panel/server/ui.mjs').catch(() => ({}));
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 

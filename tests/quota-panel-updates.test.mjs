@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-const api=await import('../plugins/quota-panel/server/updates.mjs').catch(()=>({}));
+const api=await import('../plugins/chatgpt-limit-panel/server/updates.mjs').catch(()=>({}));
 const origin='https://github.com/MrBogomoll/chatgpt-limit-panel';
 function release(version='1.2.0',slug='chatgpt-limit-panel') {const base='https://github.com/MrBogomoll/'+slug;return {id:99,url:'https://api.github.com/repos/MrBogomoll/'+slug+'/releases/99',tag_name:'v'+version,draft:false,prerelease:false,html_url:base+'/releases/tag/v'+version,assets:[{name:`quota-panel-${version}-windows-x64.zip`,state:'uploaded',size:123,browser_download_url:base+`/releases/download/v${version}/quota-panel-${version}-windows-x64.zip`}]};}
 const reply=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers});
@@ -72,7 +72,7 @@ test('immutable repository identity accepts canonical renamed releases while mis
   for(const modify of [x=>x.url=x.url.replace('MrBogomoll','attacker'),x=>x.url=x.url.replace('/99','/100'),x=>x.html_url=x.html_url.replace('MrBogomoll','attacker')]){const data=release();modify(data);const result=await checker({fetchImpl:async()=>reply(data)}).check();assert.equal(result.state,'error');assert.equal(result.url,null);}
 });
 test('MCP update tool works without starting or contacting the monitor and uses the selected language',async()=>{
-  const {createMcpHandler}=await import('../plugins/quota-panel/server/mcp.mjs');let calls=0;
+  const {createMcpHandler}=await import('../plugins/chatgpt-limit-panel/server/mcp.mjs');let calls=0;
   const handle=createMcpHandler({controller:new Proxy({},{get(){throw new Error('monitor lifecycle must not run');}}),getLanguage:()=> 'en',updateChecker:{check:async()=>{calls++;return {state:'available',currentVersion:'1.1.0',latestVersion:'1.2.0',url:origin+'/releases/tag/v1.2.0'};}},readUi:async()=>''});
   const list=(await handle({id:1,method:'tools/list'})).result.tools;const tool=list.find(x=>x.name==='check_quota_panel_updates');assert(tool);assert.equal(tool.annotations.readOnlyHint,true);assert.equal(tool.annotations.openWorldHint,true);
   const result=(await handle({id:2,method:'tools/call',params:{name:tool.name,arguments:{}}})).result;

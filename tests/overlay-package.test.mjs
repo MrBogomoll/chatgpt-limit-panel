@@ -12,11 +12,11 @@ const allowedFiles = [
   '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'assets/quota.svg', 'assets/quota.png',
   'dist/overlay/QuotaMonitor.exe', 'dist/overlay/QuotaOverlay.exe', 'dist/overlay/runtime.json',
   'mcp.json', 'overlay/host.mjs', 'overlay/model.mjs',
-  'plugins/quota-chips/server/quota.mjs', 'plugins/quota-chips/server/reader.mjs',
+  'plugins/chatgpt-limit-panel/server/quota.mjs', 'plugins/chatgpt-limit-panel/server/reader.mjs',
   'runtime/NODE-LICENSE.txt', 'runtime/node.exe',
   'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs', 'server/ui.mjs', 'server/language.mjs',
   'ui/control.html', 'ui/control.mjs',
-  'server/updates.mjs','plugins/quota-panel/server/updates.mjs',
+  'server/updates.mjs','plugins/chatgpt-limit-panel/server/updates.mjs',
 ].sort();
 
 async function fixtureBundle(t) {
@@ -30,24 +30,24 @@ async function fixtureBundle(t) {
   }
   for (const relative of allowedFiles) {
     if (relative.startsWith('runtime/') || relative.endsWith('/runtime.json')) continue;
-    const original = /^(overlay\/|plugins\/quota-chips\/|plugins\/quota-panel\/server\/updates\.mjs|dist\/overlay\/)/.test(relative)
-      ? relative : 'plugins/quota-panel/' + relative;
+    const original = /^(overlay\/|plugins\/chatgpt-limit-panel\/server\/(?:updates|reader|quota)\.mjs|dist\/overlay\/)/.test(relative)
+      ? relative : 'plugins/chatgpt-limit-panel/' + relative;
     await put(original, `fixture ${original}\n`);
   }
   const manifest = { name: 'quota-panel', version, mcpServers: './mcp.json', interface: { logo: './assets/quota.svg' } };
-  await put('plugins/quota-panel/plugin.json', JSON.stringify(manifest));
-  await put('plugins/quota-panel/.codex-plugin/plugin.json', JSON.stringify({ ...manifest, mcpServers: './.mcp.json' }));
-  await put('plugins/quota-panel/mcp.json', JSON.stringify({ mcpServers: { quota_panel: {
+  await put('plugins/chatgpt-limit-panel/plugin.json', JSON.stringify(manifest));
+  await put('plugins/chatgpt-limit-panel/.codex-plugin/plugin.json', JSON.stringify({ ...manifest, mcpServers: './.mcp.json' }));
+  await put('plugins/chatgpt-limit-panel/mcp.json', JSON.stringify({ mcpServers: { quota_panel: {
     command: '${PLUGIN_ROOT}/runtime/node.exe', args: ['${PLUGIN_ROOT}/server/index.mjs'], cwd: '${PLUGIN_ROOT}',
   } } }));
-  await put('plugins/quota-panel/.mcp.json', JSON.stringify({ mcpServers: { quota_panel: {
+  await put('plugins/chatgpt-limit-panel/.mcp.json', JSON.stringify({ mcpServers: { quota_panel: {
     command: './runtime/node.exe', args: ['./server/index.mjs'], cwd: '.',
   } } }));
-  await put('overlay/host.mjs', "import '../plugins/quota-chips/server/reader.mjs';\n");
+  await put('overlay/host.mjs', "import '../plugins/chatgpt-limit-panel/server/reader.mjs';\n");
   await put('dist/overlay/runtime.json', JSON.stringify({ node: 'C:/Users/author/node.exe', host: 'C:/Users/author/host.mjs' }));
   for (const relative of ['auth.json', 'config.toml', 'state.json', 'settings.json', 'panel.png',
-    'old-client/app.asar', 'tests/private-fixture.json', 'plugins/quota-panel/tests/private-fixture.json',
-    'plugins/quota-panel/assets/screenshot.png', '.git/config', 'dist/overlay/layout-test.exe']) {
+    'old-client/app.asar', 'tests/private-fixture.json', 'plugins/chatgpt-limit-panel/tests/private-fixture.json',
+    'plugins/chatgpt-limit-panel/assets/screenshot.png', '.git/config', 'dist/overlay/layout-test.exe']) {
     await put(relative, 'PRIVATE-DO-NOT-PACKAGE');
   }
   const nodePath = path.join(directory, 'fixture-node.exe');
@@ -74,7 +74,7 @@ test('beta staging copies only the uploadable plugin and its explicit runtime de
   assert.deepEqual(await filesUnder(result.stagePath), allowedFiles);
   assert.equal(await readFile(path.join(result.stagePath, 'runtime/node.exe'), 'utf8'), 'MZ fixture bundled Node runtime');
   assert.equal(await readFile(path.join(result.stagePath, 'runtime/NODE-LICENSE.txt'), 'utf8'), 'Node.js fixture license text');
-  assert.equal(await readFile(path.join(result.stagePath, 'overlay/host.mjs'), 'utf8'), "import '../plugins/quota-chips/server/reader.mjs';\n");
+  assert.equal(await readFile(path.join(result.stagePath, 'overlay/host.mjs'), 'utf8'), "import '../plugins/chatgpt-limit-panel/server/reader.mjs';\n");
 });
 
 test('beta staging replaces local runtime paths with relative bundled paths and automatic Codex discovery', async t => {
@@ -112,14 +112,14 @@ test('beta staging rejects a missing license before creating an incomplete packa
 test('beta staging rejects a source manifest with a mismatched version', async t => {
   assert.equal(typeof api.stagePluginBundle, 'function');
   const fixture = await fixtureBundle(t);
-  await fixture.put('plugins/quota-panel/plugin.json', JSON.stringify({ name: 'quota-panel', version: '2.0.0' }));
+  await fixture.put('plugins/chatgpt-limit-panel/plugin.json', JSON.stringify({ name: 'quota-panel', version: '2.0.0' }));
   assert.throws(() => api.stagePluginBundle(fixture), /version|beta/i);
 });
 
 test('beta staging rejects source manifests that would leak author-specific absolute paths', async t => {
   assert.equal(typeof api.stagePluginBundle, 'function');
   const fixture = await fixtureBundle(t);
-  await fixture.put('plugins/quota-panel/mcp.json', JSON.stringify({ mcpServers: { quota_panel: { command: 'C:/Users/author/node.exe' } } }));
+  await fixture.put('plugins/chatgpt-limit-panel/mcp.json', JSON.stringify({ mcpServers: { quota_panel: { command: 'C:/Users/author/node.exe' } } }));
   assert.throws(() => api.stagePluginBundle(fixture), /absolute|portable/i);
 });
 

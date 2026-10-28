@@ -16,8 +16,8 @@ const pluginFiles = [
 ];
 const dependencyFiles = [
   'overlay/host.mjs', 'overlay/model.mjs',
-  'plugins/quota-panel/server/updates.mjs',
-  'plugins/quota-chips/server/reader.mjs', 'plugins/quota-chips/server/quota.mjs',
+  'plugins/chatgpt-limit-panel/server/updates.mjs',
+  'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/quota.mjs',
   'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe',
 ];
 
@@ -47,14 +47,14 @@ export function stagePluginBundle({
   const root = path.resolve(sourceRoot);
   const output = path.resolve(outputDir);
   const files = [
-    ...pluginFiles.map(relative => ({ source: path.join(root, 'plugins', 'quota-panel', relative), destination: relative })),
+    ...pluginFiles.map(relative => ({ source: path.join(root, 'plugins', 'chatgpt-limit-panel', relative), destination: relative })),
     ...dependencyFiles.map(relative => ({ source: path.join(root, relative), destination: relative })),
     { source: path.resolve(nodePath), destination: 'runtime/node.exe' },
     { source: path.resolve(nodeLicensePath), destination: 'runtime/NODE-LICENSE.txt' },
   ];
   for (const file of files) requireFile(file.source, file.destination);
   for (const relative of ['plugin.json', '.codex-plugin/plugin.json', 'mcp.json', '.mcp.json']) {
-    const filename = path.join(root, 'plugins', 'quota-panel', relative);
+    const filename = path.join(root, 'plugins', 'chatgpt-limit-panel', relative);
     const manifest = JSON.parse(readFileSync(filename, 'utf8').replace(/^\uFEFF/, ''));
     requirePortableJson(manifest, relative);
     if (relative.endsWith('plugin.json') && (manifest.name !== 'quota-panel' || manifest.version !== version)) {

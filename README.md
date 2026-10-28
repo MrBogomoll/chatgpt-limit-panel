@@ -4,7 +4,7 @@
 
 [English documentation](README.en.md)
 
-<img src="plugins/quota-panel/assets/quota.svg" width="80" height="80" alt="ChatGPT Limit Panel">
+<img src="plugins/chatgpt-limit-panel/assets/quota.svg" width="80" height="80" alt="ChatGPT Limit Panel">
 
 Панель остатка лимитов Codex / Work для Windows x64. Обычная панель располагается над аватаркой в левой навигационной полосе настольного ChatGPT. Дополнительный индикатор показывает два процента на панели задач Windows. Оба используют один общий счётчик аккаунта.
 

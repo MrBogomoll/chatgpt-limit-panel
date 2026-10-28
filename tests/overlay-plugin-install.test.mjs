@@ -9,10 +9,10 @@ const payloadFiles = [
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
   'assets/quota.svg', 'assets/quota.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
-  'plugins/quota-chips/server/reader.mjs', 'plugins/quota-chips/server/quota.mjs',
+  'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/quota.mjs',
   'dist/overlay/QuotaOverlay.exe', 'dist/overlay/QuotaMonitor.exe', 'dist/overlay/runtime.json',
   'runtime/node.exe', 'runtime/NODE-LICENSE.txt',
-  'server/updates.mjs','plugins/quota-panel/server/updates.mjs',
+  'server/updates.mjs','plugins/chatgpt-limit-panel/server/updates.mjs',
 ];
 
 async function fixture(t, installed = true) {
@@ -40,8 +40,8 @@ if(args[0] !== 'plugin') process.exit(11);
 if(args[1] === 'marketplace') {
   if(args[2] !== 'add' || args[4] !== '--json') process.exit(12);
   const catalog = JSON.parse(fs.readFileSync(path.join(args[3],'.agents/plugins/marketplace.json'),'utf8'));
-  if(catalog.name !== 'quota-panel-local' || catalog.plugins[0].name !== 'quota-panel' || catalog.plugins[0].source.path !== './plugins/quota-panel') process.exit(13);
-  if(!fs.existsSync(path.join(args[3],'plugins/quota-panel/runtime/node.exe'))) process.exit(14);
+  if(catalog.name !== 'quota-panel-local' || catalog.plugins[0].name !== 'quota-panel' || catalog.plugins[0].source.path !== './plugins/chatgpt-limit-panel') process.exit(13);
+  if(!fs.existsSync(path.join(args[3],'plugins/chatgpt-limit-panel/runtime/node.exe'))) process.exit(14);
   console.log(JSON.stringify({name:catalog.name}));
 } else if(args[1] === 'add') {
   if(args[2] !== 'quota-panel@quota-panel-local' || args[3] !== '--json') process.exit(15);

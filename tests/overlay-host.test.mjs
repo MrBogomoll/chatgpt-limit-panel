@@ -6,7 +6,7 @@ import { join, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
-import { RateLimitReader } from '../plugins/quota-chips/server/reader.mjs';
+import { RateLimitReader } from '../plugins/chatgpt-limit-panel/server/reader.mjs';
 
 const api = await import('../overlay/host.mjs').catch(() => ({}));
 const fixture = fileURLToPath(new URL('./fixtures/overlay-gui.cjs', import.meta.url));

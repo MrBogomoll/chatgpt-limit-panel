@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-const api = await import('../plugins/quota-chips/server/reader.mjs').catch(() => ({}));
+const api = await import('../plugins/chatgpt-limit-panel/server/reader.mjs').catch(() => ({}));
 const fixture = fileURLToPath(new URL('./fixtures/quota-app-server.cjs', import.meta.url));
 
 test('reader initializes a subprocess and reads the actual JSON-RPC response', async () => {

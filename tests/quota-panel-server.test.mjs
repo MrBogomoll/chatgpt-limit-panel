@@ -7,14 +7,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const controllerApi = await import('../plugins/quota-panel/server/overlay-controller.mjs').catch(() => ({}));
-const mcpApi = await import('../plugins/quota-panel/server/mcp.mjs').catch(() => ({}));
-const languageApi = await import('../plugins/quota-panel/server/language.mjs').catch(() => ({}));
+const controllerApi = await import('../plugins/chatgpt-limit-panel/server/overlay-controller.mjs').catch(() => ({}));
+const mcpApi = await import('../plugins/chatgpt-limit-panel/server/mcp.mjs').catch(() => ({}));
+const languageApi = await import('../plugins/chatgpt-limit-panel/server/language.mjs').catch(() => ({}));
 
 test('a changed control card receives a new cache address while existing addresses keep their exact bundle', async t => {
   const directory=await mkdtemp(join(tmpdir(),'quota-ui-cache-'));t.after(()=>rm(directory,{recursive:true,force:true}));
   await mkdir(join(directory,'server'));await mkdir(join(directory,'ui'));
-  await copyFile(new URL('../plugins/quota-panel/server/ui.mjs',import.meta.url),join(directory,'server/ui.mjs'));
+  await copyFile(new URL('../plugins/chatgpt-limit-panel/server/ui.mjs',import.meta.url),join(directory,'server/ui.mjs'));
   await writeFile(join(directory,'ui/control.html'),'<html lang="ru"><script>/* QUOTA_PANEL_BUNDLE */</script></html>');
   await writeFile(join(directory,'ui/control.mjs'),'// first card');
   const moduleUrl=pathToFileURL(join(directory,'server/ui.mjs')).href;
@@ -164,7 +164,7 @@ test('MCP routes lifecycle tools to the actual controller and rejects unknown re
 });
 
 test('stdio entrypoint serves MCP resources and closes after EOF without lifecycle mutations', async () => {
-  const entrypoint = fileURLToPath(new URL('../plugins/quota-panel/server/index.mjs', import.meta.url));
+  const entrypoint = fileURLToPath(new URL('../plugins/chatgpt-limit-panel/server/index.mjs', import.meta.url));
   const child = spawn(process.execPath, [entrypoint], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let output = '', diagnostics = '';
   child.stdout.setEncoding('utf8'); child.stdout.on('data', value => { output += value; });
