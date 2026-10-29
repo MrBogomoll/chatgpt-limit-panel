@@ -144,7 +144,7 @@ refreshButton.addEventListener('click', () => call('get_quota_overlay_status'));
 window.addEventListener('pagehide', dispose, { once: true });
 
 try {
-  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'chatgpt-limit-panel', version: '1.4.4-beta.5' }, appCapabilities: {} });
+  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'chatgpt-limit-panel', version: '1.4.4-beta.6' }, appCapabilities: {} });
   if (!disposed) {
     applyHostContext(result?.hostContext); connected = true;
     window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized' }, '*');

@@ -55,6 +55,8 @@ internal static class ChildReaderTest {
     Check(Fingerprint(sample,footprint,own,false)==null,"legacy overlay still rejects a covering top-level window");
     IntPtr widget=Window(bar,20,2,40,40);
     string before=Fingerprint(sample,footprint,own,true);Check(before!=null&&before!=baseline,"another taskbar child remains in evidence even with the same process ID");
+    ShowWindow(widget,0);Check(Fingerprint(sample,footprint,own,true)==before,"auto-hide visibility changes do not remove a still-existing child from the native layout proof");
+    ShowWindow(widget,8);Check(Fingerprint(sample,footprint,own,true)==before,"revealing an unchanged child preserves its native proof");
     Check(SetWindowPos(bar,IntPtr.Zero,-27000,-26960,600,48,0x0014),"slide only the own taskbar fixture");
     sample.Bounds=Area(bar);footprint=Area(own);
     Check(Fingerprint(sample,footprint,own,true)==before,"moving parent and sibling widgets together preserves local native evidence");
@@ -71,7 +73,8 @@ internal static class ChildReaderTest {
     string moved=Fingerprint(sample,footprint,own,true);Check(moved!=null&&moved!=before,"changed native widget geometry revokes old retention evidence");
     Check(SetWindowPos(widget,IntPtr.Zero,430,2,40,40,0x0014),"move only own widget fixture into the protected footprint");
     Check(Fingerprint(sample,footprint,own,true)==null&&TaskbarNative.LastFingerprintReason=="protected-child-overlap","an overlapping sibling widget must not be exempted by shared PID");
-    ShowWindow(widget,0);Check(Fingerprint(sample,footprint,own,true)==baseline,"removing the conflicting native widget restores complete evidence");
+    ShowWindow(widget,0);Check(Fingerprint(sample,footprint,own,true)!=null,"a hidden widget no longer obstructs the slot but remains in native layout evidence");
+    ShowWindow(widget,8);Check(Fingerprint(sample,footprint,own,true)==null,"revealing a widget in the retained slot immediately rejects overlap");ShowWindow(widget,0);
     Check(TaskbarNative.IsVerifiedOwnChild(own,bar)&&TaskbarNative.IsOwnNativeSubtree(text,own),"only our actual direct child and same-process descendants prove ownership");
     Check(!TaskbarNative.IsOwnNativeSubtree(widget,own)&&!TaskbarNative.IsVerifiedOwnChild(cover,bar),"same-process sibling and unattached top-level windows cannot borrow ownership");
     Check(TaskbarNative.ParentSnapshotMatches(sample,own,bar,true),"child parent geometry and DPI proof succeeds for the real own fixture");

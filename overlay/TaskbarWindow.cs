@@ -507,7 +507,9 @@ namespace QuotaOverlay {
         string barRow=LeaseArea("bar",frame);rows.Add(shellRow);rows.Add(barRow);shellRows.Add(shellRow);shellRows.Add(barRow);
         EnumChildWindows(snapshot.Handle,delegate(IntPtr child,IntPtr unused) {
           childCount=++count;
-          if(count>512){safe=false;unsafeReason="child-window-limit";return false;}if(!IsWindowVisible(child))return true;
+          if(count>512){safe=false;unsafeReason="child-window-limit";return false;}
+          // Auto-hide changes child visibility without changing the local layout.
+          bool visible=IsWindowVisible(child);if(!visible&&!childMode)return true;
           if(childMode&&IsOwnNativeSubtree(child,own))return true;
           uint process;GetWindowThreadProcessId(child,out process);Rect rect;
           if(process==0){safe=false;unsafeReason="child-process-unavailable";blocker=new {handle=child.ToInt64(),@class=ClassName(child)};return false;}
@@ -517,7 +519,7 @@ namespace QuotaOverlay {
           }else {if(!GetWindowRect(child,out rect)){safe=false;unsafeReason="child-bounds-unavailable";return false;}area=rect.Area();}
           if(!TaskbarLayout.Valid(area)||!Intersects(area,frame))return true;
           string name=ClassName(child),row=LeaseArea("child|"+child.ToInt64()+"|"+process+"|"+name,area);rows.Add(row);childRows.Add(row);
-          if(ProtectNativeWindow(name,process==shell,GetWindow(child,5)==IntPtr.Zero)&&Intersects(area,protectedFootprint)){safe=false;unsafeReason="protected-child-overlap";blocker=new {handle=child.ToInt64(),process=process,@class=name,rect=area};return false;}
+          if(visible&&ProtectNativeWindow(name,process==shell,GetWindow(child,5)==IntPtr.Zero)&&Intersects(area,protectedFootprint)){safe=false;unsafeReason="protected-child-overlap";blocker=new {handle=child.ToInt64(),process=process,@class=name,rect=area};return false;}
           return true;
         },IntPtr.Zero);
         if(!safe)return finish(unsafeReason??"child-enumeration-unsafe");count=0;
