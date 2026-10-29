@@ -1,5 +1,11 @@
 # Известные ограничения / Known issues
 
+## 1.4.2
+
+Совместимость с Windows 10 пока не подтверждена: этап и причина сообщённого сбоя ещё не установлены. Исследование продолжится отдельно.
+
+Windows 10 compatibility is not yet confirmed. The failure stage and cause of the reported problem remain unknown and will be investigated separately.
+
 ## 1.4.1
 
 При использовании Snap Layouts в Windows 11 боковая панель может оставаться видимой поверх полупрозрачного предпросмотра окна. Совместимость с Windows 10 исследуется: причина сообщения о неработающей панели пока неизвестна.

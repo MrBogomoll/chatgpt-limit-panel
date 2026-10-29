@@ -1,6 +1,13 @@
 # Changes
 
-## 1.4.1 preview
+## 1.4.2 — 2026-10-29
+
+- Remove sidebar flicker during horizontal and vertical window resizing, including height growth and shrinkage.
+- Preserve sidebar visibility when restoring a maximized window.
+- Hide the sidebar during the Windows 11 Snap preview and restore it on exit.
+- Windows 10 compatibility remains under investigation.
+
+## 1.4.1
 
 - Select ultracompact automatically when a smaller window or measured free gap cannot fit compact view, preserving the preferred view on growth.
 - Keep verified relative rail coordinates during pure translation and reject changed/partially acquired geometry.

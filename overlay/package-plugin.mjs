@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
-const version = '1.4.2-beta.5';
+const version = '1.4.2';
 const archiveName = `chatgpt-limit-panel-${version}-windows-x64.zip`;
 const pluginFiles = [
   // The installed desktop parser ignores bundled MCP servers when root
