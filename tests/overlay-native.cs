@@ -1154,13 +1154,18 @@ class OverlayNativeTest {
       foreach(double delta in new[]{-140.0,140.0}) {
         var envelope=SidebarControlSnapshot.ResizeEnvelope(scaled,delta*scale);
         for(int i=0;i<scaled.Count;i++)foreach(double fraction in new[]{0.0,.5,1.0}) {
-          double top=scaled[i].Top+delta*scale*fraction,bottom=scaled[i].Bottom+delta*scale*fraction;
+          double movement=i==0?0:delta*scale*fraction;
+          double top=scaled[i].Top+movement,bottom=scaled[i].Bottom+movement;
           Check(envelope[i].Top<=top&&envelope[i].Bottom>=bottom,"resize envelope reserves fixed, proportional and bottom-anchored controls at every DPI");
         }
+        Check(envelope[0].Top==scaled[0].Top&&envelope[0].Bottom==scaled[0].Bottom,"growing the window never moves fixed upper navigation into the free slot");
       }
       Check(scaled[0].Top==80*scale,"resize projection never mutates the measured map");
     }
     var sample=new SidebarGeometrySource.Sample{Target=new IntPtr(42),Width=1200,Height=900,Scale=1,At=1000,Verified=true,Controls=controls};
+    var growthMap=SidebarControlSnapshot.ResizeEnvelope(new List<RailRegion>{new RailRegion{Top=80,Bottom=720},new RailRegion{Top=1120,Bottom=1160}},400);
+    var growthPlacement=Layout.PlaceInAvailableRail(0,0,1200,1600,1,"full",growthMap,null);
+    Check(growthPlacement.Visible&&growthPlacement.Mode=="full","increasing available window height cannot falsely erase the existing free slot");
     Check(SidebarGeometrySource.CurrentControls(sample,new IntPtr(42),800,760,1,1500)!=null,"resize retains a fresh verified rail map");
     Check(SidebarGeometrySource.CurrentControls(sample,new IntPtr(43),800,760,1,1500)==null,"another target never reuses a resize map");
     Check(SidebarGeometrySource.CurrentControls(sample,new IntPtr(42),800,760,1.5,1500)==null,"DPI change requires a new measurement");
@@ -1170,14 +1175,16 @@ class OverlayNativeTest {
     var origin=new Native.Point{X=0,Y=0};bool verified;
     var snapshot=new SidebarControlSnapshot{RootBounds=new Rect(0,0,1200,900)};
     snapshot.Controls.Add(new Rect(5,80,36,40));snapshot.Controls.Add(new Rect(5,840,36,40));
-    var measured=snapshot.Project(origin,origin,1200,1000,1200,1040,1,1,true,out verified);
+    var measured=snapshot.Project(origin,origin,1200,1000,1200,1040,1,1,true,out verified,controls);
     Check(measured!=null&&verified,"a fresh full-client cache remains usable while native height changes during measurement");
     Check(measured[1].Top<=840&&measured[1].Bottom>=1020,"vertical receipt reserves the bottom control's movement to the current height");
     Check(snapshot.Project(origin,origin,1200,1000,1200,1040,1,1,false,out verified)==null,"unknown root mapping cannot authorize resizing receipts");
     foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(int delta in new[]{-40,40}) {
-      snapshot.RootBounds=new Rect(0,0,1200*scale,900*scale);snapshot.Controls.Clear();snapshot.Controls.Add(new Rect(5*scale,840*scale,36*scale,40*scale));
-      measured=snapshot.Project(origin,origin,(int)(1200*scale),(int)(900*scale),(int)(1200*scale),(int)((900+delta)*scale),scale,scale,true,out verified);
-      Check(measured!=null&&measured[0].Top<=(840+delta)*scale&&measured[0].Bottom>=(880+delta)*scale,"fresh vertical receipts cover the actual bottom control during grow and shrink at every DPI");
+      snapshot.RootBounds=new Rect(0,0,1200*scale,900*scale);snapshot.Controls.Clear();snapshot.Controls.Add(new Rect(5*scale,80*scale,36*scale,40*scale));snapshot.Controls.Add(new Rect(5*scale,840*scale,36*scale,40*scale));
+      var expected=new List<RailRegion>{new RailRegion{Top=80*scale,Bottom=120*scale},new RailRegion{Top=840*scale,Bottom=880*scale}};
+      measured=snapshot.Project(origin,origin,(int)(1200*scale),(int)(900*scale),(int)(1200*scale),(int)((900+delta)*scale),scale,scale,true,out verified,expected);
+      Check(measured!=null&&measured[1].Top<=(840+delta)*scale&&measured[1].Bottom>=(880+delta)*scale,"fresh vertical receipts cover the actual bottom control during grow and shrink at every DPI");
+      Check(measured[0].Top==80*scale&&measured[0].Bottom==120*scale,"uncertainty never expands verified upper navigation during vertical resizing");
     }
     snapshot.RootBounds=new Rect(0,50,1200,900);
     Check(snapshot.Project(origin,origin,1200,1000,1200,1040,1,1,true,out verified)==null,"a displaced document cannot be accepted as a vertical resize");

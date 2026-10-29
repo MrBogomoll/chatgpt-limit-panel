@@ -143,10 +143,29 @@ namespace QuotaOverlay {
     internal Rect RootBounds;
     internal readonly List<Rect> Controls=new List<Rect>();
     internal int Candidates;
+    static double FooterStart(IList<RailRegion> controls) {
+      var sorted=new List<RailRegion>(controls);sorted.Sort(delegate(RailRegion a,RailRegion b){return a.Top.CompareTo(b.Top);});
+      double end=Double.NegativeInfinity,gap=0,footer=Double.NegativeInfinity;
+      foreach(var c in sorted){if(!Double.IsNegativeInfinity(end)&&c.Top-end>gap){gap=c.Top-end;footer=c.Top;}end=Math.Max(end,c.Bottom);}
+      return footer;
+    }
+    static bool AlignNavigation(IList<RailRegion> controls,IList<RailRegion> expected) {
+      if(expected==null)return false;
+      var actualTop=new List<RailRegion>();var expectedTop=new List<RailRegion>();
+      double actualFooter=FooterStart(controls),expectedFooter=FooterStart(expected);
+      foreach(var c in controls)if(c.Top<actualFooter)actualTop.Add(c);
+      foreach(var c in expected)if(c.Top<expectedFooter)expectedTop.Add(c);
+      Comparison<RailRegion> order=delegate(RailRegion a,RailRegion b){int n=a.Top.CompareTo(b.Top);return n!=0?n:a.Bottom.CompareTo(b.Bottom);};actualTop.Sort(order);expectedTop.Sort(order);
+      if(actualTop.Count!=expectedTop.Count)return false;
+      for(int i=0;i<actualTop.Count;i++)if(Math.Abs(actualTop[i].Top-expectedTop[i].Top)>2||Math.Abs(actualTop[i].Bottom-expectedTop[i].Bottom)>2)return false;
+      for(int i=0;i<actualTop.Count;i++){actualTop[i].Top=expectedTop[i].Top;actualTop[i].Bottom=expectedTop[i].Bottom;}
+      return true;
+    }
     internal static IList<RailRegion> ResizeEnvelope(IList<RailRegion> controls,double heightChange) {
       var result=new List<RailRegion>();
-      // Reserve the swept area for top-, bottom- and proportionally anchored controls.
-      foreach(var c in controls)result.Add(new RailRegion{Top=c.Top+Math.Min(0,heightChange),Bottom=c.Bottom+Math.Max(0,heightChange)});
+      // shortcut: the rail gap separates ChatGPT navigation and footer; revalidate if their anchoring changes.
+      double footer=FooterStart(controls);
+      foreach(var c in controls)result.Add(new RailRegion{Top=c.Top+(c.Top>=footer?Math.Min(0,heightChange):0),Bottom=c.Bottom+(c.Top>=footer?Math.Max(0,heightChange):0)});
       return result;
     }
     internal IList<RailRegion> Project(Native.Point before,Native.Point after,int width,int height,int afterWidth,int afterHeight,double scale,double afterScale,bool verifiedClientDocument,out bool verified,IList<RailRegion> expectedControls=null) {
@@ -159,10 +178,12 @@ namespace QuotaOverlay {
           RootBounds.Top<Math.Min(before.Y,after.Y)-2||RootBounds.Top>Math.Max(before.Y,after.Y)+2)return null;
         var relative=new List<RailRegion>();
         foreach(var b in Controls)if(!b.IsEmpty&&b.Width>0&&b.Height>0&&b.Left<RootBounds.Left+49*scale&&b.Right>RootBounds.Left+3*scale&&b.Top<RootBounds.Bottom&&b.Bottom>RootBounds.Top)relative.Add(new RailRegion{Top=b.Top-RootBounds.Top,Bottom=b.Bottom-RootBounds.Top});
+        if(!AlignNavigation(relative,expectedControls))return null;
         // The receipt can span two heights; reserve the swept bounds instead of discarding it.
         var envelope=ResizeEnvelope(relative,afterHeight-RootBounds.Height);
         double uncertainty=Math.Abs((double)after.Y-before.Y)+Math.Abs((double)afterHeight-height);
-        foreach(var region in envelope){region.Top-=uncertainty;region.Bottom+=uncertainty;}
+        double footer=FooterStart(relative);
+        for(int i=0;i<envelope.Count;i++)if(relative[i].Top>=footer){envelope[i].Top-=uncertainty;envelope[i].Bottom+=uncertainty;}
         verified=true;return envelope;
       }
       if(width!=afterWidth||height!=afterHeight)return null;
@@ -237,7 +258,7 @@ namespace QuotaOverlay {
               var afterOrigin=new Native.Point();Native.Rect afterRect;bool verified;
               if(Native.GetClientRect(target,out afterRect)&&Native.ClientToScreen(target,ref afterOrigin)) {
                 Sample previous;lock(gate)previous=sample;
-                var expected=previous!=null&&previous.Target==target&&previous.Width==width&&previous.Height==height&&Math.Abs(previous.Scale-scale)<.001?previous.Controls:null;
+                var expected=previous!=null&&previous.Target==target&&Math.Abs(previous.Scale-scale)<.001?previous.Controls:null;
                 var measured=snapshot.Project(origin,afterOrigin,width,height,afterRect.Right,afterRect.Bottom,scale,Native.GetDpiForWindow(target)/96.0,documentFillsClient,out verified,expected);documentFillsClient=documentFillsClient||verified;
                 if(measured!=null) {
                   controls.AddRange(measured);bool bottomKnown=false;foreach(var control in controls)if(control.Bottom>afterRect.Bottom-120*scale&&control.Top>afterRect.Bottom/2)bottomKnown=true;count=controls.Count;bottom=bottomKnown;
