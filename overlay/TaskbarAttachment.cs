@@ -89,6 +89,18 @@ namespace QuotaOverlay {
       }
     }
 
+    internal bool TryProject(TaskbarSnapshot snapshot,out TaskbarSnapshot projected) {
+      projected=null;
+      try {
+        Host host;string reason;
+        if(!IsAttached||snapshot==null||snapshot.Handle!=parent||!ReadHost(out host,out reason)||!SameGeneration(host)||snapshot.Bounds.Width!=host.Bounds.Right-host.Bounds.Left||snapshot.Bounds.Height!=host.Bounds.Bottom-host.Bounds.Top||Math.Abs(snapshot.Scale-host.Dpi/96.0)>0.0001)return false;
+        double dx=host.Bounds.Left-snapshot.Bounds.X,dy=host.Bounds.Top-snapshot.Bounds.Y;
+        projected=new TaskbarSnapshot{Handle=snapshot.Handle,Scale=snapshot.Scale,Visible=snapshot.Visible,AutoHidden=snapshot.AutoHidden,Fullscreen=snapshot.Fullscreen,OccupancyKnown=snapshot.OccupancyKnown,Bounds=Offset(snapshot.Bounds,dx,dy)};
+        foreach(var area in snapshot.Occupied)projected.Occupied.Add(Offset(area,dx,dy));
+        return true;
+      }catch{return false;}
+    }
+    internal static TaskbarArea Offset(TaskbarArea area,double dx,double dy){area.X+=dx;area.Y+=dy;return area;}
     internal bool TryPlace(IntPtr candidate,TaskbarSnapshot snapshot,TaskbarArea bounds,out string reason) {
       reason="placement-unavailable";
       try {

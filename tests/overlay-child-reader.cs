@@ -53,6 +53,11 @@ internal static class ChildReaderTest {
     Check(Fingerprint(sample,footprint,own,false)==null,"legacy overlay still rejects a covering top-level window");
     IntPtr widget=Window(bar,20,2,40,40);
     string before=Fingerprint(sample,footprint,own,true);Check(before!=null&&before!=baseline,"another taskbar child remains in evidence even with the same process ID");
+    Check(SetWindowPos(bar,IntPtr.Zero,-27000,-26960,600,48,0x0014),"slide only the own taskbar fixture");
+    sample.Bounds=Area(bar);footprint=Area(own);
+    Check(Fingerprint(sample,footprint,own,true)==before,"moving parent and sibling widgets together preserves local native evidence");
+    Check(SetWindowPos(bar,IntPtr.Zero,-27000,-27000,600,48,0x0014),"restore own taskbar fixture");
+    sample.Bounds=Area(bar);footprint=Area(own);
     Check(SetWindowPos(widget,IntPtr.Zero,40,2,40,40,0x0014),"move only own foreign-widget fixture");
     string moved=Fingerprint(sample,footprint,own,true);Check(moved!=null&&moved!=before,"changed native widget geometry revokes old retention evidence");
     Check(SetWindowPos(widget,IntPtr.Zero,430,2,40,40,0x0014),"move only own widget fixture into the protected footprint");

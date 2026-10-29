@@ -35,6 +35,11 @@ internal static class AttachedRendererTest {
       Interlocked.Exchange(ref now,1601);Refresh(window);
       Check(window.IsVisible&&window.PlacementStatus=="layout-held","continuous current native proof retains the displayed child when the real source cache expires during a stall");
       Interlocked.Exchange(ref now,5000);Refresh(window);Check(window.IsVisible,"active native retention survives an ongoing provider stall without renewing UIA acquisition time");
+      Check(SetWindowPos(host,IntPtr.Zero,-25500,-25430,960,72,0x0014),"slide own parent like an auto-hidden taskbar");
+      Interlocked.Exchange(ref now,5100);Refresh(window);Check(window.IsVisible,"a verified child remains shown while its parent slides without a new UIA scan");
+      Rect moved;Check(GetWindowRect(window.NativeHandle,out moved)&&moved.Top==rect.Top+70+12,"retained child keeps its parent-relative allocation while sliding");
+      Check(SetWindowPos(host,IntPtr.Zero,-25500,-25500,960,72,0x0014),"reveal own parent again");
+      Interlocked.Exchange(ref now,5150);Refresh(window);Check(window.IsVisible,"child is already visible on reveal without waiting for accessibility recovery");
       fingerprint="native-controls-B";Interlocked.Exchange(ref now,5200);Refresh(window);Check(!window.IsVisible,"an actual native control-evidence change revokes stalled-source retention");
       Interlocked.Exchange(ref now,5300);Refresh(window);Check(!window.IsVisible,"unknown allocation cannot revive a child after native evidence changed");
       release.Set();Interlocked.Exchange(ref now,6000);

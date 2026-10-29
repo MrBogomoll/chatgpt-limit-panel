@@ -101,6 +101,11 @@ internal static class TaskbarNativeTest {
     foreach(var edge in new[]{Area(0,0,2560,72),Area(0,0,72,1440),Area(2488,0,72,1440)})Check(TaskbarNative.IsTaskbarFullyRevealed(edge,monitor,1.5),"top and both vertical monitor edges are fully revealed");
     foreach(var sliding in new[]{Area(0,-1,2560,72),Area(-1,0,72,1440),Area(2489,0,72,1440),Area(0,1,72,1440)})Check(!TaskbarNative.IsTaskbarFullyRevealed(sliding,monitor,1.5),"partially hidden or misaligned non-bottom edge must hide");
     Check(!TaskbarNative.IsAutoHideHidden(true,revealed,monitor,1.5),"enabled auto-hide may show indicator while fully revealed");
+    foreach(var sliding in new[]{Area(0,1438,2560,72),Area(0,-70,2560,72),Area(-70,0,72,1440),Area(2558,0,72,1440)}) {
+      Check(TaskbarNative.IsChildTaskbarGeometry(sliding,monitor,1.5,true),"native child may follow a full-sized auto-hidden parent on every edge");
+      Check(!TaskbarNative.IsChildTaskbarGeometry(sliding,monitor,1.5,false),"offscreen parent is rejected when auto-hide is disabled");
+    }
+    foreach(var invalid in new[]{Area(0,1438,2560,2),Area(1,1438,2560,72),Area(0,500,2560,72),Area(0,1441,2560,72)})Check(!TaskbarNative.IsChildTaskbarGeometry(invalid,monitor,1.5,true),"invalid or floating hidden parent remains rejected");
     foreach(TaskbarArea transitioning in new[]{Area(0,1400,2560,72),Area(0,1438,2560,72),Area(0,1438,2560,2),Area(0,1369,2560,72)}) {
       Check(!TaskbarNative.IsTaskbarFullyRevealed(transitioning,monitor,1.5),"offscreen or sliding row is not fully revealed");
       Check(TaskbarNative.IsAutoHideHidden(true,transitioning,monitor,1.5),"auto-hide transition must suppress indicator");

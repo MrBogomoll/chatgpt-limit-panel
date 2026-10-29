@@ -237,9 +237,14 @@ namespace QuotaOverlay {
         // A complete contradiction takes precedence over retention. An absent
         // measurement may retain only a currently visible, natively proved slot.
         if(snapshot!=null&&snapshot.OccupancyKnown){RejectChildFrame(placement.Reason);return;}
-        string fingerprint=leaseSnapshot!=null&&lastShown!=null&&IsVisible?readLeaseFingerprint(leaseSnapshot,lastShown.Bounds):null;
+        // A child follows the parent's animation natively; retain its local slot
+        // only while current native controls still prove the same allocation.
+        TaskbarSnapshot projected=null;
+        bool follows=leaseSnapshot!=null&&lastShown!=null&&IsVisible&&attachment.TryProject(leaseSnapshot,out projected);
+        double dx=follows?projected.Bounds.X-leaseSnapshot.Bounds.X:0,dy=follows?projected.Bounds.Y-leaseSnapshot.Bounds.Y:0;
+        string fingerprint=follows?readLeaseFingerprint(projected,TaskbarAttachment.Offset(lastShown.Bounds,dx,dy)):null;
         TaskbarPlacement retained;
-        if(menuLease.TryHold(true,IsVisible,fingerprint!=null,fingerprint,now,out retained)&&retained!=null&&attachment.TryPlace(hwnd,leaseSnapshot,retained.Bounds,out reason)) {
+        if(menuLease.TryHold(true,IsVisible,fingerprint!=null,fingerprint,now,out retained)&&retained!=null&&attachment.TryPlace(hwnd,projected,TaskbarAttachment.Offset(retained.Bounds,dx,dy),out reason)) {
           diagnosticFingerprint=fingerprint;PlacementStatus="layout-held";SetChildOpacity(1);TracePlacement(null);return;
         }
         RejectChildFrame(placement.Reason);
@@ -356,6 +361,12 @@ namespace QuotaOverlay {
       return bar.Height>bar.Width&&bar.Width>=Math.Ceiling(TaskbarLayout.Width*scale)&&bar.Width<monitor.Width&&bar.X>=monitor.X&&bar.X+bar.Width<=monitor.X+monitor.Width+0.5&&Math.Abs(bar.Y-monitor.Y)<0.5&&Math.Abs(bar.Height-monitor.Height)<0.5&&(Math.Abs(bar.X-monitor.X)<0.5||Math.Abs(bar.X+bar.Width-monitor.X-monitor.Width)<0.5);
     }
     internal static bool IsAutoHideHidden(bool autoHideEnabled,TaskbarArea bar,TaskbarArea monitor,double scale) {return autoHideEnabled&&!IsTaskbarFullyRevealed(bar,monitor,scale);}
+    internal static bool IsChildTaskbarGeometry(TaskbarArea bar,TaskbarArea monitor,double scale,bool autoHideEnabled) {
+      if(IsTaskbarFullyRevealed(bar,monitor,scale))return true;
+      if(!autoHideEnabled||!TaskbarLayout.Valid(bar)||!TaskbarLayout.Valid(monitor)||!TaskbarLayout.Finite(scale)||scale<=0||scale>8)return false;
+      if(bar.Width>bar.Height)return bar.Height>=Math.Ceiling(TaskbarLayout.Height*scale)&&bar.Height<monitor.Height&&bar.X==monitor.X&&bar.Width==monitor.Width&&((bar.Y>=monitor.Y-bar.Height+1&&bar.Y<=monitor.Y)||(bar.Y>=monitor.Y+monitor.Height-bar.Height&&bar.Y<=monitor.Y+monitor.Height-1));
+      return bar.Height>bar.Width&&bar.Width>=Math.Ceiling(TaskbarLayout.Width*scale)&&bar.Width<monitor.Width&&bar.Y==monitor.Y&&bar.Height==monitor.Height&&((bar.X>=monitor.X-bar.Width+1&&bar.X<=monitor.X)||(bar.X>=monitor.X+monitor.Width-bar.Width&&bar.X<=monitor.X+monitor.Width-1));
+    }
     internal static bool IsFullscreenBounds(TaskbarArea bounds,TaskbarArea monitor,bool maximized,long style) {
       if(!TaskbarLayout.Valid(bounds)||!TaskbarLayout.Valid(monitor))return true;
       bool framed=(style&0x00C00000L)==0x00C00000L||(style&0x00040000L)!=0;
@@ -382,7 +393,9 @@ namespace QuotaOverlay {
         if(!ParentSnapshotMatches(snapshot,own,FindWindow("Shell_TrayWnd",null),childMode))return false;
         TaskbarArea area=snapshot.Bounds;
         IntPtr monitor=MonitorFromWindow(snapshot.Handle,MonitorNearest);var information=new MonitorInfo{Size=Marshal.SizeOf(typeof(MonitorInfo))};
-        return GetMonitorInfo(monitor,ref information)&&IsTaskbarFullyRevealed(area,information.Monitor.Area(),snapshot.Scale)&&(childMode||!Fullscreen(own,monitor,information.Monitor));
+        var appbar=new AppbarData{Size=(uint)Marshal.SizeOf(typeof(AppbarData))};
+        bool autoHide=childMode&&(SHAppBarMessage(4,ref appbar).ToUInt64()&1)!=0;
+        return GetMonitorInfo(monitor,ref information)&&(childMode?IsChildTaskbarGeometry(area,information.Monitor.Area(),snapshot.Scale,autoHide):IsTaskbarFullyRevealed(area,information.Monitor.Area(),snapshot.Scale))&&(childMode||!Fullscreen(own,monitor,information.Monitor));
       }catch{return false;}
     }
     internal static bool ParentSnapshotMatches(TaskbarSnapshot snapshot,IntPtr own,IntPtr expectedParent,bool childMode) {
@@ -484,7 +497,7 @@ namespace QuotaOverlay {
         double margin=Math.Ceiling(TaskbarLayout.Clearance*snapshot.Scale);
         var protectedFootprint=new TaskbarArea{X=footprint.X-margin,Y=footprint.Y-margin,Width=footprint.Width+2*margin,Height=footprint.Height+2*margin};
         var rows=new List<string>();string shellRow="shell|"+snapshot.Handle.ToInt64()+"|"+shell+"|"+snapshot.Scale.ToString("R",CultureInfo.InvariantCulture);
-        string barRow=LeaseArea("bar",snapshot.Bounds);rows.Add(shellRow);rows.Add(barRow);shellRows.Add(shellRow);shellRows.Add(barRow);
+        string barRow=LeaseArea("bar",childMode?TaskbarAttachment.Offset(snapshot.Bounds,-snapshot.Bounds.X,-snapshot.Bounds.Y):snapshot.Bounds);rows.Add(shellRow);rows.Add(barRow);shellRows.Add(shellRow);shellRows.Add(barRow);
         EnumChildWindows(snapshot.Handle,delegate(IntPtr child,IntPtr unused) {
           childCount=++count;
           if(count>512){safe=false;unsafeReason="child-window-limit";return false;}if(!IsWindowVisible(child))return true;
@@ -493,7 +506,7 @@ namespace QuotaOverlay {
           if(process==0){safe=false;unsafeReason="child-process-unavailable";blocker=new {handle=child.ToInt64(),@class=ClassName(child)};return false;}
           if(!GetWindowRect(child,out rect)){safe=false;unsafeReason="child-bounds-unavailable";blocker=new {handle=child.ToInt64(),process=process,@class=ClassName(child)};return false;}
           TaskbarArea area=rect.Area();if(!TaskbarLayout.Valid(area)||!Intersects(area,snapshot.Bounds))return true;
-          string name=ClassName(child),row=LeaseArea("child|"+child.ToInt64()+"|"+process+"|"+name,area);rows.Add(row);childRows.Add(row);
+          string name=ClassName(child),row=LeaseArea("child|"+child.ToInt64()+"|"+process+"|"+name,childMode?TaskbarAttachment.Offset(area,-snapshot.Bounds.X,-snapshot.Bounds.Y):area);rows.Add(row);childRows.Add(row);
           if(ProtectNativeWindow(name,process==shell,GetWindow(child,5)==IntPtr.Zero)&&Intersects(area,protectedFootprint)){safe=false;unsafeReason="protected-child-overlap";blocker=new {handle=child.ToInt64(),process=process,@class=name,rect=area};return false;}
           return true;
         },IntPtr.Zero);
