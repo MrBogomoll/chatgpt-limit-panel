@@ -24,7 +24,7 @@ export class RateLimitReader {
         this.pending.delete(message.id); clearTimeout(request.timer);
         message.error ? request.reject(new Error('Codex quota request was rejected')) : request.resolve(message.result);
       });
-      await this.request('initialize', { clientInfo: { name: 'chatgpt_limit_panel', title: 'ChatGPT Limit Panel', version: '1.4.2' } });
+      await this.request('initialize', { clientInfo: { name: 'chatgpt_limit_panel', title: 'ChatGPT Limit Panel', version: '1.4.3-beta.1' } });
       child.stdin.write(JSON.stringify({ method: 'initialized' }) + '\n');
     })();
     try { await starting; } catch (error) { if (this.starting === starting) this.close(); throw error; }

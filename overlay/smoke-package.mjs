@@ -48,7 +48,7 @@ try {
   assert.match(resourceUri,/^ui:\/\/quota-panel\/control-[a-f0-9]{16}\.html$/,'installed card must use its content-derived cache address');
   const resource=await session.request('resources/read',{uri:resourceUri});
   assert(resource.result.contents[0].text.includes('Запустить'));
-  const stateFile=path.join(process.env.LOCALAPPDATA,'ChatGPTQuotaOverlay/state.json');
+  const stateFile=path.join(process.env.LOCALAPPDATA,'ChatGPTLimitPanel/state.json');
   let state,diagnosticSource='state.json',updatedAt;
   const deadline=Date.now()+20000;
   do {

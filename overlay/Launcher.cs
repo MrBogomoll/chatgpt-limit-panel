@@ -29,14 +29,15 @@ class LimitPanelLauncher {
     bool taskHostMode=args.Length==1 && args[0]=="--run-host";
     try {
       string dir=AppDomain.CurrentDomain.BaseDirectory;
-      string data=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ChatGPTQuotaOverlay");Directory.CreateDirectory(data);
+      string data=QuotaOverlay.Preferences.DataDirectory();
       string command=args.Length==0?"--start":args[0];
       if(args.Length>1 || !new[]{"--start","--stop","--status-json","--start-json","--stop-json","--run-host","--enable-autostart-json","--disable-autostart-json"}.Contains(command))throw new Exception(QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"unknownCommand"));
       var before=ReadStatus(data,MonitorMutex);
       string launcher=Path.Combine(dir,"ChatGPTLimitPanelLauncher.exe");
       if(command=="--status-json") {FillAutostart(before,launcher);WriteJson(before);return;}
       if(taskHostMode) {
-        if(!before.running)StartConfiguredHost(dir,data,false,true);
+        // Only the scheduled host sees ordinary AppData rather than a packaged-app shadow.
+        if(!before.running)StartConfiguredHost(dir,QuotaOverlay.Preferences.DataDirectory(true),false,true);
         return;
       }
       if(command=="--enable-autostart-json"||command=="--disable-autostart-json") {
@@ -53,13 +54,13 @@ class LimitPanelLauncher {
         StartAndWait(()=>ReadStatus(data,MonitorMutex).running,()=>QuotaPanelTaskHost.Run(launcher),5000);
       }
       if(jsonMode) {
-        var after=ReadStatus(data,MonitorMutex);after.changed=before.running!=after.running;FillAutostart(after,launcher);WriteJson(after);
+        var after=ReadStatus(QuotaOverlay.Preferences.DataDirectory(),MonitorMutex);after.changed=before.running!=after.running;FillAutostart(after,launcher);WriteJson(after);
       }
     } catch(Exception error) {
       Environment.ExitCode=1;
       if(jsonMode)WriteJson(new {status="error",running=false,changed=false,visible=false,paused=false,message=QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"commandError")});
       else if(taskHostMode) {
-        try {File.WriteAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ChatGPTQuotaOverlay","task-host-error.json"),new JavaScriptSerializer().Serialize(new {time=DateTime.UtcNow.ToString("o"),code=error.HResult}),Encoding.UTF8);}catch{}
+        try {File.WriteAllText(Path.Combine(QuotaOverlay.Preferences.DataDirectory(),"task-host-error.json"),new JavaScriptSerializer().Serialize(new {time=DateTime.UtcNow.ToString("o"),code=error.HResult}),Encoding.UTF8);}catch{}
       }
       else MessageBox.Show(error.Message,"ChatGPT Limit Panel",MessageBoxButtons.OK,MessageBoxIcon.Error);
     }

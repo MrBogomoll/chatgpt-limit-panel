@@ -33,7 +33,7 @@ test('diagnostics accepts the explicit ultracompact geometry and rejects invalid
 async function runChecker(t, state, ageMs = 0) {
   const directory = await mkdtemp(path.join(tmpdir(), 'quota diagnostics тест '));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  const stateDirectory = path.join(directory, 'ChatGPTQuotaOverlay');
+  const stateDirectory = path.join(directory, 'ChatGPTLimitPanel');
   await mkdir(stateDirectory);
   const stateFile = path.join(stateDirectory, 'state.json');
   await writeFile(stateFile, '\uFEFF' + JSON.stringify(state));

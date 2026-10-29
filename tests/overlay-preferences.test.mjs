@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
+import {mkdtemp,rm,writeFile,readFile,mkdir,access} from 'node:fs/promises';
 import {spawn,spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -18,4 +18,11 @@ test('GUI and startup settings preserve each other during concurrent native upda
  await Promise.all([start,run('control-disable')]);
  assert.equal(JSON.parse((await readFile(file,'utf8')).replace(/^\uFEFF/,'')).autoStartEnabled,false,'a concurrent explicit disable must not be undone by a stale Start read');
  assert.equal(await readFile(file+'.task','utf8'),'false','scheduled trigger and preference must agree');
+ const local=path.join(dir,'local'),legacy=path.join(local,'ChatGPTQuotaOverlay'),current=path.join(local,'ChatGPTLimitPanel');await mkdir(legacy,{recursive:true});
+ const saved='{"language":"en","themeMode":"light","autoStartEnabled":false}';await writeFile(path.join(legacy,'settings.json'),saved);await writeFile(path.join(legacy,'state.json'),'preserve diagnostics');
+ const data=kind=>{const r=spawnSync(exe,[local,kind],{windowsHide:true,encoding:'utf8'});assert.equal(r.status,0,r.stderr);return r.stdout;};
+ assert.equal(data('data-read'),legacy);await assert.rejects(access(current));
+ assert.equal(data('data-migrate'),current);await assert.rejects(access(legacy));assert.equal(await readFile(path.join(current,'settings.json'),'utf8'),saved);assert.equal(await readFile(path.join(current,'state.json'),'utf8'),'preserve diagnostics');
+ assert.equal(data('data-migrate'),current,'migration is idempotent');await mkdir(legacy);await writeFile(path.join(legacy,'settings.json'),'legacy conflict');
+ assert.equal(data('data-migrate'),current);assert.equal(await readFile(path.join(current,'settings.json'),'utf8'),saved,'existing destination is never overwritten');assert.equal(await readFile(path.join(legacy,'settings.json'),'utf8'),'legacy conflict');
 });

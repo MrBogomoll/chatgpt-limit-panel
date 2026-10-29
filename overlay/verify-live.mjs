@@ -58,7 +58,7 @@ export function verifyOverlayState(state, { isProcessAlive = processIsAlive, upd
 function run() {
   try {
     const localData = process.env.LOCALAPPDATA || path.join(homedir(), 'AppData', 'Local');
-    const stateFile = path.join(localData, 'ChatGPTQuotaOverlay', 'state.json');
+    const stateFile = path.join(localData, 'ChatGPTLimitPanel', 'state.json');
     const state = JSON.parse(readFileSync(stateFile, 'utf8').replace(/^\uFEFF/, ''));
     const result = verifyOverlayState(state, { updatedAt: statSync(stateFile).mtimeMs });
     process.stdout.write(JSON.stringify(result) + '\n');

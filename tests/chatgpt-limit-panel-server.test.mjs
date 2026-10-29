@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile, copyFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile, copyFile, rename } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
@@ -44,6 +44,13 @@ test('saved interface language is read without changing settings and tolerates a
   await writeFile(settingsPath,'{"language":');assert.equal(getLanguage(),'en');
   await writeFile(settingsPath,'{"language":"invalid"}');assert.equal(getLanguage(),'ru');
   await writeFile(settingsPath,'{"language":"ru"}');assert.equal(getLanguage(),'ru');
+});
+
+test('language follows the data folder migration without restarting its reader',async t=>{
+  const localData=await mkdtemp(join(tmpdir(),'limit-panel-migration-'));t.after(()=>rm(localData,{recursive:true,force:true}));
+  const legacy=join(localData,'ChatGPTQuotaOverlay'),current=join(localData,'ChatGPTLimitPanel');await mkdir(legacy);await writeFile(join(legacy,'settings.json'),'{"language":"en"}');
+  const read=languageApi.createLanguageReader({localData});assert.equal(read(),'en');await rename(legacy,current);assert.equal(read(),'en');
+  await writeFile(join(current,'settings.json'),'{"language":"ru"}');assert.equal(read(),'ru');await mkdir(legacy);await writeFile(join(legacy,'settings.json'),'{"language":"en"}');assert.equal(read(),'ru','the current directory wins over retained legacy data');
 });
 
 // Real subprocess fixture: a wrong command/argument or missing state transition fails the contract.
@@ -124,7 +131,7 @@ test('MCP discovers a global and thread control card and marks lifecycle mutatio
   const { controller } = await controllerFor(t);
   const handle = mcpApi.createMcpHandler({ controller, readUi: async () => '<main>Панель управления</main>' });
   const init = (await handle({ id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } })).result;
-  assert.equal(init.serverInfo.version, '1.4.2');
+  assert.equal(init.serverInfo.version, '1.4.3-beta.1');
   assert.equal(init.serverInfo.title, 'ChatGPT Limit Panel');
   const tools = (await handle({ id: 2, method: 'tools/list' })).result.tools;
   assert.deepEqual(tools.map(tool => tool.name), ['show_quota_overlay', 'start_quota_overlay', 'stop_quota_overlay', 'get_quota_overlay_status','check_quota_panel_updates']);

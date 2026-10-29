@@ -75,7 +75,7 @@ namespace QuotaOverlay {
     internal static string Read(string settingsFile) {
       try {object value;return Preferences.Read(settingsFile).TryGetValue("language",out value)?Normalize(value as string):"ru";}catch{return "ru";}
     }
-    internal static string Current {get{return Read(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ChatGPTQuotaOverlay","settings.json"));}}
+    internal static string Current {get{return Read(Path.Combine(Preferences.DataDirectory(),"settings.json"));}}
     internal static string Period(string language,string original,int index) {
       if(index==1)return Text(language,"weekLabel");
       string candidate=(original??"").Replace(" ч"," h");

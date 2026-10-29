@@ -8,6 +8,22 @@ using System.Web.Script.Serialization;
 
 namespace QuotaOverlay {
   internal static class Preferences {
+    internal static string DataDirectory(bool migrate=false,string localData=null) {
+      string parent=Path.GetFullPath(localData??Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+      string current=Path.Combine(parent,"ChatGPTLimitPanel"),legacy=Path.Combine(parent,"ChatGPTQuotaOverlay");
+      if(!migrate)return File.Exists(Path.Combine(current,"settings.json"))?current:Directory.Exists(legacy)?legacy:current;
+      using(var lease=new Lease(Path.Combine(parent,"ChatGPTLimitPanel.migration"))) {
+        if(Directory.Exists(current)&&Directory.Exists(legacy)&&!File.Exists(Path.Combine(current,"settings.json"))&&File.Exists(Path.Combine(legacy,"settings.json"))) {
+          if(Directory.GetFileSystemEntries(current).Length!=0)throw new IOException("Application data migration destination is not empty");
+          Directory.Delete(current);
+        }
+        if(!Directory.Exists(current)&&Directory.Exists(legacy)) {
+          if((File.GetAttributes(legacy)&FileAttributes.ReparsePoint)!=0)throw new IOException("Cannot migrate redirected application data");
+          Directory.Move(legacy,current);
+        }
+        Directory.CreateDirectory(current);return current;
+      }
+    }
     sealed class Lease:IDisposable {
       readonly Mutex mutex;bool owned;
       public Lease(string path) {

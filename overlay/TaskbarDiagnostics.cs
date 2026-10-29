@@ -89,7 +89,7 @@ namespace QuotaOverlay {
         // retry on every GUI tick. A later state transition will try again.
         lastKey=key;
         try {
-          string folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ChatGPTQuotaOverlay");
+          string folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ChatGPTLimitPanel");
           string path=Path.Combine(folder,"taskbar-debug.jsonl"),previous=Path.Combine(folder,"taskbar-debug.previous.jsonl");
           var serializer=new JavaScriptSerializer{MaxJsonLength=MaximumFileBytes,RecursionLimit=48};
           long currentSequence=++sequence;

@@ -1,12 +1,14 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
-export function createLanguageReader({ settingsPath = join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ChatGPTQuotaOverlay', 'settings.json') } = {}) {
+export function createLanguageReader({ settingsPath, localData = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local') } = {}) {
   let previous = 'ru';
   return () => {
     try {
-      const value = JSON.parse(readFileSync(settingsPath, 'utf8').replace(/^\uFEFF/, ''));
+      const current=join(localData,'ChatGPTLimitPanel','settings.json');
+      const file=settingsPath || (existsSync(current)?current:join(localData,'ChatGPTQuotaOverlay','settings.json'));
+      const value = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
       previous = value?.language === 'en' ? 'en' : 'ru';
     } catch (error) {
       // A native settings write may be in progress. Keep the last valid choice.

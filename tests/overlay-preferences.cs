@@ -2,6 +2,7 @@ using System;
 using QuotaOverlay;
 class PreferencesTest {
   static int Main(string[] args){try{
+    if(args[1]=="data-read"||args[1]=="data-migrate"){Console.OutputEncoding=new System.Text.UTF8Encoding(false);Console.Write(Preferences.DataDirectory(args[1]=="data-migrate",args[0]));return 0;}
     if(args[1]=="control-start"||args[1]=="control-disable") {
       bool start=args[1]=="control-start";
       Preferences.ConfigureAutostart(args[0],start?(bool?)null:false,enabled=>{

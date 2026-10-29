@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -10,7 +10,10 @@ import { overlayView } from './model.mjs';
 import {createUpdateChecker,CURRENT_VERSION} from '../plugins/chatgpt-limit-panel/server/updates.mjs';
 
 const executablePath = fileURLToPath(new URL('../dist/overlay/ChatGPTLimitPanel.exe', import.meta.url));
-const defaultStatePath = () => join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'ChatGPTQuotaOverlay', 'state.json');
+const defaultStatePath = () => {
+  const local=process.env.LOCALAPPDATA || join(homedir(),'AppData','Local'),current=join(local,'ChatGPTLimitPanel'),legacy=join(local,'ChatGPTQuotaOverlay');
+  return join(!existsSync(current)&&existsSync(legacy)?legacy:current,'state.json');
+};
 
 /** Own the GUI and read-only quota reader together; neither survives the other. */
 export function createOverlayHost({

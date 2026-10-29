@@ -1,6 +1,6 @@
 {
   "name": "quota-panel",
-  "version": "1.4.2",
+  "version": "1.4.3-beta.1",
   "description": "Запуск и остановка самостоятельной панели общего лимита Codex/Work в Windows x64.",
   "author": {
     "name": "Local tools"
