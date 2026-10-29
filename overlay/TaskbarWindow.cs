@@ -569,7 +569,7 @@ namespace QuotaOverlay {
       if(!GetWindowInfo(child,ref info))return false;
       var origin=new LocalPoint();NativeSetLastError(0);int mapped=MapWindowPoints(child,parent,ref origin,1);
       if(mapped==0&&Marshal.GetLastWin32Error()!=0)return false;
-      area=new TaskbarArea{X=origin.X-(info.Client.Left-info.Window.Left),Y=origin.Y-(info.Client.Top-info.Window.Top),Width=info.Window.Right-info.Window.Left,Height=info.Window.Bottom-info.Window.Top};return TaskbarLayout.Valid(area);
+      area=new TaskbarArea{X=origin.X-(info.Client.Left-info.Window.Left),Y=origin.Y-(info.Client.Top-info.Window.Top),Width=info.Window.Right-info.Window.Left,Height=info.Window.Bottom-info.Window.Top};return true;
     }
     [DllImport("user32.dll",SetLastError=true)]static extern bool GetWindowInfo(IntPtr window,ref WindowInformation info);
     [DllImport("user32.dll",SetLastError=true)]static extern int MapWindowPoints(IntPtr from,IntPtr to,ref LocalPoint point,uint count);

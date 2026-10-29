@@ -131,7 +131,7 @@ test('MCP discovers a global and thread control card and marks lifecycle mutatio
   const { controller } = await controllerFor(t);
   const handle = mcpApi.createMcpHandler({ controller, readUi: async () => '<main>Панель управления</main>' });
   const init = (await handle({ id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } })).result;
-  assert.equal(init.serverInfo.version, '1.4.4-beta.4');
+  assert.equal(init.serverInfo.version, '1.4.4-beta.5');
   assert.equal(init.serverInfo.title, 'ChatGPT Limit Panel');
   const tools = (await handle({ id: 2, method: 'tools/list' })).result.tools;
   assert.deepEqual(tools.map(tool => tool.name), ['show_quota_overlay', 'start_quota_overlay', 'stop_quota_overlay', 'get_quota_overlay_status','check_quota_panel_updates']);

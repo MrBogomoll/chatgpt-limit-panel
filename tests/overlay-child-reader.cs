@@ -47,6 +47,8 @@ internal static class ChildReaderTest {
     var sample=new TaskbarSnapshot{Handle=bar,Bounds=bounds,Scale=GetDpiForWindow(bar)/96.0,Visible=true,OccupancyKnown=true};
     string baseline=Fingerprint(sample,footprint,own,true);
     Check(baseline!=null,"attached child and its native descendants must not occupy their own allocation");
+    Window(bar,0,0,0,0);
+    Check(Fingerprint(sample,footprint,own,true)==baseline,"a successfully measured zero-sized shell placeholder is ignored rather than treated as a native query error");
     Check(Fingerprint(sample,footprint,own,false)==null,"legacy detached collection still treats native children as protected occupancy");
     IntPtr cover=Window(IntPtr.Zero,-27000,-27000,600,48);
     Check(Fingerprint(sample,footprint,own,true)==baseline,"covering top-level game-like window does not change child taskbar allocation evidence");
