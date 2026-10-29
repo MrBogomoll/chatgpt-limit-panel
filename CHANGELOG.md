@@ -1,5 +1,9 @@
 # Changes
 
+## 1.4.4 — 2026-10-29
+
+- Keep the taskbar indicator attached during automatic taskbar hiding and revealing.
+
 ## 1.4.3 — 2026-10-29
 
 - Migrate settings and diagnostic files to the ChatGPTLimitPanel directory, preserving preferences and language.
