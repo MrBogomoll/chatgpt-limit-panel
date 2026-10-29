@@ -244,7 +244,7 @@ namespace QuotaOverlay {
         double dx=follows?projected.Bounds.X-leaseSnapshot.Bounds.X:0,dy=follows?projected.Bounds.Y-leaseSnapshot.Bounds.Y:0;
         string fingerprint=follows?readLeaseFingerprint(projected,TaskbarAttachment.Offset(lastShown.Bounds,dx,dy)):null;
         TaskbarPlacement retained;
-        if(menuLease.TryHold(true,IsVisible,fingerprint!=null,fingerprint,now,out retained)&&retained!=null&&attachment.TryPlace(hwnd,projected,TaskbarAttachment.Offset(retained.Bounds,dx,dy),out reason)) {
+        if(menuLease.TryHold(true,IsVisible,fingerprint!=null,fingerprint,now,out retained)&&retained!=null&&attachment.TryRetain(projected,TaskbarAttachment.Offset(retained.Bounds,dx,dy))) {
           diagnosticFingerprint=fingerprint;PlacementStatus="layout-held";SetChildOpacity(1);TracePlacement(null);return;
         }
         RejectChildFrame(placement.Reason);

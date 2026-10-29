@@ -101,6 +101,14 @@ namespace QuotaOverlay {
       }catch{return false;}
     }
     internal static TaskbarArea Offset(TaskbarArea area,double dx,double dy){area.X+=dx;area.Y+=dy;return area;}
+    internal bool TryRetain(TaskbarSnapshot snapshot,TaskbarArea bounds) {
+      try {
+        Host host;string reason;Rect client;
+        if(!IsAttached||!ReadHost(out host,out reason)||!SameGeneration(host)||snapshot==null||snapshot.Handle!=parent||snapshot.Bounds.Width!=host.Bounds.Right-host.Bounds.Left||snapshot.Bounds.Height!=host.Bounds.Bottom-host.Bounds.Top||Math.Abs(snapshot.Scale-host.Dpi/96.0)>0.0001||!IsWindowVisible(host.Window)||IsIconic(host.Window)||!GetClientRect(own,out client))return false;
+        var origin=new Point();NativeSetLastError(0);int mapped=MapWindowPoints(own,parent,ref origin,1);
+        return (mapped!=0||Marshal.GetLastWin32Error()==0)&&origin.X==bounds.X-snapshot.Bounds.X&&origin.Y==bounds.Y-snapshot.Bounds.Y&&client.Right-client.Left==bounds.Width&&client.Bottom-client.Top==bounds.Height&&origin.X>=0&&origin.Y>=0&&origin.X+bounds.Width<=host.Client.Right&&origin.Y+bounds.Height<=host.Client.Bottom;
+      }catch{return false;}
+    }
     internal bool TryPlace(IntPtr candidate,TaskbarSnapshot snapshot,TaskbarArea bounds,out string reason) {
       reason="placement-unavailable";
       try {
