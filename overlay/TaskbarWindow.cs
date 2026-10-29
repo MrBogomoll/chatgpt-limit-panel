@@ -193,7 +193,10 @@ namespace QuotaOverlay {
         TracePlacement(null);
       }catch {Conceal("provider-error");}
     }
-    void RejectChildFrame(string reason) {InvalidateMenuLease();Conceal(reason);}
+    void RejectChildFrame(string reason) {
+      if(TaskbarDiagnostics.Enabled){diagnosticProof=new {reason=TaskbarNative.LastFingerprintReason,parts=TaskbarNative.LastFingerprintParts,rejectedLease=menuLease.SnapshotDebug(placementMilliseconds())};PlacementStatus=reason;TracePlacement("before-rejection");}
+      InvalidateMenuLease();Conceal(reason);
+    }
     void RefreshChildPlacement() {
       try {
         // Establish a native child before querying accessibility, so our own
@@ -216,7 +219,7 @@ namespace QuotaOverlay {
         long now=placementMilliseconds();
         if(placement.Visible) {
           if(!IsVisible){SetChildOpacity(0);childSurface.Show();}
-          if(!attachment.TryPlace(hwnd,snapshot,placement.Bounds,out reason)){RejectChildFrame(reason);return;}
+          if(!attachment.TryRetain(snapshot,placement.Bounds)&&!attachment.TryPlace(hwnd,snapshot,placement.Bounds,out reason)){RejectChildFrame(reason);return;}
           string evidence=readLeaseFingerprint(snapshot,placement.Bounds);
           if(evidence==null){RejectChildFrame("layout-unverified");return;}
           // A prior rejected frame must not poison a new complete measurement.
@@ -388,22 +391,24 @@ namespace QuotaOverlay {
       return RememberFullscreen(foreground,monitor,monitorBounds,IsFullscreenBounds(rect.Area(),monitorBounds.Area(),IsZoomed(foreground),GetWindowLongPtr(foreground,-16).ToInt64()));
     }
     internal static bool CanDisplaySnapshot(TaskbarSnapshot snapshot,IntPtr own) {return CanDisplaySnapshot(snapshot,own,false);}
-    internal static bool CanDisplaySnapshot(TaskbarSnapshot snapshot,IntPtr own,bool childMode) {
+    internal static bool CanDisplaySnapshot(TaskbarSnapshot snapshot,IntPtr own,bool childMode,bool localFrame=false) {
       try {
-        if(!ParentSnapshotMatches(snapshot,own,FindWindow("Shell_TrayWnd",null),childMode))return false;
+        if(!ParentSnapshotMatches(snapshot,own,FindWindow("Shell_TrayWnd",null),childMode,localFrame))return false;
         TaskbarArea area=snapshot.Bounds;
+        if(localFrame){Rect current;if(!GetWindowRect(snapshot.Handle,out current))return false;area=current.Area();}
         IntPtr monitor=MonitorFromWindow(snapshot.Handle,MonitorNearest);var information=new MonitorInfo{Size=Marshal.SizeOf(typeof(MonitorInfo))};
         var appbar=new AppbarData{Size=(uint)Marshal.SizeOf(typeof(AppbarData))};
         bool autoHide=childMode&&(SHAppBarMessage(4,ref appbar).ToUInt64()&1)!=0;
         return GetMonitorInfo(monitor,ref information)&&(childMode?IsChildTaskbarGeometry(area,information.Monitor.Area(),snapshot.Scale,autoHide):IsTaskbarFullyRevealed(area,information.Monitor.Area(),snapshot.Scale))&&(childMode||!Fullscreen(own,monitor,information.Monitor));
       }catch{return false;}
     }
-    internal static bool ParentSnapshotMatches(TaskbarSnapshot snapshot,IntPtr own,IntPtr expectedParent,bool childMode) {
+    internal static bool ParentSnapshotMatches(TaskbarSnapshot snapshot,IntPtr own,IntPtr expectedParent,bool childMode,bool localFrame=false) {
       try {
+        if(localFrame&&!childMode)return false;
         if(snapshot==null||snapshot.Handle==IntPtr.Zero||expectedParent!=snapshot.Handle||!TaskbarLayout.Valid(snapshot.Bounds)||!TaskbarLayout.Finite(snapshot.Scale)||snapshot.Scale<=0||!IsWindowVisible(snapshot.Handle)||IsIconic(snapshot.Handle)||Cloaked(snapshot.Handle))return false;
         if(childMode&&!IsVerifiedOwnChild(own,snapshot.Handle))return false;
         Rect current;if(!GetWindowRect(snapshot.Handle,out current))return false;TaskbarArea area=current.Area();uint dpi=GetDpiForWindow(snapshot.Handle);
-        return dpi!=0&&area.X==snapshot.Bounds.X&&area.Y==snapshot.Bounds.Y&&area.Width==snapshot.Bounds.Width&&area.Height==snapshot.Bounds.Height&&Math.Abs(dpi/96.0-snapshot.Scale)<=0.01;
+        return dpi!=0&&(localFrame||(area.X==snapshot.Bounds.X&&area.Y==snapshot.Bounds.Y))&&area.Width==snapshot.Bounds.Width&&area.Height==snapshot.Bounds.Height&&Math.Abs(dpi/96.0-snapshot.Scale)<=0.01;
       }catch{return false;}
     }
     // No visibility requirement on our child: initial allocation is measured
@@ -469,7 +474,7 @@ namespace QuotaOverlay {
       }catch{return null;}
     }
     internal static string LeaseFingerprint(TaskbarSnapshot snapshot,TaskbarArea footprint,IntPtr own,bool childMode=false) {
-      return LeaseFingerprintCore(snapshot,footprint,own,delegate(TaskbarSnapshot value,IntPtr window){return CanDisplaySnapshot(value,window,childMode);},TaskbarPassiveOverlay.IsPassiveCanvas,(uint)Process.GetCurrentProcess().Id,childMode);
+      return LeaseFingerprintCore(snapshot,footprint,own,delegate(TaskbarSnapshot value,IntPtr window){return CanDisplaySnapshot(value,window,childMode,childMode);},TaskbarPassiveOverlay.IsPassiveCanvas,(uint)Process.GetCurrentProcess().Id,childMode);
     }
     // Testable native collector: the production entry always supplies the live
     // snapshot guard, protected passive-canvas identity and actual own PID.
@@ -495,18 +500,23 @@ namespace QuotaOverlay {
         bool safe=true,above=true;int count=0;
         string unsafeReason=null;
         double margin=Math.Ceiling(TaskbarLayout.Clearance*snapshot.Scale);
-        var protectedFootprint=new TaskbarArea{X=footprint.X-margin,Y=footprint.Y-margin,Width=footprint.Width+2*margin,Height=footprint.Height+2*margin};
+        TaskbarArea frame=childMode?TaskbarAttachment.Offset(snapshot.Bounds,-snapshot.Bounds.X,-snapshot.Bounds.Y):snapshot.Bounds;
+        TaskbarArea slot=childMode?TaskbarAttachment.Offset(footprint,-snapshot.Bounds.X,-snapshot.Bounds.Y):footprint;
+        var protectedFootprint=new TaskbarArea{X=slot.X-margin,Y=slot.Y-margin,Width=slot.Width+2*margin,Height=slot.Height+2*margin};
         var rows=new List<string>();string shellRow="shell|"+snapshot.Handle.ToInt64()+"|"+shell+"|"+snapshot.Scale.ToString("R",CultureInfo.InvariantCulture);
-        string barRow=LeaseArea("bar",childMode?TaskbarAttachment.Offset(snapshot.Bounds,-snapshot.Bounds.X,-snapshot.Bounds.Y):snapshot.Bounds);rows.Add(shellRow);rows.Add(barRow);shellRows.Add(shellRow);shellRows.Add(barRow);
+        string barRow=LeaseArea("bar",frame);rows.Add(shellRow);rows.Add(barRow);shellRows.Add(shellRow);shellRows.Add(barRow);
         EnumChildWindows(snapshot.Handle,delegate(IntPtr child,IntPtr unused) {
           childCount=++count;
           if(count>512){safe=false;unsafeReason="child-window-limit";return false;}if(!IsWindowVisible(child))return true;
           if(childMode&&IsOwnNativeSubtree(child,own))return true;
           uint process;GetWindowThreadProcessId(child,out process);Rect rect;
           if(process==0){safe=false;unsafeReason="child-process-unavailable";blocker=new {handle=child.ToInt64(),@class=ClassName(child)};return false;}
-          if(!GetWindowRect(child,out rect)){safe=false;unsafeReason="child-bounds-unavailable";blocker=new {handle=child.ToInt64(),process=process,@class=ClassName(child)};return false;}
-          TaskbarArea area=rect.Area();if(!TaskbarLayout.Valid(area)||!Intersects(area,snapshot.Bounds))return true;
-          string name=ClassName(child),row=LeaseArea("child|"+child.ToInt64()+"|"+process+"|"+name,childMode?TaskbarAttachment.Offset(area,-snapshot.Bounds.X,-snapshot.Bounds.Y):area);rows.Add(row);childRows.Add(row);
+          TaskbarArea area;
+          if(childMode) {
+            if(!LocalWindowArea(child,snapshot.Handle,out area)){safe=false;unsafeReason="child-local-bounds-unavailable";return false;}
+          }else {if(!GetWindowRect(child,out rect)){safe=false;unsafeReason="child-bounds-unavailable";return false;}area=rect.Area();}
+          if(!TaskbarLayout.Valid(area)||!Intersects(area,frame))return true;
+          string name=ClassName(child),row=LeaseArea("child|"+child.ToInt64()+"|"+process+"|"+name,area);rows.Add(row);childRows.Add(row);
           if(ProtectNativeWindow(name,process==shell,GetWindow(child,5)==IntPtr.Zero)&&Intersects(area,protectedFootprint)){safe=false;unsafeReason="protected-child-overlap";blocker=new {handle=child.ToInt64(),process=process,@class=name,rect=area};return false;}
           return true;
         },IntPtr.Zero);
@@ -535,7 +545,9 @@ namespace QuotaOverlay {
           bool button=(extended&0x00040000L)!=0||((extended&0x80L)==0&&GetWindow(window,4)==IntPtr.Zero);
           if(button) {
             var title=new System.Text.StringBuilder(512);GetWindowText(window,title,title.Capacity);string text=title.ToString();
-            string row=LeaseArea("app|"+window.ToInt64()+"|"+process+"|"+iconic+"|"+(extended&0x00040080L)+"|"+text.Length+":"+text,area);rows.Add(row);appRows.Add(row);
+            string identity="app|"+window.ToInt64()+"|"+process+"|"+iconic+"|"+(extended&0x00040080L)+"|"+text.Length+":"+text;
+            // Desktop app motion does not move its taskbar button.
+            string row=childMode?identity:LeaseArea(identity,area);rows.Add(row);appRows.Add(row);
           }
           return true;
         },IntPtr.Zero);
@@ -550,6 +562,18 @@ namespace QuotaOverlay {
       }catch(Exception error){LastFingerprintReason="exception/"+error.GetType().Name;return null;}
     }
     static string LeaseArea(string key,TaskbarArea area) {return key+"|"+area.X.ToString("R",CultureInfo.InvariantCulture)+"|"+area.Y.ToString("R",CultureInfo.InvariantCulture)+"|"+area.Width.ToString("R",CultureInfo.InvariantCulture)+"|"+area.Height.ToString("R",CultureInfo.InvariantCulture);}
+    [StructLayout(LayoutKind.Sequential)]struct WindowInformation {public uint Size;public Rect Window,Client;public uint Style,Extended,Status,BorderX,BorderY;public ushort Type,Version;}
+    [StructLayout(LayoutKind.Sequential)]struct LocalPoint {public int X,Y;}
+    static bool LocalWindowArea(IntPtr child,IntPtr parent,out TaskbarArea area) {
+      area=new TaskbarArea();var info=new WindowInformation{Size=(uint)Marshal.SizeOf(typeof(WindowInformation))};
+      if(!GetWindowInfo(child,ref info))return false;
+      var origin=new LocalPoint();NativeSetLastError(0);int mapped=MapWindowPoints(child,parent,ref origin,1);
+      if(mapped==0&&Marshal.GetLastWin32Error()!=0)return false;
+      area=new TaskbarArea{X=origin.X-(info.Client.Left-info.Window.Left),Y=origin.Y-(info.Client.Top-info.Window.Top),Width=info.Window.Right-info.Window.Left,Height=info.Window.Bottom-info.Window.Top};return TaskbarLayout.Valid(area);
+    }
+    [DllImport("user32.dll",SetLastError=true)]static extern bool GetWindowInfo(IntPtr window,ref WindowInformation info);
+    [DllImport("user32.dll",SetLastError=true)]static extern int MapWindowPoints(IntPtr from,IntPtr to,ref LocalPoint point,uint count);
+    [DllImport("kernel32.dll",EntryPoint="SetLastError")]static extern void NativeSetLastError(uint error);
     internal static TaskbarSnapshot ReadSnapshot(IntPtr own,bool childMode=false) {
       var result=new TaskbarSnapshot();IntPtr taskbar=FindWindow("Shell_TrayWnd",null);result.Handle=taskbar;
       Rect rectangle;if(taskbar==IntPtr.Zero||!GetWindowRect(taskbar,out rectangle)||!IsWindowVisible(taskbar)||IsIconic(taskbar)||Cloaked(taskbar))return result;

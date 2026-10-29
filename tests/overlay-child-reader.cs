@@ -58,6 +58,13 @@ internal static class ChildReaderTest {
     Check(Fingerprint(sample,footprint,own,true)==before,"moving parent and sibling widgets together preserves local native evidence");
     Check(SetWindowPos(bar,IntPtr.Zero,-27000,-27000,600,48,0x0014),"restore own taskbar fixture");
     sample.Bounds=Area(bar);footprint=Area(own);
+    foreach(int motionAt in new[]{1,2}) {
+      int checks=0;
+      string animated=TaskbarNative.LeaseFingerprintCore(sample,footprint,own,delegate(TaskbarSnapshot value,IntPtr child){if(++checks==motionAt)Check(SetWindowPos(bar,IntPtr.Zero,-27000,-26960,600,48,0x0014),"animate own parent during native proof");return TaskbarNative.ParentSnapshotMatches(value,child,bar,true,true);},delegate{return false;},0,true);
+      Check(animated==before,"parent translation during either native guard preserves local evidence");
+      Check(SetWindowPos(bar,IntPtr.Zero,-27000,-27000,600,48,0x0014),"restore parent after racing proof");
+    }
+    Check(!TaskbarNative.ParentSnapshotMatches(sample,own,bar,false,true),"relative coordinates are never accepted for a detached overlay");
     Check(SetWindowPos(widget,IntPtr.Zero,40,2,40,40,0x0014),"move only own foreign-widget fixture");
     string moved=Fingerprint(sample,footprint,own,true);Check(moved!=null&&moved!=before,"changed native widget geometry revokes old retention evidence");
     Check(SetWindowPos(widget,IntPtr.Zero,430,2,40,40,0x0014),"move only own widget fixture into the protected footprint");
