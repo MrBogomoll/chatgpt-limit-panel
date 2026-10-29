@@ -6,17 +6,17 @@
 
 A Windows panel for the shared Codex / Work usage limits in desktop ChatGPT. Shows remaining percentages and reset times beside the app, with an optional two-row indicator on the Windows taskbar. Instant displays the same Codex / Work counters.
 
-**[Download ChatGPT Limit Panel 1.4.2 for Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.2/chatgpt-limit-panel-1.4.2-windows-x64.zip)** · [All releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Upgrade an installed panel](UPGRADING.md)
+**[Download ChatGPT Limit Panel 1.4.3 for Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.3/chatgpt-limit-panel-1.4.3-windows-x64.zip)** · [All releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Upgrade an installed panel](UPGRADING.md)
 
-Choose **chatgpt-limit-panel-1.4.2-windows-x64.zip** under Assets. The complete ZIP includes the programs, Node.js and its license. Git and a separate Node.js installation are not required. GitHub's automatic **Source code** archives contain repository materials.
+Choose **chatgpt-limit-panel-1.4.3-windows-x64.zip** under Assets. The complete ZIP includes the programs, Node.js and its license. Git and a separate Node.js installation are not required. GitHub's automatic **Source code** archives contain repository materials.
 
-## New in 1.4.2
+## New in 1.4.3
 
-- Remove sidebar flicker while resizing, including vertical growth and shrinkage.
-- Keep the sidebar visible when restoring a maximized window.
-- Temporarily hide the sidebar in the Windows 11 Snap Layouts preview and restore it on exit.
+- Settings and diagnostics now use the **ChatGPTLimitPanel** directory, with automatic migration of existing data.
+- Language, theme, view, position and autostart preferences are preserved.
+- The [upgrade guide](UPGRADING.md) describes package replacement without references to older versions.
 
-Windows 10 compatibility is still under investigation. See [KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md).
+Windows 10 compatibility is still under investigation.
 
 ## Fixed in 1.3.2
 
@@ -86,10 +86,10 @@ Actually checked on Windows 11, including Start11 and an adjacent NetWorx indica
 
 ## Checksum and data
 
-[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.2/chatgpt-limit-panel-1.4.2-windows-x64.zip.sha256):
+[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.3/chatgpt-limit-panel-1.4.3-windows-x64.zip.sha256):
 
 ```text
-0ae08278328d12c8c76ffb71b2310ace471b5badedd15071a803bdab9266e6b5
+0ebdfea85c2cfb4e661fec180613ff4bb22d5cff3dfe61ac4f18f17068e73abb
 ```
 
 The panel uses your own local Codex sign-in. Author credentials, conversations and account settings are not included. ChatGPT files are unchanged. ChatGPT Limit Panel is an independent project, not an official OpenAI product.

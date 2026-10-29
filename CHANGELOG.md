@@ -1,5 +1,10 @@
 # Changes
 
+## 1.4.3 — 2026-10-29
+
+- Migrate settings and diagnostic files to the ChatGPTLimitPanel directory, preserving preferences and language.
+- Simplify the bilingual package replacement guide and remove obsolete version-specific instructions.
+
 ## 1.4.2 — 2026-10-29
 
 - Remove sidebar flicker during horizontal and vertical window resizing, including height growth and shrinkage.
