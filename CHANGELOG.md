@@ -1,5 +1,11 @@
 # Changes
 
+## 1.6.1 — 2026-10-30
+
+- Automatically relocate a stopped, verified launch task when the plugin installation path changes, preserving task and autostart settings.
+- Recognize supported previous package paths without requiring the old files, while rejecting unrelated, running or concurrently replaced tasks.
+- Simplify the bilingual upgrade guide to stop, replace ZIP and start.
+
 ## 1.6.0 — 2026-10-30
 
 - Add optional unpinned placement inside the ChatGPT window, preserving bounds, saved positions and sidebar repinning.
