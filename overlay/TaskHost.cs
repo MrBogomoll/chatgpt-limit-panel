@@ -112,6 +112,33 @@ internal static class QuotaPanelTaskHost {
       return true;
     }catch{return false;}
   }
+  static string PreviousLauncher(TaskRecord record,string launcher,string sid) {
+    try {
+      string suffix=Path.Combine("dist","overlay","ChatGPTLimitPanelLauncher.exe");
+      if(!LauncherPath(launcher).EndsWith(Path.DirectorySeparatorChar+suffix,StringComparison.OrdinalIgnoreCase))return null;
+      var doc=Parse(record.xml);var ns=Namespaces(doc);
+      string previous=LauncherPath(Text(doc,ns,"/t:Task/t:Actions/t:Exec/t:Command"));
+      // Older published packages used QuotaMonitor.exe in the same relative directory.
+      bool known=previous.EndsWith(Path.DirectorySeparatorChar+suffix,StringComparison.OrdinalIgnoreCase)||previous.EndsWith(Path.DirectorySeparatorChar+Path.Combine("dist","overlay","QuotaMonitor.exe"),StringComparison.OrdinalIgnoreCase);
+      return known&&IsOwnTaskXml(record.xml,previous,sid)?previous:null;
+    }catch{return null;}
+  }
+  static TaskRecord Migrate(TaskRecord record,string launcher,string sid,ITaskStore store) {
+    if(record==null||IsOwnTaskXml(record.xml,launcher,sid))return record;
+    if(PreviousLauncher(record,launcher,sid)==null){Validate(record,launcher,sid);return record;}
+    if(record.running)throw new InvalidOperationException("Сначала останови предыдущую панель, затем запусти новую версию.");
+    string expected=record.xml;bool enabled=record.enabled;
+    var doc=Parse(expected);var ns=Namespaces(doc);
+    doc.SelectSingleNode("/t:Task/t:Actions/t:Exec/t:Command",ns).InnerText=LauncherPath(launcher);
+    doc.SelectSingleNode("/t:Task/t:Actions/t:Exec/t:WorkingDirectory",ns).InnerText=Path.GetDirectoryName(LauncherPath(launcher));
+    string name=TaskName(sid);var latest=store.Read(name);
+    // Recheck immediately before updating; never overwrite a replaced or running task.
+    if(latest==null||latest.running||latest.enabled!=enabled||latest.xml!=expected)throw new InvalidOperationException("Задача запуска изменилась. Повтори обновление после остановки панели.");
+    store.Update(name,doc.OuterXml,sid);
+    var migrated=store.Read(name);Validate(migrated,launcher,sid);
+    if(migrated==null||migrated.enabled!=enabled)throw new InvalidOperationException("Не удалось подтвердить перенос задачи запуска панели.");
+    return migrated;
+  }
   static void Validate(TaskRecord record,string launcher,string sid) {
     if(record!=null && !IsOwnTaskXml(record.xml,launcher,sid))throw new InvalidOperationException("Задача запуска с этим именем не принадлежит этой установке панели. Изменения не выполнены.");
   }
@@ -122,7 +149,7 @@ internal static class QuotaPanelTaskHost {
   }
   internal static TaskStatus ConfigureAutostart(string launcherPath,bool enabled) {using(var store=new SchedulerStore())return ConfigureAutostart(launcherPath,CurrentSid(),store,enabled);}
   internal static TaskStatus ConfigureAutostart(string launcherPath,string sid,ITaskStore store,bool enabled) {
-    string name=TaskName(sid);var record=store.Read(name);Validate(record,launcherPath,sid);
+    string name=TaskName(sid);var record=Migrate(store.Read(name),launcherPath,sid,store);Validate(record,launcherPath,sid);
     if(record!=null&&Status(record).autoStartConfigured&&Status(record).autoStartEnabled==enabled)return Status(record);
     var doc=Parse(CreateTaskXml(launcherPath,sid));var ns=Namespaces(doc);
     doc.SelectSingleNode("/t:Task/t:RegistrationInfo/t:Description",ns).InnerText=AutoMarker;
@@ -142,10 +169,12 @@ internal static class QuotaPanelTaskHost {
   internal static TaskStatus Run(string launcherPath) {using(var store=new SchedulerStore())return Run(launcherPath,CurrentSid(),store);}
   internal static TaskStatus RemoveOwn(string launcherPath) {using(var store=new SchedulerStore())return RemoveOwn(launcherPath,CurrentSid(),store);}
   internal static TaskStatus Read(string launcherPath,string sid,ITaskStore store) {
-    var record=store.Read(TaskName(sid));Validate(record,launcherPath,sid);return Status(record);
+    var record=store.Read(TaskName(sid));
+    if(record!=null&&!IsOwnTaskXml(record.xml,launcherPath,sid)&&PreviousLauncher(record,launcherPath,sid)==null)Validate(record,launcherPath,sid);
+    return Status(record);
   }
   internal static TaskStatus Ensure(string launcherPath,string sid,ITaskStore store) {
-    string name=TaskName(sid);var record=store.Read(name);Validate(record,launcherPath,sid);
+    string name=TaskName(sid);var record=Migrate(store.Read(name),launcherPath,sid,store);Validate(record,launcherPath,sid);
     if(record==null) {
       // Create-only avoids overwriting a task created between the read and write.
       try {store.Register(name,CreateTaskXml(launcherPath,sid),sid);}

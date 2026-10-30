@@ -3,7 +3,7 @@ using System.Reflection;
 [assembly: AssemblyTitle("ChatGPT Limit Panel")]
 [assembly: AssemblyProduct("ChatGPT Limit Panel")]
 [assembly: AssemblyDescription("Codex / Work limit monitor for desktop ChatGPT")]
-[assembly: AssemblyVersion("1.6.0.0")]
-[assembly: AssemblyFileVersion("1.6.0.0")]
+[assembly: AssemblyVersion("1.6.1.0")]
+[assembly: AssemblyFileVersion("1.6.1.0")]
 
-[assembly: AssemblyInformationalVersion("1.6.0")]
+[assembly: AssemblyInformationalVersion("1.6.1-beta.1")]
