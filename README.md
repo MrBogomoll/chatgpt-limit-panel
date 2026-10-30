@@ -62,7 +62,9 @@
 
 Панель проверена на Windows 11, включая Start11 и расположение рядом с NetWorx. Совместимость с Windows 10 пока не подтверждена. Если загрузка ZIP недоступна или возникла ошибка, укажи версию Windows, клиента и описание в [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues).
 
-Программа использует текущий локальный вход Codex. Авторизация и настройки пользователя не входят в архив. Проект независимый и не является официальным продуктом OpenAI. [Контрольная сумма ZIP 1.6.1](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.6.1/chatgpt-limit-panel-1.6.1-windows-x64.zip.sha256).
+Панель запускает локальный Codex App Server и запрашивает у него лимиты текущего аккаунта. Настройки и состояние сохраняются локально в `%LOCALAPPDATA%\ChatGPTLimitPanel` (при наличии старых данных может использоваться `ChatGPTQuotaOverlay`); при проверке обновлений программа обращается к GitHub API. Программа использует текущий локальный вход Codex. Авторизация и настройки пользователя не входят в архив. Проект независимый и не является официальным продуктом OpenAI. [Контрольная сумма ZIP 1.6.1](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.6.1/chatgpt-limit-panel-1.6.1-windows-x64.zip.sha256).
+
+Сообщение об уязвимостях: [политика безопасности](SECURITY.md).
 
 ## Лицензия
 

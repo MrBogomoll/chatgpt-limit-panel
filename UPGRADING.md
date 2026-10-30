@@ -30,4 +30,4 @@ Keep the application's preferences folder. Language, theme, view, position, indi
 
 If the new version cannot start, check that the previous panel is stopped. If it still fails, contact [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues). Tasks that fail ownership or structure checks are left unchanged; do not manually delete unknown tasks.
 
-For first installation, follow the [README](README.en.md).
+For first installation, follow the [README](https://github.com/MrBogomoll/chatgpt-limit-panel/blob/main/README.en.md).

@@ -25,7 +25,7 @@ export function installPlugin({
 } = {}) {
   if (!stagePath) throw new Error('A complete staged plugin package is required.');
   const stage = path.resolve(stagePath), home = path.resolve(codexHome);
-  const files = existsSync(path.join(stage, 'LICENSE')) ? [...payloadFiles, 'LICENSE'] : payloadFiles;
+  const files = [...payloadFiles, ...['LICENSE', 'UPGRADING.md', 'UNINSTALL.md'].filter(file => existsSync(path.join(stage, file)))];
   for (const relative of files) {
     let info;
     try { info = lstatSync(path.join(stage, relative)); } catch { /* Checked below. */ }

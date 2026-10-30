@@ -1,0 +1,19 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test data handling and packaging
+        run: node --test --test-concurrency=1 tests/plugin-reader.test.mjs tests/plugin-limits.test.mjs tests/chatgpt-limit-panel-packaging.test.mjs tests/overlay-package.test.mjs tests/overlay-plugin-install.test.mjs

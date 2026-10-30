@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const api = await import('../overlay/install-plugin.mjs').catch(() => ({}));
 const payloadFiles = [
-  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'LICENSE',
+  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'LICENSE', 'UPGRADING.md', 'UNINSTALL.md',
   'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',
@@ -60,6 +60,9 @@ test('plugin installer registers a complete private marketplace and verifies nat
   const result = api.installPlugin(settings);
   assert.equal(result.installed.pluginId, 'quota-panel@quota-panel-local');
   assert.equal(result.installed.enabled, true);
+  for (const file of ['LICENSE', 'UPGRADING.md', 'UNINSTALL.md']) {
+    assert.equal(await readFile(path.join(result.sourcePath, file), 'utf8'), 'payload:' + file);
+  }
   assert.equal(await readFile(path.join(result.sourcePath, 'runtime/node.exe'), 'utf8'), 'payload:runtime/node.exe');
   assert.equal(await readFile(path.join(result.sourcePath, 'dist/overlay/ChatGPTLimitPanelLauncher.exe'), 'utf8'), 'payload:dist/overlay/ChatGPTLimitPanelLauncher.exe');
   assert.equal(await readFile(path.join(result.sourcePath, '.codex-plugin/plugin.json'), 'utf8'), await readFile(path.join(settings.stagePath, '.codex-plugin/plugin.json'), 'utf8'));
