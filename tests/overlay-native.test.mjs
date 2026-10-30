@@ -24,7 +24,7 @@ test('native overlay renders and accepts updates using only isolated own control
     ...['System.Web.Extensions', 'System.Windows.Forms', 'System.Drawing', 'System.Xaml'].map(name => path.join(framework, `${name}.dll`)),
   ];
   const compilation = spawnSync(path.join(framework, 'csc.exe'), [
-    '/nologo', '/codepage:65001', '/platform:x64', '/target:exe', '/main:OverlayNativeTest', `/out:${executable}`,
+    '/nologo', '/codepage:65001', '/platform:x64', '/target:exe', '/main:OverlayNativeTest', `/resource:${path.join(root,'overlay/tray.ico')},ChatGPTLimitPanel.TrayIcon`, `/out:${executable}`,
     `/win32manifest:${path.join(root, 'overlay', 'app.manifest')}`,
     ...references.map(reference => `/reference:${reference}`),
     path.join(root, 'overlay', 'Layout.cs'),path.join(root,'overlay','TaskbarLayout.cs'),path.join(root,'overlay','TaskbarWindow.cs'),path.join(root,'overlay','TaskbarChildSurface.cs'),path.join(root,'overlay','TaskbarAttachment.cs'),path.join(root,'overlay','TaskbarTransient.cs'),path.join(root,'overlay','TaskbarMenuLease.cs'),path.join(root,'overlay','TaskbarDiagnostics.cs'),path.join(root,'overlay','TaskbarAppearance.cs'),path.join(root,'overlay/TaskbarPassiveOverlay.cs'), path.join(root, 'overlay', 'Progress.cs'), path.join(root, 'overlay', 'VisualHost.cs'), path.join(root, 'overlay', 'Theme.cs'), path.join(root, 'overlay', 'Preferences.cs'), path.join(root, 'overlay', 'Language.cs'), path.join(root, 'overlay', 'Overlay.cs'), path.join(root, 'tests', 'overlay-native.cs'),
@@ -32,6 +32,7 @@ test('native overlay renders and accepts updates using only isolated own control
   succeeded(compilation, 'native test compilation');
 
   for (const [scenario, description] of [
+    ['tray-menu', 'tray uses branded icon and the shared themed accessible menu with live language and settings'],
     ['rail-resize', 'temporary resize geometry conservatively reserves moving rail controls at all supported scales'],
     ['snap-preview', 'recorded Snap preview hides only the sidebar while ordinary drag and unrelated shell windows remain unaffected'],
     ['layout', '100% and bold reset times fit actual available width with current fonts'],

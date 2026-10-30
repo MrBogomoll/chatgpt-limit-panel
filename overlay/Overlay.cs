@@ -290,7 +290,10 @@ namespace QuotaOverlay {
     readonly DispatcherTimer tracker=new DispatcherTimer();
     readonly DispatcherTimer motionTracker=new DispatcherTimer(DispatcherPriority.Render);
     readonly Forms.NotifyIcon tray=new Forms.NotifyIcon();
-    readonly Forms.ToolStripMenuItem pause=new Forms.ToolStripMenuItem();
+    readonly MenuItem pause=new MenuItem();
+    ContextMenu trayMenu;
+    MenuDismissWatcher trayMenuDismiss;
+    System.Drawing.Icon trayIcon;
     Native.EventProc nativeEvent;
     IntPtr eventHook,locationHook,moveHook,minimizeHook,hwnd,target;
     bool placing,refreshQueued,pendingPreview,pendingStartupCheckpoint,interactiveMove;
@@ -323,7 +326,7 @@ namespace QuotaOverlay {
     MenuItem languageRussianItem,languageEnglishItem;
     MenuItem autostartItem;
     MenuItem taskbarEnabledItem,taskbarLeftItem,taskbarRightItem,taskbarStatusItem;
-    Forms.ToolStripMenuItem taskbarTrayItem,taskbarTraySides,taskbarTrayLeft,taskbarTrayRight;
+    MenuItem taskbarTrayItem,taskbarTraySides,taskbarTrayLeft,taskbarTrayRight;
     TaskbarWindow taskbarWindow;
     ContextMenu taskbarMenu;
     MenuDismissWatcher taskbarMenuDismiss;
@@ -430,7 +433,8 @@ namespace QuotaOverlay {
         DisposeTaskbarView();sidebarGeometry.Dispose();
         if(menuDismiss!=null)menuDismiss.Dispose();StopTracking();
         if(stopWait!=null)stopWait.Unregister(null);if(stopEvent!=null)stopEvent.Dispose();
-        tray.Visible=false;tray.Dispose();Command("exit");
+        if(trayMenu!=null)trayMenu.IsOpen=false;if(trayMenuDismiss!=null)trayMenuDismiss.Dispose();
+        tray.Visible=false;tray.Dispose();if(trayIcon!=null)trayIcon.Dispose();Command("exit");
       };
       stopEvent=new EventWaitHandle(false,EventResetMode.ManualReset,"Local\\ChatGPTQuotaOverlay.Stop");stopEvent.Reset();
       stopWait=ThreadPool.RegisterWaitForSingleObject(stopEvent,delegate {if(!closing)Dispatcher.BeginInvoke(new Action(Close));},null,-1,true);
@@ -488,10 +492,8 @@ namespace QuotaOverlay {
       for(int i=0;i<keys.Length;i++)optionsMenu.Resources["Quota."+keys[i]]=Brush(colors[i]);
     }
     void ApplyTrayPalette() {
-      if(tray.ContextMenuStrip==null)return;
-      tray.ContextMenuStrip.BackColor=System.Drawing.ColorTranslator.FromHtml(palette.MenuSurface);
-      tray.ContextMenuStrip.ForeColor=System.Drawing.ColorTranslator.FromHtml(palette.MenuText);
-      foreach(Forms.ToolStripItem item in tray.ContextMenuStrip.Items)item.ForeColor=tray.ContextMenuStrip.ForeColor;
+      if(trayMenu==null)return;
+      trayMenu.Background=Brush(palette.MenuSurface);trayMenu.Foreground=Brush(palette.MenuText);
     }
     void SelectTheme(string mode) {
       if(mode!="dark"&&mode!="light"&&mode!="auto")return;
@@ -524,10 +526,10 @@ namespace QuotaOverlay {
       tray.Text=tooltip.ToString().Substring(0,Math.Min(63,tooltip.Length));UpdateCompactStatus();
     }
     void ApplyTrayLanguage() {
-      pause.Text=T(paused?"resume":"pause");
-      if(tray.ContextMenuStrip==null)return;
-      tray.ContextMenuStrip.Items[0].Text=T("refreshNow");tray.ContextMenuStrip.Items[3].Text=T("close");
-      if(taskbarTrayItem!=null){taskbarTrayItem.Text=T("taskbarShow");taskbarTraySides.Text=T("taskbar");taskbarTrayLeft.Text=T("taskbarLeft");taskbarTrayRight.Text=T("taskbarRight");}
+      pause.Header=T(paused?"resume":"pause");
+      if(trayMenu==null)return;
+      TranslateMenu(trayMenu);
+      taskbarTrayLeft.Header=T(TaskbarSideKey(false));taskbarTrayRight.Header=T(TaskbarSideKey(true));
     }
     bool RefreshTheme(bool force) {
       if(!force&&DateTime.UtcNow<nextThemeCheck)return false;
@@ -623,7 +625,7 @@ namespace QuotaOverlay {
       if(taskbarWindow==null&&taskbarEnabled) {
         taskbarWindow=new TaskbarWindow(taskbarSnapshotReader);
         taskbarWindow.PositionChanged=SetTaskbarPosition;
-        taskbarWindow.IsOtherMenuOpen=delegate {return optionsMenu.IsOpen||(tray.ContextMenuStrip!=null&&tray.ContextMenuStrip.Visible);};
+        taskbarWindow.IsOtherMenuOpen=delegate {return optionsMenu.IsOpen||(trayMenu!=null&&trayMenu.IsOpen);};
         taskbarMenu=new ContextMenu {StaysOpen=false,Resources=optionsMenu.Resources,Template=optionsMenu.Template,Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText)};
         var enabled=Menu("taskbarShow",true);enabled.Click+=delegate {SetTaskbarEnabled(enabled.IsChecked);};
         var left=Menu("taskbarLeft",true);left.Click+=delegate {SetTaskbarSide("left");};
@@ -635,7 +637,7 @@ namespace QuotaOverlay {
         var transparencyContent=new StackPanel();transparencyContent.Children.Add(transparencyLabel);transparencyContent.Children.Add(transparencySlider);
         var transparencyItem=new MenuItem {Header=transparencyContent,StaysOpenOnClick=true};
         var stop=Menu("stop");stop.Click+=delegate {Close();};
-        taskbarMenu.Items.Add(enabled);taskbarMenu.Items.Add(left);taskbarMenu.Items.Add(right);taskbarMenu.Items.Add(new Separator());taskbarMenu.Items.Add(transparencyItem);taskbarMenu.Items.Add(new Separator());taskbarMenu.Items.Add(stop);
+        taskbarMenu.Items.Add(enabled);taskbarMenu.Items.Add(left);taskbarMenu.Items.Add(right);taskbarMenu.Items.Add(MenuSeparator());taskbarMenu.Items.Add(transparencyItem);taskbarMenu.Items.Add(MenuSeparator());taskbarMenu.Items.Add(stop);
         var createdMenu=taskbarMenu;
         var createdWatcher=new MenuDismissWatcher(Dispatcher,delegate{return !closing&&Object.ReferenceEquals(taskbarMenu,createdMenu)&&createdMenu.IsOpen;},delegate{createdMenu.IsOpen=false;},null);
         taskbarMenuDismiss=createdWatcher;
@@ -647,6 +649,7 @@ namespace QuotaOverlay {
       bool stale=markers[0].Text.Length>0||markers[1].Text.Length>0;
       taskbarWindow.ApplyRows(values[0].Text,values[1].Text,rowTones[0],rowTones[1],stale);
     }
+    Separator MenuSeparator() {return new Separator {Style=(Style)optionsMenu.Resources[typeof(Separator)]};}
     void SetupPanelMenu() {
       optionsMenu=new ContextMenu {StaysOpen=false,Background=Brush(palette.MenuSurface),Foreground=Brush(palette.Primary),BorderBrush=Brush(palette.MenuBorder),BorderThickness=new Thickness(1),FontSize=12,Padding=new Thickness(4),Placement=System.Windows.Controls.Primitives.PlacementMode.Right,PlacementTarget=panel,HorizontalOffset=8};
       ApplyMenuPalette();
@@ -738,7 +741,7 @@ namespace QuotaOverlay {
       taskbarEnabledItem.IsChecked=taskbarEnabled;taskbarLeftItem.IsChecked=taskbarSide=="left";taskbarRightItem.IsChecked=taskbarSide=="right";
       taskbarLeftItem.Header=T(TaskbarSideKey(false));taskbarRightItem.Header=T(TaskbarSideKey(true));
       taskbarStatusItem.Header=T(!taskbarEnabled?"taskbarOff":taskbarWindow!=null&&taskbarWindow.IsVisible?"taskbarActive":"taskbarWaiting");
-      if(taskbarTrayItem!=null){taskbarTrayItem.Checked=taskbarEnabled;taskbarTrayLeft.Checked=taskbarSide=="left";taskbarTrayRight.Checked=taskbarSide=="right";}
+      if(taskbarTrayItem!=null){taskbarTrayItem.IsChecked=taskbarEnabled;taskbarTrayLeft.IsChecked=taskbarSide=="left";taskbarTrayRight.IsChecked=taskbarSide=="right";}
       fullProgressItem.IsChecked=fullProgressMode=="bars";fullOutlineItem.IsChecked=fullProgressMode=="outline";fullOffItem.IsChecked=fullProgressMode=="off";
       fullBothItem.IsChecked=fullProgressMode=="both";
       shortProgressItem.IsChecked=contourWindow=="short";weeklyProgressItem.IsChecked=contourWindow=="weekly";
@@ -770,7 +773,7 @@ namespace QuotaOverlay {
       });
     }
     void TogglePaused() {
-      paused=!paused;pause.Text=T(paused?"resume":"pause");Command(paused?"pause":"resume");SyncTaskbar();SyncMenu();UpdatePlacement();
+      paused=!paused;pause.Header=T(paused?"resume":"pause");Command(paused?"pause":"resume");SyncTaskbar();SyncMenu();UpdatePlacement();
     }
     void UpdateProgress() {
       if(progressOutline==null)return;
@@ -857,24 +860,31 @@ namespace QuotaOverlay {
       compactStale.Visibility=presentationMode=="compact" && compactStale.Text.Length>0?Visibility.Visible:Visibility.Collapsed;
     }
     static void Command(string command) { try { Console.Out.WriteLine("{\"command\":\""+command+"\"}");Console.Out.Flush(); } catch {} }
+    void SetupTrayMenu() {
+      trayMenu=new ContextMenu {StaysOpen=false,Resources=optionsMenu.Resources,Template=optionsMenu.Template,FontSize=12,
+        Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),Placement=System.Windows.Controls.Primitives.PlacementMode.MousePoint};
+      var refresh=Menu("refreshNow");refresh.Click+=delegate {Command("refresh");};trayMenu.Items.Add(refresh);
+      pause.Click+=delegate {TogglePaused();};trayMenu.Items.Add(pause);
+      taskbarTrayItem=Menu("taskbarShow",true);taskbarTrayItem.Click+=delegate {SetTaskbarEnabled(taskbarTrayItem.IsChecked);};
+      taskbarTraySides=Menu("taskbar");
+      taskbarTrayLeft=Menu("taskbarLeft",true);taskbarTrayLeft.Click+=delegate {SetTaskbarSide("left");};
+      taskbarTrayRight=Menu("taskbarRight",true);taskbarTrayRight.Click+=delegate {SetTaskbarSide("right");};
+      taskbarTraySides.Items.Add(taskbarTrayLeft);taskbarTraySides.Items.Add(taskbarTrayRight);
+      trayMenu.Items.Add(MenuSeparator());trayMenu.Items.Add(taskbarTrayItem);trayMenu.Items.Add(taskbarTraySides);
+      trayMenu.Items.Add(MenuSeparator());var stop=Menu("stop");stop.Click+=delegate {Close();};trayMenu.Items.Add(stop);
+      trayMenuDismiss=new MenuDismissWatcher(Dispatcher,delegate{return trayMenu.IsOpen;},delegate{trayMenu.IsOpen=false;},null);
+      trayMenu.Opened+=delegate {SyncMenu();ApplyTrayLanguage();trayMenuDismiss.Start();};
+      trayMenu.Closed+=delegate {trayMenuDismiss.Stop();};ApplyTrayLanguage();
+    }
     void SetupTray() {
-      tray.Icon=System.Drawing.SystemIcons.Information;
-      tray.Text=T("trayTitle");
-      var menu=new Forms.ContextMenuStrip();
-      menu.Items.Add(T("refreshNow"),null,delegate { Command("refresh"); });
-      pause.Click+=delegate {TogglePaused();};
-      menu.Items.Add(pause);
-      menu.Items.Add(new Forms.ToolStripSeparator());
-      menu.Items.Add(T("close"),null,delegate { Close(); });
-      menu.Items.Add(new Forms.ToolStripSeparator());
-      taskbarTrayItem=new Forms.ToolStripMenuItem(T("taskbarShow")) {CheckOnClick=true,Checked=taskbarEnabled};taskbarTrayItem.Click+=delegate {SetTaskbarEnabled(taskbarTrayItem.Checked);};
-      taskbarTraySides=new Forms.ToolStripMenuItem(T("taskbar"));
-      taskbarTrayLeft=new Forms.ToolStripMenuItem(T("taskbarLeft"));taskbarTrayLeft.Click+=delegate {SetTaskbarSide("left");};
-      taskbarTrayRight=new Forms.ToolStripMenuItem(T("taskbarRight"));taskbarTrayRight.Click+=delegate {SetTaskbarSide("right");};
-      taskbarTraySides.DropDownItems.Add(taskbarTrayLeft);taskbarTraySides.DropDownItems.Add(taskbarTrayRight);menu.Items.Add(taskbarTrayItem);menu.Items.Add(taskbarTraySides);
-      tray.ContextMenuStrip=menu;ApplyTrayLanguage();ApplyTrayPalette();tray.Visible=true;
-      menu.Opening+=delegate{taskbarTrayLeft.Text=T(TaskbarSideKey(false));taskbarTrayRight.Text=T(TaskbarSideKey(true));};
-      tray.DoubleClick+=delegate {Command("refresh");};
+      using(var stream=typeof(OverlayWindow).Assembly.GetManifestResourceStream("ChatGPTLimitPanel.TrayIcon"))
+        trayIcon=new System.Drawing.Icon(stream,Forms.SystemInformation.SmallIconSize);
+      tray.Icon=trayIcon;tray.Text=T("trayTitle");SetupTrayMenu();
+      tray.MouseUp+=delegate(object sender,Forms.MouseEventArgs e) {
+        if(e.Button!=Forms.MouseButtons.Right)return;
+        Dispatcher.BeginInvoke(new Action(delegate {if(closing)return;optionsMenu.IsOpen=false;if(taskbarMenu!=null)taskbarMenu.IsOpen=false;trayMenu.IsOpen=true;}));
+      };
+      tray.Visible=true;tray.DoubleClick+=delegate {Command("refresh");};
     }
     void StartInput() {
       var thread=new Thread(delegate() {

@@ -67,6 +67,36 @@ class OverlayNativeTest {
       Check(contrast>=4.5,name+"["+index+"] contrast must be readable; actual "+contrast.ToString("F2",CultureInfo.InvariantCulture));
     }
   }
+  static void TrayMenuTest(OverlayWindow window) {
+    using(var stream=typeof(OverlayWindow).Assembly.GetManifestResourceStream("ChatGPTLimitPanel.TrayIcon"))
+    using(var icon=new System.Drawing.Icon(stream,32,32)) {
+      Check(icon.Width==32&&icon.Height==32,"branded icon must load at native tray DPI sizes");
+      using(var bitmap=icon.ToBitmap())Check(bitmap.GetPixel(16,16).A>0,"brand asset must contain visible pixels");
+    }
+    Invoke(window,"SetupTrayMenu");var menu=Field<ContextMenu>(window,"trayMenu");
+    var panelMenu=Field<ContextMenu>(window,"optionsMenu");
+    Check(Object.ReferenceEquals(menu.Template,panelMenu.Template)&&Object.ReferenceEquals(menu.Resources,panelMenu.Resources),"tray must share panel styles and theme resources");
+    Check(((Separator)menu.Items[2]).Style!=null&&((Separator)menu.Items[5]).Style!=null,"tray separators must explicitly use the themed style");
+    Check(((MenuItem)menu.Items[6]).Tag.ToString()=="stop"&&Object.ReferenceEquals(menu.Items[3],Field<MenuItem>(window,"taskbarTrayItem")),"the final action must stop the entire monitor");
+    Check(menu.Items.Count==7,"refresh, pause, taskbar toggle, side and close must remain available");
+    Invoke(window,"SelectTheme","light");
+    Check(ColorOf(menu.Background)==ParseColor(ThemePalette.Light.MenuSurface),"tray must follow light theme");
+    Invoke(window,"SelectLanguage","en");
+    Check(Convert.ToString(((MenuItem)menu.Items[0]).Header)=="Refresh now","tray must follow language");
+    var pause=Field<MenuItem>(window,"pause");pause.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    Check(Convert.ToString(pause.Header)==PanelLanguage.Text("en","resume"),"pause must update live");
+    var toggle=Field<MenuItem>(window,"taskbarTrayItem");toggle.IsChecked=true;toggle.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    Check(Field<bool>(window,"taskbarEnabled"),"tray toggle must still enable percentages");
+    toggle.IsChecked=false;toggle.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    foreach(string theme in new[]{"dark","light"}) {
+      Invoke(window,"SelectTheme",theme);Invoke(window,"SelectLanguage","ru");
+      menu.Measure(new Size(400,600));menu.Arrange(new Rect(new Point(),menu.DesiredSize));menu.UpdateLayout();
+      var image=new System.Windows.Media.Imaging.RenderTargetBitmap((int)Math.Ceiling(menu.ActualWidth*2),(int)Math.Ceiling(menu.ActualHeight*2),192,192,PixelFormats.Pbgra32);image.Render(menu);
+      var encoder=new System.Windows.Media.Imaging.PngBitmapEncoder();encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(image));
+      using(var file=File.Create(Path.Combine(Path.GetDirectoryName(Field<string>(window,"stateFile")),"tray-"+theme+".png")))encoder.Save(file);
+    }
+    Console.WriteLine("PASS native tray-menu: branded icon and shared themed menu actions");
+  }
   static void LayoutTest(OverlayWindow window) {
     Invoke(window,"SetCompact",false);
     Known(window);
@@ -1200,6 +1230,7 @@ class OverlayNativeTest {
       window=NewWindow(Path.Combine(directory,"state.json"));
       AssertUnshown(window);
       switch(args[0]) {
+        case "tray-menu":TrayMenuTest(window);break;
         case "rail-resize":RailResizeTest(window);break;
         case "snap-preview":SnapPreviewTest(window);break;
         case "rail-translation":RailTranslationTest(window);break;

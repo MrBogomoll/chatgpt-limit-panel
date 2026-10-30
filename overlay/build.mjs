@@ -9,7 +9,7 @@ const test=process.argv.includes('--test-layout');
 const args=['/nologo','/codepage:65001','/platform:x64',`/out:${path.join(out,test?'layout-test.exe':'ChatGPTLimitPanel.exe')}`];
 if(test) args.push(path.join(root,'overlay/Layout.cs'),path.join(root,'tests/overlay-layout.cs'));
 else {
-  args.push('/target:winexe',`/win32manifest:${path.join(root,'overlay/app.manifest')}`,path.join(root,'overlay/ProductInfo.cs'));
+  args.push('/target:winexe',`/resource:${path.join(root,'overlay/tray.ico')},ChatGPTLimitPanel.TrayIcon`,`/win32icon:${path.join(root,'overlay/tray.ico')}`,`/win32manifest:${path.join(root,'overlay/app.manifest')}`,path.join(root,'overlay/ProductInfo.cs'));
   for(const name of ['PresentationCore','PresentationFramework','WindowsBase','UIAutomationClient','UIAutomationTypes']) args.push(`/reference:${path.join(framework,'WPF',name+'.dll')}`);
   for(const name of ['System.Web.Extensions','System.Windows.Forms','System.Drawing','System.Xaml']) args.push(`/reference:${path.join(framework,name+'.dll')}`);
   args.push(path.join(root,'overlay/Layout.cs'),path.join(root,'overlay/TaskbarLayout.cs'),path.join(root,'overlay/TaskbarWindow.cs'),path.join(root,'overlay/TaskbarChildSurface.cs'),path.join(root,'overlay/TaskbarTransient.cs'),path.join(root,'overlay/TaskbarMenuLease.cs'),path.join(root,'overlay/TaskbarDiagnostics.cs'),path.join(root,'overlay/TaskbarAppearance.cs'),path.join(root,'overlay/TaskbarAttachment.cs'),path.join(root,'overlay/TaskbarPassiveOverlay.cs'),path.join(root,'overlay/Progress.cs'),path.join(root,'overlay/VisualHost.cs'),path.join(root,'overlay/Theme.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'overlay/Language.cs'),path.join(root,'overlay/Overlay.cs'));
