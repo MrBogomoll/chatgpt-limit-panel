@@ -87,6 +87,8 @@ Right-click the sidebar panel for view, indicators, outline source, theme, langu
 
 **Check for a new version** explicitly checks the latest stable release. **Open release** takes you to its download page when a newer version is available. Updating is manual. Network failures and GitHub request limits are reported separately.
 
+To remove the panel and its autostart completely, see the [uninstall guide](UNINSTALL.md).
+
 ## Compatibility
 
 Actually checked on Windows 11, including Start11 and an adjacent NetWorx indicator. A physical Windows 10 check has not been performed. If ZIP import is unavailable or an error occurs, include the Windows version, client version and reproduction steps in [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues).
