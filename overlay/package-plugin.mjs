@@ -10,12 +10,11 @@ const archiveName = `chatgpt-limit-panel-${version}-windows-x64.zip`;
 const pluginFiles = [
   // The installed desktop parser ignores bundled MCP servers when root
   // plugin.json exists. Ship its supported compatibility entry point only.
-  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
+  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json',
   'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'server/updates.mjs', 'ui/control.html', 'ui/control.mjs',
 ];
 const dependencyFiles = [
-  'LICENSE', 'UPGRADING.md', 'UNINSTALL.md',
   'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/updates.mjs',
   'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',
@@ -53,7 +52,12 @@ export function stagePluginBundle({
     { source: path.resolve(nodePath), destination: 'runtime/node.exe' },
     { source: path.resolve(nodeLicensePath), destination: 'runtime/NODE-LICENSE.txt' },
   ];
-  for (const file of files) requireFile(file.source, file.destination);
+  const documents = [
+    { source: path.join(root, 'plugins/chatgpt-limit-panel/README.md'), destination: 'README.txt' },
+    ...['UPGRADING', 'UNINSTALL'].map(name => ({ source: path.join(root, `${name}.md`), destination: `${name}.txt` })),
+    { source: path.join(root, 'LICENSE'), destination: 'LICENSE.txt', license: true },
+  ];
+  for (const file of [...files, ...documents]) requireFile(file.source, file.destination);
   for (const relative of ['plugin.json', '.codex-plugin/plugin.json', 'mcp.json', '.mcp.json']) {
     const filename = path.join(root, 'plugins', 'chatgpt-limit-panel', relative);
     const manifest = JSON.parse(readFileSync(filename, 'utf8').replace(/^\uFEFF/, ''));
@@ -68,6 +72,14 @@ export function stagePluginBundle({
     const target = path.join(stagePath, file.destination);
     mkdirSync(path.dirname(target), { recursive: true });
     copyFileSync(file.source, target, constants.COPYFILE_EXCL);
+  }
+  for (const document of documents) {
+    let content = readFileSync(document.source, 'utf8');
+    if (!document.license) content = content
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, target) => `${label} (${target.replace(/^(README|UPGRADING|UNINSTALL)\.md(?=$|#)/, '$1.txt').replace(/^LICENSE$/, 'LICENSE.txt')})`)
+      .replace(/\*\*/g, '').replace(/`/g, '');
+    writeFileSync(path.join(stagePath, document.destination), content.replace(/\r?\n/g, '\r\n'), { flag: 'wx' });
   }
   writeFileSync(path.join(stagePath, 'dist', 'overlay', 'runtime.json'), JSON.stringify({
     node: '../../runtime/node.exe', host: '../../overlay/host.mjs', codex: 'auto',

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 const marketplaceName = 'quota-panel-local';
 const pluginId = `quota-panel@${marketplaceName}`;
 const payloadFiles = [
-  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
+  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json',
   'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',
@@ -25,7 +25,8 @@ export function installPlugin({
 } = {}) {
   if (!stagePath) throw new Error('A complete staged plugin package is required.');
   const stage = path.resolve(stagePath), home = path.resolve(codexHome);
-  const files = [...payloadFiles, ...['LICENSE', 'UPGRADING.md', 'UNINSTALL.md'].filter(file => existsSync(path.join(stage, file)))];
+  if (!existsSync(path.join(stage, 'README.txt')) && !existsSync(path.join(stage, 'README.md'))) throw new Error('Missing complete bundled plugin file: README.txt');
+  const files = [...payloadFiles, ...['README.txt', 'README.md', 'LICENSE.txt', 'LICENSE', 'UPGRADING.txt', 'UPGRADING.md', 'UNINSTALL.txt', 'UNINSTALL.md'].filter(file => existsSync(path.join(stage, file)))];
   for (const relative of files) {
     let info;
     try { info = lstatSync(path.join(stage, relative)); } catch { /* Checked below. */ }

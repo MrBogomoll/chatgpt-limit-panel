@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const api = await import('../overlay/install-plugin.mjs').catch(() => ({}));
 const payloadFiles = [
-  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'LICENSE', 'UPGRADING.md', 'UNINSTALL.md',
+  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.txt', 'LICENSE.txt', 'UPGRADING.txt', 'UNINSTALL.txt',
   'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',
@@ -60,7 +60,7 @@ test('plugin installer registers a complete private marketplace and verifies nat
   const result = api.installPlugin(settings);
   assert.equal(result.installed.pluginId, 'quota-panel@quota-panel-local');
   assert.equal(result.installed.enabled, true);
-  for (const file of ['LICENSE', 'UPGRADING.md', 'UNINSTALL.md']) {
+  for (const file of ['README.txt', 'LICENSE.txt', 'UPGRADING.txt', 'UNINSTALL.txt']) {
     assert.equal(await readFile(path.join(result.sourcePath, file), 'utf8'), 'payload:' + file);
   }
   assert.equal(await readFile(path.join(result.sourcePath, 'runtime/node.exe'), 'utf8'), 'payload:runtime/node.exe');
@@ -89,4 +89,14 @@ test('plugin installer does not report success from an add response without nati
   assert.equal(typeof api.installPlugin, 'function');
   const settings = await fixture(t, false);
   assert.throws(() => api.installPlugin(settings), /installed|verify|verification/i);
+});
+
+test('installer still accepts legacy archives with Markdown documentation', async t => {
+  const settings = await fixture(t);
+  for (const file of ['README', 'UPGRADING', 'UNINSTALL']) {
+    await writeFile(path.join(settings.stagePath, file + '.md'), 'legacy:' + file);
+    await rm(path.join(settings.stagePath, file + '.txt'));
+  }
+  const result = api.installPlugin(settings);
+  assert.equal(await readFile(path.join(result.sourcePath, 'README.md'), 'utf8'), 'legacy:README');
 });

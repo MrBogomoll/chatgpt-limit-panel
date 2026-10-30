@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 const api = await import('../overlay/package-plugin.mjs').catch(() => ({}));
 const version = '1.6.1';
 const allowedFiles = [
-  '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'LICENSE', 'UPGRADING.md', 'UNINSTALL.md', 'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png',
+  '.codex-plugin/plugin.json', '.mcp.json', 'README.txt', 'LICENSE.txt', 'UPGRADING.txt', 'UNINSTALL.txt', 'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png',
   'dist/overlay/ChatGPTLimitPanelLauncher.exe', 'dist/overlay/ChatGPTLimitPanel.exe', 'dist/overlay/runtime.json',
   'mcp.json', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/limits.mjs', 'plugins/chatgpt-limit-panel/server/reader.mjs',
@@ -30,10 +30,11 @@ async function fixtureBundle(t) {
   }
   for (const relative of allowedFiles) {
     if (relative.startsWith('runtime/') || relative.endsWith('/runtime.json')) continue;
-    const original = ['LICENSE', 'UPGRADING.md', 'UNINSTALL.md'].includes(relative) || /^(overlay\/|plugins\/chatgpt-limit-panel\/server\/(?:updates|reader|limits)\.mjs|dist\/overlay\/)/.test(relative)
+    const original = ['LICENSE.txt', 'UPGRADING.txt', 'UNINSTALL.txt'].includes(relative) ? relative.replace(/\.txt$/, relative === 'LICENSE.txt' ? '' : '.md') : relative === 'README.txt' ? 'plugins/chatgpt-limit-panel/README.md' : /^(overlay\/|plugins\/chatgpt-limit-panel\/server\/(?:updates|reader|limits)\.mjs|dist\/overlay\/)/.test(relative)
       ? relative : 'plugins/chatgpt-limit-panel/' + relative;
     await put(original, `fixture ${original}\n`);
   }
+  await put('UPGRADING.md', '# Update\n**Read** [guide](UNINSTALL.md) or [online](https://example.com/README.en.md).\n');
   const manifest = { name: 'quota-panel', version, mcpServers: './mcp.json', interface: { logo: './assets/chatgpt-limit-panel.svg' } };
   await put('plugins/chatgpt-limit-panel/plugin.json', JSON.stringify(manifest));
   await put('plugins/chatgpt-limit-panel/.codex-plugin/plugin.json', JSON.stringify({ ...manifest, mcpServers: './.mcp.json' }));
@@ -74,7 +75,9 @@ test('beta staging copies only the uploadable plugin and its explicit runtime de
   assert.deepEqual(await filesUnder(result.stagePath), allowedFiles);
   assert.equal(await readFile(path.join(result.stagePath, 'runtime/node.exe'), 'utf8'), 'MZ fixture bundled Node runtime');
   assert.equal(await readFile(path.join(result.stagePath, 'runtime/NODE-LICENSE.txt'), 'utf8'), 'Node.js fixture license text');
-  assert.equal(await readFile(path.join(result.stagePath, 'LICENSE'), 'utf8'), 'fixture LICENSE\n');
+  assert.equal(await readFile(path.join(result.stagePath, 'UPGRADING.txt'), 'utf8'), 'Update\r\nRead guide (UNINSTALL.txt) or online (https://example.com/README.en.md).\r\n');
+  assert.equal(await readFile(path.join(result.stagePath, 'LICENSE.txt'), 'utf8'), 'fixture LICENSE\r\n');
+  assert.equal(await readFile(path.join(result.stagePath, 'README.txt'), 'utf8'), 'fixture plugins/chatgpt-limit-panel/README.md\r\n');
   assert.equal(await readFile(path.join(result.stagePath, 'overlay/host.mjs'), 'utf8'), "import '../plugins/chatgpt-limit-panel/server/reader.mjs';\n");
 });
 
