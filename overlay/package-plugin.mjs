@@ -15,6 +15,7 @@ const pluginFiles = [
   'server/ui.mjs', 'server/language.mjs', 'server/updates.mjs', 'ui/control.html', 'ui/control.mjs',
 ];
 const dependencyFiles = [
+  'LICENSE',
   'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/updates.mjs',
   'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',

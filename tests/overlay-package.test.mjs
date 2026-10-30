@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 const api = await import('../overlay/package-plugin.mjs').catch(() => ({}));
 const version = '1.6.1';
 const allowedFiles = [
-  '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png',
+  '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'LICENSE', 'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png',
   'dist/overlay/ChatGPTLimitPanelLauncher.exe', 'dist/overlay/ChatGPTLimitPanel.exe', 'dist/overlay/runtime.json',
   'mcp.json', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/limits.mjs', 'plugins/chatgpt-limit-panel/server/reader.mjs',
@@ -30,7 +30,7 @@ async function fixtureBundle(t) {
   }
   for (const relative of allowedFiles) {
     if (relative.startsWith('runtime/') || relative.endsWith('/runtime.json')) continue;
-    const original = /^(overlay\/|plugins\/chatgpt-limit-panel\/server\/(?:updates|reader|limits)\.mjs|dist\/overlay\/)/.test(relative)
+    const original = relative === 'LICENSE' || /^(overlay\/|plugins\/chatgpt-limit-panel\/server\/(?:updates|reader|limits)\.mjs|dist\/overlay\/)/.test(relative)
       ? relative : 'plugins/chatgpt-limit-panel/' + relative;
     await put(original, `fixture ${original}\n`);
   }
@@ -74,6 +74,7 @@ test('beta staging copies only the uploadable plugin and its explicit runtime de
   assert.deepEqual(await filesUnder(result.stagePath), allowedFiles);
   assert.equal(await readFile(path.join(result.stagePath, 'runtime/node.exe'), 'utf8'), 'MZ fixture bundled Node runtime');
   assert.equal(await readFile(path.join(result.stagePath, 'runtime/NODE-LICENSE.txt'), 'utf8'), 'Node.js fixture license text');
+  assert.equal(await readFile(path.join(result.stagePath, 'LICENSE'), 'utf8'), 'fixture LICENSE\n');
   assert.equal(await readFile(path.join(result.stagePath, 'overlay/host.mjs'), 'utf8'), "import '../plugins/chatgpt-limit-panel/server/reader.mjs';\n");
 });
 

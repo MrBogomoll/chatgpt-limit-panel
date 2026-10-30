@@ -25,7 +25,8 @@ export function installPlugin({
 } = {}) {
   if (!stagePath) throw new Error('A complete staged plugin package is required.');
   const stage = path.resolve(stagePath), home = path.resolve(codexHome);
-  for (const relative of payloadFiles) {
+  const files = existsSync(path.join(stage, 'LICENSE')) ? [...payloadFiles, 'LICENSE'] : payloadFiles;
+  for (const relative of files) {
     let info;
     try { info = lstatSync(path.join(stage, relative)); } catch { /* Checked below. */ }
     if (!info?.isFile() || info.isSymbolicLink() || !info.size) throw new Error(`Missing complete bundled plugin file: ${relative}`);
@@ -39,7 +40,7 @@ export function installPlugin({
   mkdirSync(sources, { recursive: true });
   const marketplaceRoot = mkdtempSync(path.join(sources, 'chatgpt-limit-panel-'));
   const sourcePath = path.join(marketplaceRoot, 'plugins', 'chatgpt-limit-panel');
-  for (const relative of payloadFiles) {
+  for (const relative of files) {
     const destination = path.join(sourcePath, relative);
     mkdirSync(path.dirname(destination), { recursive: true });
     copyFileSync(path.join(stage, relative), destination, constants.COPYFILE_EXCL);

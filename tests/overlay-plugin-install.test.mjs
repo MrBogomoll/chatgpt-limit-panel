@@ -6,7 +6,7 @@ import path from 'node:path';
 
 const api = await import('../overlay/install-plugin.mjs').catch(() => ({}));
 const payloadFiles = [
-  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md',
+  'mcp.json', '.codex-plugin/plugin.json', '.mcp.json', 'README.md', 'LICENSE',
   'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',
