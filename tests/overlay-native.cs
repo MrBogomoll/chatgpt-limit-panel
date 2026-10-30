@@ -71,7 +71,15 @@ class OverlayNativeTest {
     using(var stream=typeof(OverlayWindow).Assembly.GetManifestResourceStream("ChatGPTLimitPanel.TrayIcon"))
     using(var icon=new System.Drawing.Icon(stream,32,32)) {
       Check(icon.Width==32&&icon.Height==32,"branded icon must load at native tray DPI sizes");
-      using(var bitmap=icon.ToBitmap())Check(bitmap.GetPixel(16,16).A>0,"brand asset must contain visible pixels");
+      using(var bitmap=icon.ToBitmap()) {
+        bitmap.Save(Path.Combine(Path.GetDirectoryName(Field<string>(window,"stateFile")),"tray-icon.png"),System.Drawing.Imaging.ImageFormat.Png);
+        Check(bitmap.GetPixel(0,0).A==0,"tray icon corners must remain transparent");
+        var colors=new HashSet<int>();int smooth=0;
+        for(int y=0;y<bitmap.Height;y++)for(int x=0;x<bitmap.Width;x++) {
+          var color=bitmap.GetPixel(x,y);colors.Add(color.ToArgb());if(color.A>0&&color.A<255)smooth++;
+        }
+        Check(colors.Count>32&&smooth>0,"tray must preserve full-color antialiasing instead of indexed black-backed artwork");
+      }
     }
     Invoke(window,"SetupTrayMenu");var menu=Field<ContextMenu>(window,"trayMenu");
     var panelMenu=Field<ContextMenu>(window,"optionsMenu");
