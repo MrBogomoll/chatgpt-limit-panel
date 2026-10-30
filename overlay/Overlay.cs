@@ -281,7 +281,10 @@ namespace QuotaOverlay {
     readonly SidebarSnapPreview snapPreview=new SidebarSnapPreview();
     bool sidebarPointer,sidebarDragged,sidebarSuppressClick;
     double sidebarPointerX,sidebarPointerY,sidebarPointerOffset;
-    double? sidebarPosition;
+    double? sidebarPosition,floatingX,floatingY;
+    bool sidebarPinned;
+    MenuItem sidebarPinItem,traySidebarPinItem;
+    double sidebarPointerOffsetX;
     TargetFrame lastSidebarFrame;
     string sidebarStatus="waiting";
     readonly JavaScriptSerializer json=new JavaScriptSerializer();
@@ -366,6 +369,8 @@ namespace QuotaOverlay {
       taskbarSide=preferences.ContainsKey("taskbarSide")&&Convert.ToString(preferences["taskbarSide"])=="right"?"right":"left";
       taskbarPosition=PositionPreference(preferences,"taskbarPosition");
       sidebarPosition=PositionPreference(preferences,"sidebarPosition");
+      sidebarPinned=BooleanPreference(preferences,"sidebarPinned",true);
+      floatingX=PositionPreference(preferences,"floatingX");floatingY=PositionPreference(preferences,"floatingY");
       object savedTransparency;
       backgroundTransparency=preferences.TryGetValue("backgroundTransparency",out savedTransparency)&&savedTransparency is int&&(int)savedTransparency>=0&&(int)savedTransparency<=100?(int)savedTransparency:50;
       language=PanelLanguage.Read(settingsFile);
@@ -704,7 +709,8 @@ namespace QuotaOverlay {
       compactModeItem=Menu("compact",true);compactModeItem.Click+=delegate {SelectMode("compact");};
       ultraModeItem=Menu("ultra",true);ultraModeItem.Click+=delegate {SelectMode("ultra");};
       modes.Items.Add(fullModeItem);modes.Items.Add(compactModeItem);modes.Items.Add(ultraModeItem);optionsMenu.Items.Add(modes);
-      var resetPosition=Menu("resetPosition");resetPosition.Click+=delegate{try{Preferences.Update(settingsFile,p=>p["sidebarPosition"]=null);sidebarPosition=null;UpdatePlacement();}catch{}};optionsMenu.Items.Add(resetPosition);
+      sidebarPinItem=Menu("sidebarPinned",true);sidebarPinItem.Click+=delegate {SetSidebarPinned(sidebarPinItem.IsChecked);};optionsMenu.Items.Add(sidebarPinItem);
+      var resetPosition=Menu("resetPosition");resetPosition.Click+=delegate{ResetSidebarPosition();};optionsMenu.Items.Add(resetPosition);
       var taskbar=Menu("taskbar");
       taskbarEnabledItem=Menu("taskbarShow",true);taskbarEnabledItem.Click+=delegate {SetTaskbarEnabled(taskbarEnabledItem.IsChecked);};
       taskbarLeftItem=Menu("taskbarLeft",true);taskbarLeftItem.Click+=delegate {SetTaskbarSide("left");};
@@ -746,6 +752,8 @@ namespace QuotaOverlay {
       taskbarEnabledItem.IsChecked=taskbarEnabled;taskbarLeftItem.IsChecked=taskbarSide=="left";taskbarRightItem.IsChecked=taskbarSide=="right";
       taskbarLeftItem.Header=T(TaskbarSideKey(false));taskbarRightItem.Header=T(TaskbarSideKey(true));
       taskbarStatusItem.Header=T(!taskbarEnabled?"taskbarOff":taskbarWindow!=null&&taskbarWindow.IsVisible?"taskbarActive":"taskbarWaiting");
+      if(sidebarPinItem!=null)sidebarPinItem.IsChecked=sidebarPinned;
+      if(traySidebarPinItem!=null)traySidebarPinItem.IsChecked=sidebarPinned;
       if(liveTrayPanelItem!=null)liveTrayPanelItem.IsChecked=liveTrayIcon;
       if(liveTrayItem!=null)liveTrayItem.IsChecked=liveTrayIcon;
       if(taskbarTrayItem!=null){taskbarTrayItem.IsChecked=taskbarEnabled;taskbarTrayLeft.IsChecked=taskbarSide=="left";taskbarTrayRight.IsChecked=taskbarSide=="right";}
@@ -822,11 +830,12 @@ namespace QuotaOverlay {
       if(lastSidebarFrame!=null&&lastSidebarFrame.Show) {
         var frame=lastSidebarFrame;
         double height=frame.Rect.Bottom-frame.Rect.Top;
-        var next=Layout.Place(frame.Origin.X,frame.Origin.Y,frame.Rect.Right-frame.Rect.Left,height,frame.Scale,mode);
-        var position=Layout.PositionForBottom(frame.Placement.Y+frame.Placement.Height,frame.Origin.Y,height,next.Height);
+        double margin=sidebarPinned?0:4*frame.Scale;
+        var next=sidebarPinned?Layout.Place(frame.Origin.X,frame.Origin.Y,frame.Rect.Right-frame.Rect.Left,height,frame.Scale,mode):Layout.PlaceFloating(frame.Origin.X,frame.Origin.Y,frame.Rect.Right-frame.Rect.Left,height,frame.Scale,mode,floatingX,floatingY);
+        var position=Layout.PositionForBottom(frame.Placement.Y+frame.Placement.Height,frame.Origin.Y+margin,height-2*margin,next.Height);
         if(position.HasValue) {
-          sidebarPosition=position;
-          try{Preferences.Update(settingsFile,p=>p["sidebarPosition"]=position.Value);}catch{}
+          if(sidebarPinned)sidebarPosition=position;else floatingY=position;
+          try{Preferences.Update(settingsFile,p=>p[sidebarPinned?"sidebarPosition":"floatingY"]=position.Value);}catch{}
         }
       }
       preferredMode=mode;preferCompact=mode!="full";
@@ -932,11 +941,12 @@ namespace QuotaOverlay {
       taskbarTrayRight=Menu("taskbarRight",true);taskbarTrayRight.Click+=delegate {SetTaskbarSide("right");};
       taskbarTraySides.Items.Add(taskbarTrayLeft);taskbarTraySides.Items.Add(taskbarTrayRight);
       liveTrayItem=Menu("liveTrayIcon",true);liveTrayItem.Click+=delegate {SetLiveTrayIcon(liveTrayItem.IsChecked);};
-      trayMenu.Items.Add(MenuSeparator());trayMenu.Items.Add(liveTrayItem);trayMenu.Items.Add(taskbarTrayItem);trayMenu.Items.Add(taskbarTraySides);
+      traySidebarPinItem=Menu("sidebarPinned",true);traySidebarPinItem.Click+=delegate {SetSidebarPinned(traySidebarPinItem.IsChecked);};
+      trayMenu.Items.Add(MenuSeparator());trayMenu.Items.Add(traySidebarPinItem);trayMenu.Items.Add(liveTrayItem);trayMenu.Items.Add(taskbarTrayItem);trayMenu.Items.Add(taskbarTraySides);
       trayMenu.Items.Add(MenuSeparator());var stop=Menu("stop");stop.Click+=delegate {Close();};trayMenu.Items.Add(stop);
       trayMenuDismiss=new MenuDismissWatcher(Dispatcher,delegate{return trayMenu.IsOpen;},delegate{trayMenu.IsOpen=false;},null);
       trayMenu.Opened+=delegate {SyncMenu();ApplyTrayLanguage();trayMenuDismiss.Start();};
-      trayMenu.Closed+=delegate {trayMenuDismiss.Stop();};ApplyTrayLanguage();
+      trayMenu.Closed+=delegate {trayMenuDismiss.Stop();};SyncMenu();ApplyTrayLanguage();
     }
     void SetupTray() {
       using(var stream=typeof(OverlayWindow).Assembly.GetManifestResourceStream("ChatGPTLimitPanel.TrayIcon"))
@@ -1011,21 +1021,46 @@ namespace QuotaOverlay {
       dialog.Closed+=delegate {if(updateDialog==dialog)updateDialog=null;};updateDialog=dialog;showUpdateDialog(dialog);
     }
     static string Get(Dictionary<string,object> row,string key) { return row.ContainsKey(key)?Convert.ToString(row[key]):""; }
+    void SetSidebarPinned(bool pinned) {
+      double? x=floatingX,y=floatingY;
+      if(!pinned&&sidebarPinned&&!floatingX.HasValue&&!floatingY.HasValue&&lastSidebarFrame!=null&&lastSidebarFrame.Show) {
+        var f=lastSidebarFrame;double margin=4*f.Scale;
+        x=Layout.PositionForBottom(f.Placement.X+f.Placement.Width,f.Origin.X+margin,f.Rect.Right-f.Rect.Left-2*margin,f.Placement.Width);
+        y=Layout.PositionForBottom(f.Placement.Y+f.Placement.Height,f.Origin.Y+margin,f.Rect.Bottom-f.Rect.Top-2*margin,f.Placement.Height);
+      }
+      try{Preferences.Update(settingsFile,p=>{p["sidebarPinned"]=pinned;p["floatingX"]=x;p["floatingY"]=y;});}catch{SyncMenu();return;}
+      sidebarPinned=pinned;floatingX=x;floatingY=y;SyncMenu();lastState="";UpdatePlacement();
+    }
+    void ResetSidebarPosition() {
+      try{Preferences.Update(settingsFile,p=>{if(sidebarPinned)p["sidebarPosition"]=null;else{p["floatingX"]=null;p["floatingY"]=null;}});}catch{return;}
+      if(sidebarPinned)sidebarPosition=null;else{floatingX=null;floatingY=null;}lastState="";UpdatePlacement();
+    }
+    void MoveSidebarTo(double x,double y) {
+      var frame=lastSidebarFrame;if(frame==null)return;
+      if(sidebarPinned) {
+        double extent=frame.Rect.Bottom-frame.Rect.Top-frame.Placement.Height;
+        if(extent>0)sidebarPosition=Math.Max(0,Math.Min(1,(y-frame.Origin.Y)/extent));
+      }else{
+        double margin=4*frame.Scale;
+        floatingX=Layout.PositionForBottom(x+frame.Placement.Width,frame.Origin.X+margin,frame.Rect.Right-frame.Rect.Left-2*margin,frame.Placement.Width);
+        floatingY=Layout.PositionForBottom(y+frame.Placement.Height,frame.Origin.Y+margin,frame.Rect.Bottom-frame.Rect.Top-2*margin,frame.Placement.Height);
+      }
+      SyncTargetFrame();
+    }
     void BeginSidebarPointer(object sender,MouseButtonEventArgs e){
       Native.Point point;if(closing||lastSidebarFrame==null||!lastSidebarFrame.Show||!Native.GetCursorPos(out point))return;
-      sidebarSuppressClick=false;sidebarPointer=true;sidebarDragged=false;sidebarPointerX=point.X;sidebarPointerY=point.Y;sidebarPointerOffset=point.Y-lastSidebarFrame.Placement.Y;
+      sidebarSuppressClick=false;sidebarPointer=true;sidebarDragged=false;sidebarPointerX=point.X;sidebarPointerY=point.Y;sidebarPointerOffset=point.Y-lastSidebarFrame.Placement.Y;sidebarPointerOffsetX=point.X-lastSidebarFrame.Placement.X;
       if(!panel.CaptureMouse())sidebarPointer=false;e.Handled=true;
     }
     void MoveSidebarPointer(object sender,MouseEventArgs e){
       if(!sidebarPointer||e.LeftButton!=MouseButtonState.Pressed||lastSidebarFrame==null)return;
       Native.Point point;if(!Native.GetCursorPos(out point))return;var frame=lastSidebarFrame;
       if(!sidebarDragged&&Math.Abs(point.X-sidebarPointerX)<SystemParameters.MinimumHorizontalDragDistance*frame.Scale&&Math.Abs(point.Y-sidebarPointerY)<SystemParameters.MinimumVerticalDragDistance*frame.Scale)return;
-      double extent=frame.Rect.Bottom-frame.Rect.Top-frame.Placement.Height;if(extent<=0)return;
-      sidebarDragged=true;sidebarPosition=Math.Max(0,Math.Min(1,(point.Y-frame.Origin.Y-sidebarPointerOffset)/extent));SyncTargetFrame();e.Handled=true;
+      sidebarDragged=true;MoveSidebarTo(point.X-sidebarPointerOffsetX,point.Y-sidebarPointerOffset);e.Handled=true;
     }
     void EndSidebarPointer(object sender,MouseButtonEventArgs e){
       if(!sidebarPointer){if(!sidebarSuppressClick)ToggleMode();sidebarSuppressClick=false;e.Handled=true;return;}bool moved=sidebarDragged;sidebarPointer=false;sidebarDragged=false;if(panel.IsMouseCaptured)panel.ReleaseMouseCapture();
-      if(moved&&lastSidebarFrame!=null){var frame=lastSidebarFrame;double extent=frame.Rect.Bottom-frame.Rect.Top-frame.Placement.Height;if(extent>0)sidebarPosition=Math.Max(0,Math.Min(1,(frame.Placement.Y-frame.Origin.Y)/extent));try{Preferences.Update(settingsFile,p=>p["sidebarPosition"]=sidebarPosition);}catch{}lastState="";}
+      if(moved&&lastSidebarFrame!=null){var frame=lastSidebarFrame;MoveSidebarTo(frame.Placement.X,frame.Placement.Y);try{Preferences.Update(settingsFile,p=>{if(sidebarPinned)p["sidebarPosition"]=sidebarPosition;else{p["floatingX"]=floatingX;p["floatingY"]=floatingY;}});}catch{}lastState="";}
       else ToggleMode();e.Handled=true;
     }
     bool IsTarget(IntPtr window) {
@@ -1059,14 +1094,15 @@ namespace QuotaOverlay {
       bool appReady=appStartup.Ready(target,appPresent,NowMilliseconds());
       double scale=valid?Native.GetDpiForWindow(target)/96.0:1;
       var placement=Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode);
-      var controls=valid&&targetMatcher==null?sidebarGeometry.Read(target,rect.Right-rect.Left,rect.Bottom-rect.Top,scale):null;
-      if(valid&&targetMatcher==null)placement=Layout.PlaceInAvailableRail(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,controls,sidebarPosition);
+      var controls=valid&&sidebarPinned&&targetMatcher==null?sidebarGeometry.Read(target,rect.Right-rect.Left,rect.Bottom-rect.Top,scale):null;
+      if(valid&&sidebarPinned&&targetMatcher==null)placement=Layout.PlaceInAvailableRail(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,controls,sidebarPosition);
+      if(valid&&!sidebarPinned)placement=Layout.PlaceFloating(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,floatingX,floatingY);
       bool modeChanged=presentationMode!=placement.Mode;
       if(modeChanged)SetMode(placement.Mode);
       bool preview=valid&&snapPreview.Active(target,NowMilliseconds());
       bool show=valid&&!paused&&placement.Visible&&appReady&&!preview;
       if(preview)sidebarStatus="snap-preview";
-      if(valid&&targetMatcher==null&&controls==null)sidebarStatus="geometry-unavailable";
+      if(valid&&sidebarPinned&&targetMatcher==null&&controls==null)sidebarStatus="geometry-unavailable";
       if(show) {
         if(!base.IsVisible)Show();ApplyAttachedPlacement(hwnd,target,placement,optionsMenu.IsOpen);sidebarStatus="window";
       } else if(base.IsVisible)Hide();
@@ -1092,7 +1128,7 @@ namespace QuotaOverlay {
       if(!appSignalSent||lastAppReady!=appReady){appSignalSent=true;lastAppReady=appReady;Command(appReady?"app-open":"app-closed");}
       if(pendingPreview) {pendingPreview=false;UpdateLayout();SavePreview();}
       IntPtr owner=Native.GetWindowLongPtr(hwnd,-8);uint ownerProcess=0;if(owner!=IntPtr.Zero)Native.GetWindowThreadProcessId(owner,out ownerProcess);
-      var state=new {sidebar=new {geometry=sidebarGeometry.Debug,attached=false,host="window",status=sidebarStatus,parent=0L,position=sidebarPosition},backgroundTransparency=backgroundTransparency,taskbar=new {enabled=taskbarEnabled,side=taskbarSide,position=taskbarPosition,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
+      var state=new {sidebar=new {geometry=sidebarGeometry.Debug,attached=false,host="window",status=sidebarStatus,parent=0L,pinned=sidebarPinned,position=sidebarPosition,floatingX=floatingX,floatingY=floatingY},backgroundTransparency=backgroundTransparency,taskbar=new {enabled=taskbarEnabled,side=taskbarSide,position=taskbarPosition,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
       string encoded=json.Serialize(state);
       diagnosticState=state;
       if(encoded!=lastState){lastState=encoded;try{File.WriteAllText(stateFile,encoded,Encoding.UTF8);stateWriteError="";}catch(Exception error){stateWriteError=error.GetType().Name+":"+error.HResult.ToString();}}

@@ -19,6 +19,7 @@ namespace QuotaOverlay {
       {"dismiss",new[]{"Закрыть","Close"}},
       {"openReleaseError",new[]{"Не удалось открыть страницу релиза.","Could not open the release page."}},
       {"view",new[]{"Вид панели","Panel view"}},
+      {"sidebarPinned",new[]{"Закрепить на боковой панели","Pin to sidebar"}},
       {"resetPosition",new[]{"Расположение по умолчанию","Reset position"}},
       {"liveTrayIcon",new[]{"Живая иконка в трее","Live tray icon"}},
       {"taskbar",new[]{"Панель задач","Taskbar"}},

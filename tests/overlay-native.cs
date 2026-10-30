@@ -84,9 +84,9 @@ class OverlayNativeTest {
     Invoke(window,"SetupTrayMenu");var menu=Field<ContextMenu>(window,"trayMenu");
     var panelMenu=Field<ContextMenu>(window,"optionsMenu");
     Check(Object.ReferenceEquals(menu.Template,panelMenu.Template)&&Object.ReferenceEquals(menu.Resources,panelMenu.Resources),"tray must share panel styles and theme resources");
-    Check(((Separator)menu.Items[2]).Style!=null&&((Separator)menu.Items[6]).Style!=null,"tray separators must explicitly use the themed style");
-    Check(((MenuItem)menu.Items[7]).Tag.ToString()=="stop"&&Object.ReferenceEquals(menu.Items[4],Field<MenuItem>(window,"taskbarTrayItem")),"the final action must stop the entire monitor");
-    Check(menu.Items.Count==8,"refresh, pause, taskbar toggle, side and close must remain available");
+    Check(((Separator)menu.Items[2]).Style!=null&&((Separator)menu.Items[7]).Style!=null,"tray separators must explicitly use the themed style");
+    Check(((MenuItem)menu.Items[8]).Tag.ToString()=="stop"&&Object.ReferenceEquals(menu.Items[5],Field<MenuItem>(window,"taskbarTrayItem")),"the final action must stop the entire monitor");
+    Check(menu.Items.Count==9,"refresh, pause, taskbar toggle, side and close must remain available");
     Invoke(window,"SelectTheme","light");
     Check(ColorOf(menu.Background)==ParseColor(ThemePalette.Light.MenuSurface),"tray must follow light theme");
     Invoke(window,"SelectLanguage","en");
@@ -138,6 +138,39 @@ class OverlayNativeTest {
     Invoke(window,"SetLiveTrayIcon",false);window.Close();window=NewWindow(Path.Combine(directory,"state.json"));
     Check(!Field<bool>(window,"liveTrayIcon"),"static choice must survive restart");
     Known(window);Console.WriteLine("PASS native live-tray: real bars, source, zero, unknown, stale, cache and persisted opt in");
+  }
+  static void FloatingPanelTest(ref OverlayWindow window,string directory) {
+    foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(string mode in new[]{"full","compact","ultra"}) {
+      foreach(double fraction in new[]{-1.0,0.0,.5,1.0,2.0}) {
+        var place=Layout.PlaceFloating(-1920,100,1200*scale,850*scale,scale,mode,fraction,fraction);
+        Check(place.Visible&&place.Mode==mode,"floating mode must retain the chosen size when it fits");
+        Check(place.X>=-1920+4*scale-.01&&place.Y>=100+4*scale-.01&&place.X+place.Width<=-1920+1196*scale+.01&&place.Y+place.Height<=100+846*scale+.01,"floating rectangle must stay within the client area at every DPI and monitor origin");
+      }
+    }
+    Check(Layout.PlaceFloating(0,0,500,150,1,"full",null,null).Mode=="compact","short clients must use compact when full does not fit");
+    Check(Layout.PlaceFloating(0,0,500,70,1,"full",null,null).Mode=="ultra","tiny clients must use ultra when compact does not fit");
+    Check(!Layout.PlaceFloating(0,0,40,70,1,"ultra",null,null).Visible,"do not display outside an undersized client");
+    Check(Field<bool>(window,"sidebarPinned"),"existing installations must remain pinned by default");
+    Known(window);Invoke(window,"SetupTrayMenu");MenuClick(Field<MenuItem>(window,"traySidebarPinItem"));
+    Check(!Field<bool>(window,"sidebarPinned")&&!Field<MenuItem>(window,"sidebarPinItem").IsChecked,"tray must unpin even when the rail panel is unavailable");
+    // A synthetic frame keeps this preference/drag test isolated from external windows.
+    var type=typeof(OverlayWindow).GetNestedType("TargetFrame",BindingFlags.NonPublic);var frame=Activator.CreateInstance(type,true);
+    Action<string,object> put=delegate(string key,object value){type.GetField(key,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(frame,value);};
+    put("Show",true);put("Scale",1.5);put("Origin",new Native.Point{X=-1200,Y=120});put("Rect",new Native.Rect{Right=1500,Bottom=1200});
+    put("Placement",new Placement{X=-900,Y=800,Width=69,Height=150,Mode="compact",Visible=true});
+    typeof(OverlayWindow).GetField("lastSidebarFrame",PrivateInstance).SetValue(window,frame);
+    Invoke(window,"MoveSidebarTo",-500.0,900.0);
+    var moved=Layout.PlaceFloating(-1200,120,1500,1200,1.5,"compact",Field<double?>(window,"floatingX"),Field<double?>(window,"floatingY"));
+    Check(Math.Abs(moved.X+500)<.01&&Math.Abs(moved.Y-900)<.01,"two-axis drag must retain the pointer offset in physical pixels");
+    // Persist through the same pin toggle, without touching the rail coordinate.
+    Invoke(window,"SetSidebarPinned",true);Invoke(window,"SetSidebarPinned",false);
+    double? x=Field<double?>(window,"floatingX"),y=Field<double?>(window,"floatingY");
+    window.Close();window=NewWindow(Path.Combine(directory,"state.json"));
+    Check(!Field<bool>(window,"sidebarPinned")&&Field<double?>(window,"floatingX")==x&&Field<double?>(window,"floatingY")==y,"floating setting and coordinates must survive restart");
+    Invoke(window,"ResetSidebarPosition");Check(Field<double?>(window,"floatingX")==null&&Field<double?>(window,"floatingY")==null,"reset must clear active floating coordinates");
+    Invoke(window,"SetSidebarPinned",true);window.Close();window=NewWindow(Path.Combine(directory,"state.json"));
+    Check(Field<bool>(window,"sidebarPinned"),"repinning must persist");Known(window);
+    Console.WriteLine("PASS native floating-panel: pin toggle, two-axis drag, client/DPI bounds, fallback and persisted independent coordinates");
   }
   static void LayoutTest(OverlayWindow window) {
     Invoke(window,"SetCompact",false);
@@ -514,6 +547,37 @@ class OverlayNativeTest {
       DestroyWindow(target);target=IntPtr.Zero;Invoke(window,"UpdatePlacement");Check(!window.IsVisible,"closing the target must hide its panel");
       Console.WriteLine("PASS native focus-persistence: inactive visibility, covering windows, topmost bands, minimize/restore, pause and unchanged foreground");
     }finally{window.Hide();if(cover!=IntPtr.Zero)DestroyWindow(cover);if(target!=IntPtr.Zero)DestroyWindow(target);}
+  }
+  static void FloatingNativeTest(OverlayWindow window) {
+    IntPtr target=IntPtr.Zero,foreground=Native.GetForegroundWindow();
+    try {
+      target=CreateWindowEx(0x08000080,"STATIC","Floating panel isolated target",0x90000000u,-32000,-32000,1200,1000,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero,IntPtr.Zero);
+      Check(target!=IntPtr.Zero,"own target must exist");
+      typeof(OverlayWindow).GetField("targetMatcher",PrivateInstance).SetValue(window,new Func<IntPtr,bool>(delegate(IntPtr candidate){return candidate==target&&Native.IsWindowVisible(candidate);}));
+      typeof(OverlayWindow).GetField("target",PrivateInstance).SetValue(window,target);typeof(OverlayWindow).GetField("started",PrivateInstance).SetValue(window,true);
+      Known(window);var handle=new WindowInteropHelper(window).EnsureHandle();
+      long now=(long)(System.Diagnostics.Stopwatch.GetTimestamp()*1000.0/System.Diagnostics.Stopwatch.Frequency);Field<AppStartupGate>(window,"appStartup").Ready(target,true,now-4000);
+      Invoke(window,"UpdatePlacement");Invoke(window,"SetSidebarPinned",false);PumpDispatcher();
+      Invoke(window,"MoveSidebarTo",-31400.0,-31500.0);PumpDispatcher();
+      Native.Rect bounds;GetWindowRect(handle,out bounds);Check(Math.Abs(bounds.Left+31400)<=1&&Math.Abs(bounds.Top+31500)<=1,"native HWND must follow two-axis drag");
+      foreach(int height in new[]{1000,420,750}) {
+        Native.SetWindowPos(target,IntPtr.Zero,-31000,-31000,800,height,0x10|0x4|0x40);Invoke(window,"SyncTargetFrame");PumpDispatcher();
+        Native.Rect client;var origin=new Native.Point();Native.GetClientRect(target,out client);Native.ClientToScreen(target,ref origin);GetWindowRect(handle,out bounds);
+        var expected=Layout.PlaceFloating(origin.X,origin.Y,client.Right,client.Bottom,Native.GetDpiForWindow(target)/96.0,Field<string>(window,"preferredMode"),Field<double?>(window,"floatingX"),Field<double?>(window,"floatingY"));
+        Check(window.IsVisible&&Math.Abs(bounds.Left-Math.Round(expected.X))<=1&&Math.Abs(bounds.Top-Math.Round(expected.Y))<=1,"native movement and resize must retain client-relative free position");
+        Check(bounds.Left>=origin.X&&bounds.Top>=origin.Y&&bounds.Right<=origin.X+client.Right&&bounds.Bottom<=origin.Y+client.Bottom,"native panel must stay inside client bounds");
+      }
+      GetWindowRect(handle,out bounds);int bottom=bounds.Bottom;
+      Invoke(window,"SelectMode","ultra");PumpDispatcher();GetWindowRect(handle,out bounds);Check(Math.Abs(bounds.Bottom-bottom)<=1,"floating view changes must preserve the lower edge");
+      Check(Native.GetForegroundWindow()==foreground,"free drag and resize must not steal focus");
+      ShowWindow(target,7);Invoke(window,"UpdatePlacement");Check(!window.IsVisible,"floating panel must hide when ChatGPT minimizes");
+      ShowWindow(target,4);Invoke(window,"UpdatePlacement");Check(window.IsVisible,"floating panel must return with ChatGPT");
+      Native.SetWindowPos(target,IntPtr.Zero,-31000,-31000,1200,1200,0x10|0x4|0x40);Invoke(window,"SyncTargetFrame");
+      Invoke(window,"SetSidebarPinned",true);PumpDispatcher();GetWindowRect(handle,out bounds);
+      var targetOrigin=new Native.Point();Native.ClientToScreen(target,ref targetOrigin);Check(Math.Abs(bounds.Left-targetOrigin.X-3*Native.GetDpiForWindow(target)/96.0)<=1,"repinning must return native panel to rail");
+      Check(Native.GetForegroundWindow()!=handle,"restoring the fixture target must not activate the overlay");
+      Console.WriteLine("PASS native floating-native: own HWND drag, resize, bottom anchor, minimize/restore, repin and focus preserved");
+    }finally{window.Hide();if(target!=IntPtr.Zero)DestroyWindow(target);}
   }
   static bool FrameMatches(OverlayWindow window,IntPtr target,IntPtr overlay) {
     Native.Rect rect,bounds;var origin=new Native.Point();Native.GetClientRect(target,out rect);Native.ClientToScreen(target,ref origin);GetWindowRect(overlay,out bounds);
@@ -1272,6 +1336,8 @@ class OverlayNativeTest {
       window=NewWindow(Path.Combine(directory,"state.json"));
       AssertUnshown(window);
       switch(args[0]) {
+        case "floating-native":FloatingNativeTest(window);break;
+        case "floating-panel":FloatingPanelTest(ref window,directory);break;
         case "live-tray":LiveTrayTest(ref window,directory);break;
         case "tray-menu":TrayMenuTest(window);break;
         case "rail-resize":RailResizeTest(window);break;
@@ -1322,7 +1388,7 @@ class OverlayNativeTest {
         case "viewport-en":Invoke(window,"SelectTheme","light");Invoke(window,"SelectLanguage","en");ViewportTest(window,directory);break;
         default:throw new Exception("unknown native test scenario "+args[0]);
       }
-      AssertUnshown(window,args[0]=="styles"||args[0]=="resize-native"||args[0]=="viewport"||args[0]=="viewport-light"||args[0]=="viewport-en"||args[0]=="focus-persistence"||args[0]=="motion"||args[0]=="motion-hook"||args[0]=="taskbar-recreation");
+      AssertUnshown(window,args[0]=="floating-native"||args[0]=="styles"||args[0]=="resize-native"||args[0]=="viewport"||args[0]=="viewport-light"||args[0]=="viewport-en"||args[0]=="focus-persistence"||args[0]=="motion"||args[0]=="motion-hook"||args[0]=="taskbar-recreation");
       return 0;
     } catch(Exception error) {
       // Avoid an unhandled .NET Framework exception invoking Windows Error Reporting.

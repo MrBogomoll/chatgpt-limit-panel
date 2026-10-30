@@ -1,4 +1,4 @@
-# ChatGPT Limit Panel 1.5.0
+# ChatGPT Limit Panel 1.6.0-beta.1
 
 Панель оставшихся лимитов Codex / Work в настольном ChatGPT для Windows x64. Показывает проценты и серверные даты сброса в боковой полосе и, при включении, на панели задач Windows. В Instant отображаются те же лимиты.
 
@@ -7,6 +7,8 @@
 Нужны Windows x64, локальный исполнитель и установленный Codex с выполненным входом. API-ключ, Git и отдельная установка Node.js не требуются. Язык, тема и остальные настройки сохраняются.
 
 [Страница проекта, установка и выпуски](https://github.com/MrBogomoll/chatgpt-limit-panel).
+
+ПКМ по панели или значку в трее → «Закрепить на боковой панели». Сними галочку для свободного перемещения ЛКМ внутри окна ChatGPT. Положение в свободном режиме сохраняется отдельно; «Расположение по умолчанию» сбрасывает положение текущего режима.
 
 ## English
 
@@ -17,3 +19,5 @@ Open ChatGPT Limit Panel from plugins and click Start in its control card. Right
 Requires a Windows x64 local executor and installed Codex signed in to your account. No API key, Git or separate Node.js installation is needed. Preferences are preserved.
 
 [Project, installation and releases](https://github.com/MrBogomoll/chatgpt-limit-panel).
+
+Right-click the panel or tray icon → Pin to sidebar. Uncheck to drag the panel freely inside the ChatGPT window. Floating and sidebar positions are saved independently; Reset position resets the active placement mode.

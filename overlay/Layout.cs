@@ -23,6 +23,18 @@ namespace QuotaOverlay {
       if(extent<=0||Double.IsNaN(bottom)||Double.IsInfinity(bottom))return null;
       return Math.Max(0,Math.Min(1,(bottom-top-panelHeight)/extent));
     }
+    public static Placement PlaceFloating(double left,double top,double width,double height,double scale,string preferredMode,double? x,double? y) {
+      if(scale<=0||Double.IsNaN(scale)||Double.IsInfinity(scale))scale=1;
+      double margin=4*scale,availableWidth=Math.Max(0,width-2*margin),availableHeight=Math.Max(0,height-2*margin);
+      string mode=preferredMode=="ultra"?"ultra":preferredMode=="compact"?"compact":"full";
+      double panelHeight=(mode=="full"?PanelHeight:mode=="compact"?CompactHeight:UltraHeight)*scale;
+      if(panelHeight>availableHeight&&mode=="full"){mode="compact";panelHeight=CompactHeight*scale;}
+      if(panelHeight>availableHeight){mode="ultra";panelHeight=UltraHeight*scale;}
+      double px=x.HasValue&&!Double.IsNaN(x.Value)&&!Double.IsInfinity(x.Value)?Math.Max(0,Math.Min(1,x.Value)):.5;
+      double py=y.HasValue&&!Double.IsNaN(y.Value)&&!Double.IsInfinity(y.Value)?Math.Max(0,Math.Min(1,y.Value)):.75;
+      return new Placement {Visible=availableWidth>=PanelWidth*scale&&availableHeight>=panelHeight,Mode=mode,Compact=mode!="full",Width=PanelWidth*scale,Height=panelHeight,
+        X=left+margin+Math.Max(0,availableWidth-PanelWidth*scale)*px,Y=top+margin+Math.Max(0,availableHeight-panelHeight)*py};
+    }
     public static Placement PlaceInAvailableRail(double left,double top,double width,double height,double scale,string preferredMode,IList<RailRegion> occupied,double? position) {
       if(scale<=0||Double.IsNaN(scale)||Double.IsInfinity(scale))scale=1;
       var result=PlaceInRail(Place(left,top,width,height,scale,preferredMode),top,height,scale,occupied,position);
