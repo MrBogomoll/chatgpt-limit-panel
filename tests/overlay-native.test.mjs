@@ -32,6 +32,7 @@ test('native overlay renders and accepts updates using only isolated own control
   succeeded(compilation, 'native test compilation');
 
   for (const [scenario, description] of [
+    ['live-tray', 'live tray opt in uses actual quota, shared outline, states and cached full-color graphics'],
     ['tray-menu', 'tray uses branded icon and the shared themed accessible menu with live language and settings'],
     ['rail-resize', 'temporary resize geometry conservatively reserves moving rail controls at all supported scales'],
     ['snap-preview', 'recorded Snap preview hides only the sidebar while ordinary drag and unrelated shell windows remain unaffected'],

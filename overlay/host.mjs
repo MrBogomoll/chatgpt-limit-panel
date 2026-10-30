@@ -35,6 +35,7 @@ export function createOverlayHost({
   let ready = false, paused = false, stopping = false, closed = false;
   let appPresent = !waitForApp;
   let taskbarEnabled = false;
+  let liveTrayEnabled = false;
   let checkingUpdate=false;
   let snapshot = normalizeQuota(null, now());
   let result = { code: 0, reason: 'stopped' };
@@ -89,11 +90,11 @@ export function createOverlayHost({
   }
 
   function refresh() {
-    if (stopping || !ready || paused || (!appPresent && !taskbarEnabled)) return Promise.resolve(null);
+    if (stopping || !ready || paused || (!appPresent && !taskbarEnabled && !liveTrayEnabled)) return Promise.resolve(null);
     if (inFlight) return inFlight;
     // Set the shared promise before calling even a synchronous injected reader.
     const pending = Promise.resolve().then(async () => {
-      if (stopping || paused || (!appPresent && !taskbarEnabled)) return;
+      if (stopping || paused || (!appPresent && !taskbarEnabled && !liveTrayEnabled)) return;
       const raw = await reader.read();
       if (!stopping) snapshot = normalizeQuota(raw, now());
     }).catch(() => {
@@ -122,9 +123,11 @@ export function createOverlayHost({
       case 'refresh': refresh(); break;
       case 'check-updates': checkUpdates(); break;
       case 'app-open': if(!appPresent){appPresent=true;refresh();} break;
-      case 'app-closed': if(appPresent){appPresent=false;if(waitForApp&&!taskbarEnabled)closeReader();} break;
+      case 'app-closed': if(appPresent){appPresent=false;if(waitForApp&&!taskbarEnabled&&!liveTrayEnabled)closeReader();} break;
       case 'taskbar-on': if(!taskbarEnabled){taskbarEnabled=true;refresh();} break;
-      case 'taskbar-off': if(taskbarEnabled){taskbarEnabled=false;if(waitForApp&&!appPresent)closeReader();} break;
+      case 'taskbar-off': if(taskbarEnabled){taskbarEnabled=false;if(waitForApp&&!appPresent&&!liveTrayEnabled)closeReader();} break;
+      case 'tray-live-on': if(!liveTrayEnabled){liveTrayEnabled=true;refresh();} break;
+      case 'tray-live-off': if(liveTrayEnabled){liveTrayEnabled=false;if(waitForApp&&!appPresent&&!taskbarEnabled)closeReader();} break;
       case 'pause': paused = true; break;
       case 'resume':
         if (paused) { paused = false; refresh(); }

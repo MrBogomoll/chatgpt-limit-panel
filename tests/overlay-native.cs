@@ -84,9 +84,9 @@ class OverlayNativeTest {
     Invoke(window,"SetupTrayMenu");var menu=Field<ContextMenu>(window,"trayMenu");
     var panelMenu=Field<ContextMenu>(window,"optionsMenu");
     Check(Object.ReferenceEquals(menu.Template,panelMenu.Template)&&Object.ReferenceEquals(menu.Resources,panelMenu.Resources),"tray must share panel styles and theme resources");
-    Check(((Separator)menu.Items[2]).Style!=null&&((Separator)menu.Items[5]).Style!=null,"tray separators must explicitly use the themed style");
-    Check(((MenuItem)menu.Items[6]).Tag.ToString()=="stop"&&Object.ReferenceEquals(menu.Items[3],Field<MenuItem>(window,"taskbarTrayItem")),"the final action must stop the entire monitor");
-    Check(menu.Items.Count==7,"refresh, pause, taskbar toggle, side and close must remain available");
+    Check(((Separator)menu.Items[2]).Style!=null&&((Separator)menu.Items[6]).Style!=null,"tray separators must explicitly use the themed style");
+    Check(((MenuItem)menu.Items[7]).Tag.ToString()=="stop"&&Object.ReferenceEquals(menu.Items[4],Field<MenuItem>(window,"taskbarTrayItem")),"the final action must stop the entire monitor");
+    Check(menu.Items.Count==8,"refresh, pause, taskbar toggle, side and close must remain available");
     Invoke(window,"SelectTheme","light");
     Check(ColorOf(menu.Background)==ParseColor(ThemePalette.Light.MenuSurface),"tray must follow light theme");
     Invoke(window,"SelectLanguage","en");
@@ -104,6 +104,40 @@ class OverlayNativeTest {
       using(var file=File.Create(Path.Combine(Path.GetDirectoryName(Field<string>(window,"stateFile")),"tray-"+theme+".png")))encoder.Save(file);
     }
     Console.WriteLine("PASS native tray-menu: branded icon and shared themed menu actions");
+  }
+  static void LiveTrayTest(ref OverlayWindow window,string directory) {
+    Check(!Field<bool>(window,"liveTrayIcon"),"live tray must be opt in");
+    Invoke(window,"SetupTrayMenu");MenuClick(Field<MenuItem>(window,"fullBothItem"));
+    Apply(window,Row("5 ч","50%","31.12","23:59","","normal"),Row("Нед.","75%","31.12","00:00","","normal"));
+    using(var stream=typeof(OverlayWindow).Assembly.GetManifestResourceStream("ChatGPTLimitPanel.TrayIcon"))
+      typeof(OverlayWindow).GetField("trayIcon",PrivateInstance).SetValue(window,new System.Drawing.Icon(stream,32,32));
+    MenuClick(Field<MenuItem>(window,"liveTrayItem"));
+    Check(Field<bool>(window,"liveTrayIcon")&&Field<MenuItem>(window,"liveTrayPanelItem").IsChecked,"both menus must reflect saved live choice");
+    var first=Field<System.Drawing.Icon>(window,"dynamicTrayIcon");Invoke(window,"UpdateProgress");
+    Check(Object.ReferenceEquals(first,Field<System.Drawing.Icon>(window,"dynamicTrayIcon")),"unchanged data must not allocate or update tray every tick");
+    using(var icon=(System.Drawing.Icon)Method("CreateLiveTrayIcon").Invoke(window,new object[]{46}))using(var bitmap=icon.ToBitmap()) {
+      Check(bitmap.GetPixel(0,0).A==0,"dynamic icon must retain transparent corners");
+      var shortFill=bitmap.GetPixel(12,17);var shortEmpty=bitmap.GetPixel(34,17);var weekFill=bitmap.GetPixel(28,29);
+      Check(shortFill.G>shortFill.R&&shortEmpty.G==shortEmpty.R+5&&weekFill.B>weekFill.R,"bars must show actual independent percentages and shared palette");
+      bitmap.Save(Path.Combine(directory,"tray-live.png"),System.Drawing.Imaging.ImageFormat.Png);
+    }
+    string shortOutline=Field<string>(window,"trayIconState");MenuClick(Field<MenuItem>(window,"weeklyProgressItem"));
+    Check(Field<string>(window,"trayIconState")!=shortOutline,"shared contour source must update the tray immediately");
+    Apply(window,Row("5 ч","0%","31.12","23:59","","critical"),Row("Нед.","75%","31.12","00:00","","normal"));
+    using(var icon=(System.Drawing.Icon)Method("CreateLiveTrayIcon").Invoke(window,new object[]{46}))using(var bitmap=icon.ToBitmap()) {
+      var end=bitmap.GetPixel(34,17);Check(end.R>end.B,"known zero must be a full red bar");
+    }
+    Apply(window,Row("5 ч","—","—","—","","unknown"),Row("Нед.","75%","31.12","00:00","устар.","normal"));
+    string stale=Field<string>(window,"trayIconState");
+    using(var icon=(System.Drawing.Icon)Method("CreateLiveTrayIcon").Invoke(window,new object[]{46}))using(var bitmap=icon.ToBitmap()) {
+      var empty=bitmap.GetPixel(12,17);Check(empty.R==65&&empty.G==70&&empty.B==75,"unknown must leave an empty neutral bar");
+    }
+    Invoke(window,"SelectTheme","light");Check(Field<string>(window,"trayIconState")!=stale,"theme changes must refresh live graphics");
+    window.Close();window=NewWindow(Path.Combine(directory,"state.json"));
+    Check(Field<bool>(window,"liveTrayIcon"),"live choice must survive restart");
+    Invoke(window,"SetLiveTrayIcon",false);window.Close();window=NewWindow(Path.Combine(directory,"state.json"));
+    Check(!Field<bool>(window,"liveTrayIcon"),"static choice must survive restart");
+    Known(window);Console.WriteLine("PASS native live-tray: real bars, source, zero, unknown, stale, cache and persisted opt in");
   }
   static void LayoutTest(OverlayWindow window) {
     Invoke(window,"SetCompact",false);
@@ -1238,6 +1272,7 @@ class OverlayNativeTest {
       window=NewWindow(Path.Combine(directory,"state.json"));
       AssertUnshown(window);
       switch(args[0]) {
+        case "live-tray":LiveTrayTest(ref window,directory);break;
         case "tray-menu":TrayMenuTest(window);break;
         case "rail-resize":RailResizeTest(window);break;
         case "snap-preview":SnapPreviewTest(window);break;

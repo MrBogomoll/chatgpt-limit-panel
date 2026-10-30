@@ -99,3 +99,9 @@ f6fb885e7e7c7dc479d87388a40ab3a927c4212ebe28a010c19977eab46afbd4
 ## Исходники и разработка
 
 Здесь находятся исходники программы, тесты, инструменты сборки и примеры интерфейса. Инструкции: [сборка и проверки](docs/BUILDING.md), [архитектура](docs/ARCHITECTURE.md), [участие в разработке](CONTRIBUTING.md). Основная ветка — `main`, экспериментальные ветки имеют префикс `beta/`.
+
+### Живая иконка в трее / Live tray icon
+
+ПКМ по значку в трее → **«Живая иконка в трее»**. Верхняя полоска показывает 5-часовой остаток, нижняя — недельный. Контур использует общий выбор лимита и режима индикатора. Без галочки отображается исходный логотип. Настройка сохраняется; живые данные обновляются и без открытого окна ChatGPT, пока работает монитор.
+
+Right-click the tray icon → **Live tray icon**. The upper bar shows the 5-hour remaining limit, the lower bar shows the weekly limit. The outline follows the shared indicator mode and selected limit. Unchecked restores the original logo. The choice persists; live quota refreshes without an open ChatGPT window while the monitor is running.

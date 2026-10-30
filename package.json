@@ -1,6 +1,6 @@
 {
   "name": "chatgpt-limit-panel",
-  "version": "1.4.5-beta.2",
+  "version": "1.5.0-beta.1",
   "private": true,
   "description": "ChatGPT Limit Panel: a Windows usage limit monitor for Codex / Work, with sidebar and taskbar indicators.",
   "engines": {

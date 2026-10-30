@@ -394,3 +394,19 @@ test('manual update command uses a separate coalesced checker without changing q
   assert.equal(reader.calls,0);await send('check-updates');await until(()=>count===2);await host.stop();finish({state:'current'});await delay(20);
   assert(!(await views()).some(view=>view.update?.state==='current'));
 });
+
+
+test('live tray keeps quota refreshing independently of ChatGPT and taskbar and respects pause', {timeout:6000}, async t=>{
+  const {host,reader,send,views}=await fixtureHost(t,{waitForApp:true,pollIntervalMs:25});
+  await delay(60);assert.equal(reader.calls,0);
+  await send('tray-live-on');await until(()=>reader.calls>0,'live tray data without open app');
+  await until(async()=>(await views()).some(v=>v.rows[0].value==='38%'),'actual live tray values');
+  await send('taskbar-on');await delay(40);await send('taskbar-off');
+  await delay(40);const before=reader.calls;await until(()=>reader.calls>before,'live tray survives disabling taskbar');
+  await send('pause');await until(()=>host.paused,'pause');const pausedCalls=reader.calls;await delay(80);assert.equal(reader.calls,pausedCalls);
+  await send('resume');await until(()=>reader.calls>pausedCalls,'resume live tray');
+  await send('tray-live-off');await delay(50);const stopped=reader.calls;await host.refresh();assert.equal(reader.calls,stopped);
+  await send('app-open');await until(()=>reader.calls>stopped,'normal app polling');
+  await send('tray-live-on');await send('app-closed');await delay(50);const closed=reader.calls;await until(()=>reader.calls>closed,'live polling after app closes');
+  await send('tray-live-off');await delay(50);const disabled=reader.calls;await delay(60);assert.equal(reader.calls,disabled);
+});
