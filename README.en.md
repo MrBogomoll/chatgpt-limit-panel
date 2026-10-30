@@ -4,39 +4,23 @@
 
 <img src="plugins/chatgpt-limit-panel/assets/chatgpt-limit-panel.png" width="88" height="88" alt="ChatGPT Limit Panel">
 
-A Windows panel for the shared Codex / Work usage limits in desktop ChatGPT. Shows remaining percentages and reset times beside the app, with an optional two-row indicator on the Windows taskbar. Instant displays the same Codex / Work counters.
+A Windows panel showing your remaining **5-hour and weekly Codex / Work limits** and their reset times. It appears over the desktop ChatGPT window; a taskbar indicator and live tray icon are optional. Instant displays the same Codex / Work counters.
 
-**[Download ChatGPT Limit Panel 1.6.1 for Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.6.1/chatgpt-limit-panel-1.6.1-windows-x64.zip)** · [All releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Upgrade an installed panel](UPGRADING.md)
+**[Download for Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/latest)** · [Update](UPGRADING.md) · [Uninstall](UNINSTALL.md) · [All releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases)
 
-Choose **chatgpt-limit-panel-1.6.1-windows-x64.zip** under Assets. The complete ZIP includes the programs, Node.js and its license. Git and a separate Node.js installation are not required. GitHub's automatic **Source code** archives contain repository materials.
+Download the built application ZIP under **Assets**. GitHub's **Source code** archives contain source files and are not plugin installation packages.
 
-## Fixed in 1.6.1
+## Features
 
-- Update without routinely opening Task Scheduler: stop the panel, replace the ZIP and click Start.
-- The new version automatically relocates its verified launch task, preserving preferences and autostart choices.
-- Simplified the Russian and English [upgrade guide](UPGRADING.md).
+- Remaining limits and reset times from Codex, refreshed about every 30 seconds. Stale and unknown values are marked separately.
+- Full, compact and ultracompact views; left-click cycles views and right-click opens settings.
+- Pin to the sidebar or drag freely inside the ChatGPT window. The position is saved; Reset position returns the panel to the sidebar area.
+- Independent panel background opacity and taskbar indicator transparency. Set panel **background opacity to 100%** to prevent conversation text from showing through.
+- Bars and an outline show remaining quota; choose the 5-hour or weekly limit for the outline. Muted orange indicates ≤30% remaining, red ≤10%. Ultracompact always keeps both bars.
+- An optional taskbar indicator with percentages and selectable placement, and an optional live tray icon showing the same two limits.
+- Dark, light and automatic themes; Russian and English languages. Preferences persist across restarts.
 
-## Free placement and opacity
 
-- **Free panel placement** inside ChatGPT: uncheck Pin to sidebar and drag with the left mouse button. The option is available in both panel and tray menus.
-- Unpinning starts beside the sidebar. Floating positions persist across restarts and stay within the window when it resizes.
-- **Independent panel background opacity**: Right-click → Background opacity. At 100%, conversation text cannot show through; taskbar indicator transparency stays independent.
-- Reset position returns the floating panel to the sidebar area while keeping it unpinned.
-
-Windows 10 compatibility is still under investigation.
-
-## Fixed in 1.3.2
-
-- Update checks now use the primary public repository containing source and releases.
-- Versions 1.3.1 and earlier need a one-time manual upgrade: [instructions](UPGRADING.md).
-
-## Features introduced in 1.3.0
-
-- An optional Windows taskbar indicator: five-hour remaining percentage above weekly remaining percentage, with left or right placement.
-- Stable taskbar attachment when switching between ChatGPT and games or opening Start and Start11 menus.
-- Continued limit refresh with the ChatGPT window closed while the taskbar indicator is enabled.
-- A 0–100% background transparency slider in the indicator's right-click menu. Percentages stay readable and the menu remains accessible with a transparent background.
-- Consistent program, icon and build filenames, with manual GitHub update checks.
 
 ## Preview
 
@@ -57,52 +41,29 @@ Windows 10 compatibility is still under investigation.
 
 The panels are rendered from the actual application controls. Values are demonstration data; the surrounding chat and taskbar are schematic illustrations, not desktop screenshots.
 
-## Features
-
-- Server-provided remaining percentages and reset timestamps, refreshed about every 30 seconds. Stale and unknown data are distinguished from current values.
-- Three sidebar sizes, cycled with left-click or selected through the right-click menu.
-- Bars, outline, both, or no graphics. Ultracompact always keeps its two bars.
-- One shared five-hour or weekly source for the outline in every view.
-- Muted orange at ≤30% remaining, red at ≤10%. A known zero fills enabled indicators red.
-- Dark, Light and Auto themes, with Russian and English interfaces.
-- Saved language, theme, size, transparency, indicators and autostart preference.
-- Taskbar placement uses a verified free gap, accounting for app buttons, tray, clock and adjacent widgets.
-
 ## Installation
 
-Requires Windows x64, a desktop ChatGPT client supporting local plugins, and installed Codex signed in to the intended account. No API key is required.
+Requires Windows x64, a desktop ChatGPT client supporting local plugins, and installed Codex signed in to the intended account. A separate API key, Git and Node.js installation are not required.
 
-1. Download the built ZIP above.
+1. Download the built ZIP using the link above.
 2. Open **Plugins → Add → Upload plugin archive** and select the ZIP.
 3. Open **ChatGPT Limit Panel** and its control card.
-4. Click **Start** once.
+4. Click **Start**.
 
-First activation configures per-user Windows autostart without administrator credentials or a password. The sidebar panel appears about three seconds after detecting ChatGPT. Enable the taskbar indicator separately: right-click the panel → **Taskbar → Show percentages**.
+First activation creates a per-user Windows autostart task; it can be disabled in the panel menu. To enable the taskbar indicator, use **Right-click the panel → Taskbar → Show percentages**. Enable the live icon through **Right-click the tray icon → Live tray icon**.
 
-With the taskbar indicator enabled, limits continue refreshing with the ChatGPT window closed. Otherwise the monitor waits for the window. Closing the control card keeps the panel running. **Stop panel** explicitly ends the current monitor.
+With the taskbar indicator **or** live tray icon enabled, the monitor can refresh limits without an open ChatGPT window. Closing the control card does not stop the monitor; choose **Stop panel** to stop it.
 
-## Controls and updates
+## Updating and uninstalling
 
-Right-click the sidebar panel for view, indicators, outline source, theme, language, autostart, refresh and stop. Right-click the taskbar indicator for placement and background transparency.
+**Check for a new version** checks the stable release and offers to open its page. ZIP installation is manual. Guides: [update](UPGRADING.md) · [complete uninstall](UNINSTALL.md). See [CHANGELOG](CHANGELOG.md) and [releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) for the history of changes.
 
-**Check for a new version** explicitly checks the latest stable release. **Open release** takes you to its download page when a newer version is available. Updating is manual. Network failures and GitHub request limits are reported separately.
+## Compatibility and data
 
-To remove the panel and its autostart completely, see the [uninstall guide](UNINSTALL.md).
+The panel has been checked on Windows 11, including Start11 and placement next to NetWorx. Windows 10 compatibility is not yet confirmed. If ZIP import is unavailable or an error occurs, include the Windows version, client version and details in [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues).
 
-## Compatibility
+The program uses your existing local Codex sign-in. User credentials and settings are not included in the archive. This is an independent project, not an official OpenAI product. [ZIP checksum for 1.6.1](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.6.1/chatgpt-limit-panel-1.6.1-windows-x64.zip.sha256).
 
-Actually checked on Windows 11, including Start11 and an adjacent NetWorx indicator. A physical Windows 10 check has not been performed. If ZIP import is unavailable or an error occurs, include the Windows version, client version and reproduction steps in [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues).
+## Development
 
-## Checksum and data
-
-[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.6.1/chatgpt-limit-panel-1.6.1-windows-x64.zip.sha256):
-
-```text
-e19ba7aaf7ae902c27e4ae28edb00a129f9674fef6bfd78c19c97e5ea1b6b4a2
-```
-
-The panel uses your own local Codex sign-in. Author credentials, conversations and account settings are not included. ChatGPT files are unchanged. ChatGPT Limit Panel is an independent project, not an official OpenAI product.
-
-## Source and development
-
-This repository contains the application source, tests, build tools and documentation previews. See [building and testing](docs/BUILDING.md), [architecture](docs/ARCHITECTURE.md) and [contribution guide](CONTRIBUTING.md). The default branch is `main`; experimental branches use `beta/`.
+The repository contains source code, tests and build tools. See [building and testing](docs/BUILDING.md), [architecture](docs/ARCHITECTURE.md) and [contribution guide](CONTRIBUTING.md).
