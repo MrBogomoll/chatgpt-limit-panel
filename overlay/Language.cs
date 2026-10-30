@@ -35,6 +35,7 @@ namespace QuotaOverlay {
       {"compact",new[]{"Компактный","Compact"}},
       {"ultra",new[]{"Ультракомпактный","Ultracompact"}},
       {"theme",new[]{"Тема","Theme"}},
+      {"sidebarOpacity",new[]{"Непрозрачность фона","Background opacity"}},
       {"backgroundTransparency",new[]{"Прозрачность фона","Background transparency"}},
       {"dark",new[]{"Тёмная","Dark"}},
       {"light",new[]{"Светлая","Light"}},

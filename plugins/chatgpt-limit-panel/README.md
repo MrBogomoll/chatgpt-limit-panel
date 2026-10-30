@@ -1,4 +1,4 @@
-# ChatGPT Limit Panel 1.6.0-beta.1
+# ChatGPT Limit Panel 1.6.0-beta.3
 
 Панель оставшихся лимитов Codex / Work в настольном ChatGPT для Windows x64. Показывает проценты и серверные даты сброса в боковой полосе и, при включении, на панели задач Windows. В Instant отображаются те же лимиты.
 
@@ -8,7 +8,9 @@
 
 [Страница проекта, установка и выпуски](https://github.com/MrBogomoll/chatgpt-limit-panel).
 
-ПКМ по панели или значку в трее → «Закрепить на боковой панели». Сними галочку для свободного перемещения ЛКМ внутри окна ChatGPT. Положение в свободном режиме сохраняется отдельно; «Расположение по умолчанию» сбрасывает положение текущего режима.
+ПКМ по панели или значку в трее → «Закрепить на боковой панели». Сними галочку для свободного перемещения ЛКМ внутри окна ChatGPT. После снятия закрепления панель остаётся у боковой полосы и перемещается только вручную. Положение в свободном режиме сохраняется при перезапуске; «Расположение по умолчанию» сбрасывает положение текущего режима.
+
+ПКМ по самой панели → «Непрозрачность фона»: 100% даёт сплошной фон без просвечивания переписки. Настройка не меняет прозрачность индикатора панели задач.
 
 ## English
 
@@ -20,4 +22,6 @@ Requires a Windows x64 local executor and installed Codex signed in to your acco
 
 [Project, installation and releases](https://github.com/MrBogomoll/chatgpt-limit-panel).
 
-Right-click the panel or tray icon → Pin to sidebar. Uncheck to drag the panel freely inside the ChatGPT window. Floating and sidebar positions are saved independently; Reset position resets the active placement mode.
+Right-click the panel or tray icon → Pin to sidebar. Uncheck to drag the panel freely inside the ChatGPT window. Unpinning starts at the current sidebar location. Floating positions survive restart; Reset position resets the active placement mode.
+
+Right-click the panel → Background opacity: 100% gives a solid background. The setting is independent of taskbar indicator transparency.

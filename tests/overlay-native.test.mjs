@@ -32,6 +32,7 @@ test('native overlay renders and accepts updates using only isolated own control
   succeeded(compilation, 'native test compilation');
 
   for (const [scenario, description] of [
+    ['sidebar-opacity', 'independent sidebar opacity keeps floating panels readable without changing taskbar transparency'],
     ['floating-native', 'actual unpinned HWND follows its client through drag, resize, minimize and repinning without activation'],
     ['floating-panel', 'unpinned panel uses two-axis client-relative placement and persists independently of the rail'],
     ['live-tray', 'live tray opt in uses actual quota, shared outline, states and cached full-color graphics'],

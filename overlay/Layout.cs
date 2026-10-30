@@ -30,8 +30,8 @@ namespace QuotaOverlay {
       double panelHeight=(mode=="full"?PanelHeight:mode=="compact"?CompactHeight:UltraHeight)*scale;
       if(panelHeight>availableHeight&&mode=="full"){mode="compact";panelHeight=CompactHeight*scale;}
       if(panelHeight>availableHeight){mode="ultra";panelHeight=UltraHeight*scale;}
-      double px=x.HasValue&&!Double.IsNaN(x.Value)&&!Double.IsInfinity(x.Value)?Math.Max(0,Math.Min(1,x.Value)):.5;
-      double py=y.HasValue&&!Double.IsNaN(y.Value)&&!Double.IsInfinity(y.Value)?Math.Max(0,Math.Min(1,y.Value)):.75;
+      double px=x.HasValue&&!Double.IsNaN(x.Value)&&!Double.IsInfinity(x.Value)?Math.Max(0,Math.Min(1,x.Value)):0;
+      double py=y.HasValue&&!Double.IsNaN(y.Value)&&!Double.IsInfinity(y.Value)?Math.Max(0,Math.Min(1,y.Value)):Math.Max(0,Math.Min(1,(height-BottomClearance*scale-panelHeight-margin)/Math.Max(1,availableHeight-panelHeight)));
       return new Placement {Visible=availableWidth>=PanelWidth*scale&&availableHeight>=panelHeight,Mode=mode,Compact=mode!="full",Width=PanelWidth*scale,Height=panelHeight,
         X=left+margin+Math.Max(0,availableWidth-PanelWidth*scale)*px,Y=top+margin+Math.Max(0,availableHeight-panelHeight)*py};
     }

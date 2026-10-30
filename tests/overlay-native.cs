@@ -147,6 +147,8 @@ class OverlayNativeTest {
         Check(place.X>=-1920+4*scale-.01&&place.Y>=100+4*scale-.01&&place.X+place.Width<=-1920+1196*scale+.01&&place.Y+place.Height<=100+846*scale+.01,"floating rectangle must stay within the client area at every DPI and monitor origin");
       }
     }
+    var defaultFree=Layout.PlaceFloating(0,0,1200,1000,1,"compact",null,null);
+    Check(defaultFree.X==4&&defaultFree.Y==790,"floating defaults must be beside the rail with the existing footer clearance, never screen centre");
     Check(Layout.PlaceFloating(0,0,500,150,1,"full",null,null).Mode=="compact","short clients must use compact when full does not fit");
     Check(Layout.PlaceFloating(0,0,500,70,1,"full",null,null).Mode=="ultra","tiny clients must use ultra when compact does not fit");
     Check(!Layout.PlaceFloating(0,0,40,70,1,"ultra",null,null).Visible,"do not display outside an undersized client");
@@ -557,7 +559,10 @@ class OverlayNativeTest {
       typeof(OverlayWindow).GetField("target",PrivateInstance).SetValue(window,target);typeof(OverlayWindow).GetField("started",PrivateInstance).SetValue(window,true);
       Known(window);var handle=new WindowInteropHelper(window).EnsureHandle();
       long now=(long)(System.Diagnostics.Stopwatch.GetTimestamp()*1000.0/System.Diagnostics.Stopwatch.Frequency);Field<AppStartupGate>(window,"appStartup").Ready(target,true,now-4000);
-      Invoke(window,"UpdatePlacement");Invoke(window,"SetSidebarPinned",false);PumpDispatcher();
+      Invoke(window,"UpdatePlacement");Native.Rect pinnedBounds;GetWindowRect(handle,out pinnedBounds);
+      typeof(OverlayWindow).GetField("floatingX",PrivateInstance).SetValue(window,(double?).5);typeof(OverlayWindow).GetField("floatingY",PrivateInstance).SetValue(window,(double?).5);
+      Invoke(window,"SetSidebarPinned",false);PumpDispatcher();Native.Rect unpinnedBounds;GetWindowRect(handle,out unpinnedBounds);
+      Check(Math.Abs(pinnedBounds.Left-unpinnedBounds.Left)<=2&&Math.Abs(pinnedBounds.Top-unpinnedBounds.Top)<=2,"unpin must keep the actual rail position even when an older floating location was saved");
       Invoke(window,"MoveSidebarTo",-31400.0,-31500.0);PumpDispatcher();
       Native.Rect bounds;GetWindowRect(handle,out bounds);Check(Math.Abs(bounds.Left+31400)<=1&&Math.Abs(bounds.Top+31500)<=1,"native HWND must follow two-axis drag");
       foreach(int height in new[]{1000,420,750}) {
@@ -789,7 +794,7 @@ class OverlayNativeTest {
     Console.WriteLine("PASS native taskbar-recreation: closed/native-destroyed child recovery, retired menus, preserved rows/preferences/pause/focus and current inputs");
   }
   static void AssertBackgroundAlpha(OverlayWindow window,byte alpha) {
-    Check(ColorOf(Field<Border>(window,"panel").Background).A==alpha,"main panel must apply the selected transparency only to its background");
+    Check(ColorOf(Field<Border>(window,"panel").Background).A==(byte)Math.Round(Field<int>(window,"sidebarBackgroundOpacity")*255.0/100),"sidebar opacity must be independent of taskbar transparency");
     Check(ColorOf(TaskbarSurface(window).Background).A==alpha,"taskbar percentages must apply the same selected background transparency");
     Check(window.Opacity==1&&Field<TaskbarWindow>(window,"taskbarWindow").Opacity==1,"background adjustment must not fade either window as a whole");
     foreach(var label in Field<TextBlock[]>(window,"values"))Check(ColorOf(label.Foreground).A==255,"quota text must remain opaque at every transparency setting");
@@ -848,6 +853,28 @@ class OverlayNativeTest {
       Check(Field<int>(window,"backgroundTransparency")==percentage,"valid endpoint preferences must survive reconstruction");
     }
     Console.WriteLine("PASS native transparency: live slider, both backgrounds, opaque content, persistence, themes and validated range");
+  }
+  static void SidebarOpacityTest(ref OverlayWindow window,string directory) {
+    Known(window);var slider=Field<Slider>(window,"sidebarOpacitySlider");
+    Check(slider.Minimum==0&&slider.Maximum==100&&slider.Template!=null,"sidebar must expose the modern full-range slider");
+    int taskbarTransparency=Field<int>(window,"backgroundTransparency");
+    foreach(int value in new[]{100,0,35,100}) {
+      slider.Value=value;
+      Check(Field<int>(window,"sidebarBackgroundOpacity")==value,"live slider must apply opacity");
+      Check(ColorOf(Field<Border>(window,"panel").Background).A==(byte)Math.Round(value*255.0/100),"100% must be fully opaque and zero fully clear");
+      Check(Field<int>(window,"backgroundTransparency")==taskbarTransparency,"sidebar control must not affect taskbar");
+      foreach(var text in Field<TextBlock[]>(window,"values"))Check(ColorOf(text.Foreground).A==255,"text must remain opaque");
+      Check(window.Opacity==1&&ColorOf(Field<Border>(window,"panel").BorderBrush).A==255,"frame and entire window must not fade");
+    }
+    Invoke(window,"SetSidebarPinned",false);Invoke(window,"SelectTheme","light");
+    Check(ColorOf(Field<Border>(window,"panel").Background).A==255,"floating light panel must keep its opaque background");
+    Invoke(window,"SetBackgroundTransparency",90);Check(Field<int>(window,"sidebarBackgroundOpacity")==100,"taskbar slider must not change sidebar");
+    Invoke(window,"SelectLanguage","en");Check(Field<TextBlock>(window,"sidebarOpacityLabel").Text=="Background opacity: 100%","label must follow language");
+    window.Close();window=NewWindow(Path.Combine(directory,"state.json"));Known(window);
+    Check(Field<int>(window,"sidebarBackgroundOpacity")==100&&Field<int>(window,"backgroundTransparency")==90&&!Field<bool>(window,"sidebarPinned"),"both values and free mode must persist independently");
+    Invoke(window,"SetSidebarOpacity",-2);Check(Field<int>(window,"sidebarBackgroundOpacity")==0,"opacity clamps negative values");
+    Invoke(window,"SetSidebarOpacity",102);Check(Field<int>(window,"sidebarBackgroundOpacity")==100,"opacity clamps large values");
+    Console.WriteLine("PASS native sidebar-opacity: live independent slider, opaque text/frame, theme/language and persisted free mode");
   }
   static void MenuPlacementTest(OverlayWindow window) {
     var menu=Field<ContextMenu>(window,"optionsMenu");
@@ -1336,6 +1363,7 @@ class OverlayNativeTest {
       window=NewWindow(Path.Combine(directory,"state.json"));
       AssertUnshown(window);
       switch(args[0]) {
+        case "sidebar-opacity":SidebarOpacityTest(ref window,directory);break;
         case "floating-native":FloatingNativeTest(window);break;
         case "floating-panel":FloatingPanelTest(ref window,directory);break;
         case "live-tray":LiveTrayTest(ref window,directory);break;

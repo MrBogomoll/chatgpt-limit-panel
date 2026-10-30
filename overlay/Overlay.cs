@@ -339,7 +339,10 @@ namespace QuotaOverlay {
     bool taskbarEnabled;
     string taskbarSide;
     double? taskbarPosition;
-    int backgroundTransparency;
+    int backgroundTransparency,sidebarBackgroundOpacity;
+    Slider sidebarOpacitySlider;
+    TextBlock sidebarOpacityLabel;
+    bool syncingSidebarOpacity;
     Slider transparencySlider;
     TextBlock transparencyLabel;
     bool syncingTransparency;
@@ -373,6 +376,8 @@ namespace QuotaOverlay {
       floatingX=PositionPreference(preferences,"floatingX");floatingY=PositionPreference(preferences,"floatingY");
       object savedTransparency;
       backgroundTransparency=preferences.TryGetValue("backgroundTransparency",out savedTransparency)&&savedTransparency is int&&(int)savedTransparency>=0&&(int)savedTransparency<=100?(int)savedTransparency:50;
+      object savedOpacity;
+      sidebarBackgroundOpacity=preferences.TryGetValue("sidebarBackgroundOpacity",out savedOpacity)&&savedOpacity is int&&(int)savedOpacity>=0&&(int)savedOpacity<=100?(int)savedOpacity:100-backgroundTransparency;
       language=PanelLanguage.Read(settingsFile);
       autoStartEnabled=BooleanPreference(preferences,"autoStartEnabled",true);
       string savedTheme=preferences.ContainsKey("themeMode")?Convert.ToString(preferences["themeMode"]):"";
@@ -397,10 +402,10 @@ namespace QuotaOverlay {
       Title="ChatGPT Limit Panel";
       Width=Layout.PanelWidth; Height=Layout.PanelHeight;
       WindowStyle=WindowStyle.None; ResizeMode=ResizeMode.NoResize;
-      AllowsTransparency=true; Background=TaskbarAppearance.InputSurface(backgroundTransparency);
+      AllowsTransparency=true; Background=TaskbarAppearance.InputSurface(100-sidebarBackgroundOpacity);
       ShowInTaskbar=false; ShowActivated=false; Topmost=false; Focusable=false;
       FontFamily=new FontFamily("Segoe UI");
-      panel=new Border { Width=Layout.PanelWidth,Height=Layout.PanelHeight,Background=Brush(palette.Background(backgroundTransparency)),BorderBrush=Brush(palette.Border),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(3,5,3,5) };
+      panel=new Border { Width=Layout.PanelWidth,Height=Layout.PanelHeight,Background=Brush(palette.Background(100-sidebarBackgroundOpacity)),BorderBrush=Brush(palette.Border),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(3,5,3,5) };
       ToolTipService.SetIsEnabled(panel,false);
       var stack=new StackPanel(); panel.Child=stack;
       for(int i=0;i<2;i++) {
@@ -546,7 +551,7 @@ namespace QuotaOverlay {
       string resolved=themeResolver.Resolve(themeMode);
       if(resolved==effectiveTheme)return false;
       effectiveTheme=resolved;palette=resolved=="light"?ThemePalette.Light:ThemePalette.Dark;
-      Background=TaskbarAppearance.InputSurface(backgroundTransparency);panel.Background=Brush(palette.Background(backgroundTransparency));panel.BorderBrush=Brush(palette.Border);divider.Background=Brush(palette.Divider);
+      Background=TaskbarAppearance.InputSurface(100-sidebarBackgroundOpacity);panel.Background=Brush(palette.Background(100-sidebarBackgroundOpacity));panel.BorderBrush=Brush(palette.Border);divider.Background=Brush(palette.Divider);
       compactStale.Foreground=Brush(palette.Secondary);
       for(int i=0;i<2;i++) {
         periods[i].Foreground=Brush(palette.Secondary);markers[i].Foreground=Brush(palette.Secondary);
@@ -604,9 +609,20 @@ namespace QuotaOverlay {
     void SetBackgroundTransparency(int value) {
       value=Math.Max(0,Math.Min(100,value));
       if(closing||value==backgroundTransparency)return;
-      try{Preferences.Update(settingsFile,p=>{p["backgroundTransparency"]=value;});}catch{SyncTransparencyControl();return;}
-      backgroundTransparency=value;Background=TaskbarAppearance.InputSurface(value);panel.Background=Brush(palette.Background(value));
+      try{Preferences.Update(settingsFile,p=>{p["backgroundTransparency"]=value;p["sidebarBackgroundOpacity"]=sidebarBackgroundOpacity;});}catch{SyncTransparencyControl();return;}
+      backgroundTransparency=value;
       SyncTaskbar();lastState="";
+    }
+    void SetSidebarOpacity(int value) {
+      value=Math.Max(0,Math.Min(100,value));if(closing||value==sidebarBackgroundOpacity)return;
+      try{Preferences.Update(settingsFile,p=>p["sidebarBackgroundOpacity"]=value);}catch{SyncSidebarOpacityControl();return;}
+      sidebarBackgroundOpacity=value;Background=TaskbarAppearance.InputSurface(100-value);panel.Background=Brush(palette.Background(100-value));
+      SyncSidebarOpacityControl();lastState="";
+    }
+    void SyncSidebarOpacityControl() {
+      if(sidebarOpacitySlider==null)return;syncingSidebarOpacity=true;
+      try{sidebarOpacitySlider.Value=sidebarBackgroundOpacity;sidebarOpacityLabel.Text=T("sidebarOpacity")+": "+sidebarBackgroundOpacity+"%";sidebarOpacityLabel.Foreground=Brush(palette.MenuText);}
+      finally{syncingSidebarOpacity=false;}
     }
     void SyncTransparencyControl() {
       if(transparencySlider==null)return;
@@ -710,6 +726,12 @@ namespace QuotaOverlay {
       ultraModeItem=Menu("ultra",true);ultraModeItem.Click+=delegate {SelectMode("ultra");};
       modes.Items.Add(fullModeItem);modes.Items.Add(compactModeItem);modes.Items.Add(ultraModeItem);optionsMenu.Items.Add(modes);
       sidebarPinItem=Menu("sidebarPinned",true);sidebarPinItem.Click+=delegate {SetSidebarPinned(sidebarPinItem.IsChecked);};optionsMenu.Items.Add(sidebarPinItem);
+      sidebarOpacityLabel=new TextBlock {FontSize=12,Margin=new Thickness(0,0,0,5)};
+      sidebarOpacitySlider=new Slider {Minimum=0,Maximum=100,Value=sidebarBackgroundOpacity,Width=195,TickFrequency=1,IsSnapToTickEnabled=true,IsMoveToPointEnabled=true,Focusable=false};
+      TaskbarAppearance.ApplySliderStyle(sidebarOpacitySlider);
+      sidebarOpacitySlider.ValueChanged+=delegate {if(!syncingSidebarOpacity)SetSidebarOpacity((int)Math.Round(sidebarOpacitySlider.Value));};
+      var opacityContent=new StackPanel();opacityContent.Children.Add(sidebarOpacityLabel);opacityContent.Children.Add(sidebarOpacitySlider);
+      optionsMenu.Items.Add(new MenuItem {Header=opacityContent,StaysOpenOnClick=true});SyncSidebarOpacityControl();
       var resetPosition=Menu("resetPosition");resetPosition.Click+=delegate{ResetSidebarPosition();};optionsMenu.Items.Add(resetPosition);
       var taskbar=Menu("taskbar");
       taskbarEnabledItem=Menu("taskbarShow",true);taskbarEnabledItem.Click+=delegate {SetTaskbarEnabled(taskbarEnabledItem.IsChecked);};
@@ -747,6 +769,7 @@ namespace QuotaOverlay {
       optionsMenu.Closed+=delegate {menuDismiss.Stop();};panel.ContextMenu=optionsMenu;
     }
     void SyncMenu() {
+      SyncSidebarOpacityControl();
       TranslateMenu(optionsMenu);languageRussianItem.IsChecked=language=="ru";languageEnglishItem.IsChecked=language=="en";
       if(updatesItem!=null&&!updatesItem.IsEnabled)updatesItem.Header=T("checkingUpdates");
       taskbarEnabledItem.IsChecked=taskbarEnabled;taskbarLeftItem.IsChecked=taskbarSide=="left";taskbarRightItem.IsChecked=taskbarSide=="right";
@@ -1022,11 +1045,12 @@ namespace QuotaOverlay {
     }
     static string Get(Dictionary<string,object> row,string key) { return row.ContainsKey(key)?Convert.ToString(row[key]):""; }
     void SetSidebarPinned(bool pinned) {
-      double? x=floatingX,y=floatingY;
-      if(!pinned&&sidebarPinned&&!floatingX.HasValue&&!floatingY.HasValue&&lastSidebarFrame!=null&&lastSidebarFrame.Show) {
+      double? x=!pinned&&sidebarPinned?null:floatingX,y=!pinned&&sidebarPinned?null:floatingY;
+      if(!pinned&&sidebarPinned&&lastSidebarFrame!=null&&lastSidebarFrame.Valid) {
         var f=lastSidebarFrame;double margin=4*f.Scale;
-        x=Layout.PositionForBottom(f.Placement.X+f.Placement.Width,f.Origin.X+margin,f.Rect.Right-f.Rect.Left-2*margin,f.Placement.Width);
-        y=Layout.PositionForBottom(f.Placement.Y+f.Placement.Height,f.Origin.Y+margin,f.Rect.Bottom-f.Rect.Top-2*margin,f.Placement.Height);
+        var free=Layout.PlaceFloating(f.Origin.X,f.Origin.Y,f.Rect.Right-f.Rect.Left,f.Rect.Bottom-f.Rect.Top,f.Scale,preferredMode,null,null);
+        x=Layout.PositionForBottom(f.Placement.X+free.Width,f.Origin.X+margin,f.Rect.Right-f.Rect.Left-2*margin,free.Width);
+        y=Layout.PositionForBottom(f.Placement.Y+free.Height,f.Origin.Y+margin,f.Rect.Bottom-f.Rect.Top-2*margin,free.Height);
       }
       try{Preferences.Update(settingsFile,p=>{p["sidebarPinned"]=pinned;p["floatingX"]=x;p["floatingY"]=y;});}catch{SyncMenu();return;}
       sidebarPinned=pinned;floatingX=x;floatingY=y;SyncMenu();lastState="";UpdatePlacement();
@@ -1128,7 +1152,7 @@ namespace QuotaOverlay {
       if(!appSignalSent||lastAppReady!=appReady){appSignalSent=true;lastAppReady=appReady;Command(appReady?"app-open":"app-closed");}
       if(pendingPreview) {pendingPreview=false;UpdateLayout();SavePreview();}
       IntPtr owner=Native.GetWindowLongPtr(hwnd,-8);uint ownerProcess=0;if(owner!=IntPtr.Zero)Native.GetWindowThreadProcessId(owner,out ownerProcess);
-      var state=new {sidebar=new {geometry=sidebarGeometry.Debug,attached=false,host="window",status=sidebarStatus,parent=0L,pinned=sidebarPinned,position=sidebarPosition,floatingX=floatingX,floatingY=floatingY},backgroundTransparency=backgroundTransparency,taskbar=new {enabled=taskbarEnabled,side=taskbarSide,position=taskbarPosition,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
+      var state=new {sidebar=new {geometry=sidebarGeometry.Debug,attached=false,host="window",status=sidebarStatus,parent=0L,pinned=sidebarPinned,backgroundOpacity=sidebarBackgroundOpacity,position=sidebarPosition,floatingX=floatingX,floatingY=floatingY},backgroundTransparency=backgroundTransparency,taskbar=new {enabled=taskbarEnabled,side=taskbarSide,position=taskbarPosition,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
       string encoded=json.Serialize(state);
       diagnosticState=state;
       if(encoded!=lastState){lastState=encoded;try{File.WriteAllText(stateFile,encoded,Encoding.UTF8);stateWriteError="";}catch(Exception error){stateWriteError=error.GetType().Name+":"+error.HResult.ToString();}}
