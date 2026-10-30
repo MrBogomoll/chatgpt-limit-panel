@@ -6,17 +6,16 @@
 
 Панель оставшихся лимитов Codex / Work для настольного ChatGPT в Windows. Показывает проценты и время сброса в боковой полосе приложения, а по желанию — два процента на панели задач Windows. В Instant отображается тот же общий счётчик Codex / Work.
 
-**[Скачать ChatGPT Limit Panel 1.4.4 для Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.4/chatgpt-limit-panel-1.4.4-windows-x64.zip)** · [Все релизы](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Обновление установленной панели](UPGRADING.md)
+**[Скачать ChatGPT Limit Panel 1.5.0 для Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.5.0/chatgpt-limit-panel-1.5.0-windows-x64.zip)** · [Все релизы](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Обновление установленной панели](UPGRADING.md)
 
-Выбирай готовый ZIP **chatgpt-limit-panel-1.4.4-windows-x64.zip** в Assets. В него входят программы панели, Node.js и лицензия. Git и отдельная установка Node.js не требуются. Автоматические архивы GitHub **Source code** содержат материалы репозитория.
+Выбирай готовый ZIP **chatgpt-limit-panel-1.5.0-windows-x64.zip** в Assets. В него входят программы панели, Node.js и лицензия. Git и отдельная установка Node.js не требуются. Автоматические архивы GitHub **Source code** содержат материалы репозитория.
 
-## Новое в 1.4.4
+## Новое в 1.5.0
 
-- Исправлены задержка и мигание индикатора при автоскрытии панели задач.
-
-- Папка настроек и диагностики теперь называется **ChatGPTLimitPanel**. Данные из прежней папки переносятся автоматически.
-- Язык, тема, вид, положение и автозапуск сохраняются при переносе.
-- [Инструкция по обновлению](UPGRADING.md) описывает замену пакета без привязки к старым версиям.
+- **Живая иконка в трее**: реальные полоски 5-часового и недельного лимитов, с общими настройками контура. Включается через ПКМ по значку → «Живая иконка в трее».
+- Выбор между логотипом и живыми данными сохраняется. Живой режим обновляет лимиты и без открытого окна ChatGPT.
+- Аккуратная иконка с прозрачными краями, меню трея в стиле панели, тонкие серые разделители меню панели задач.
+- «Остановить панель» находится в самом низу меню трея.
 
 Совместимость с Windows 10 пока исследуется.
 
@@ -88,10 +87,10 @@
 
 ## Контрольная сумма и данные
 
-[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.4/chatgpt-limit-panel-1.4.4-windows-x64.zip.sha256):
+[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.5.0/chatgpt-limit-panel-1.5.0-windows-x64.zip.sha256):
 
 ```text
-f6fb885e7e7c7dc479d87388a40ab3a927c4212ebe28a010c19977eab46afbd4
+03f32f1f485a07c2f4825a9187d7c97f55c215237810f2a2c1bacc07677c8d66
 ```
 
 Используется собственная локальная авторизация Codex. Данные входа автора, его переписка и настройки аккаунта в архив не входят. Клиент ChatGPT не изменяется. ChatGPT Limit Panel — независимый проект, не официальный продукт OpenAI.

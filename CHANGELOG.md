@@ -1,5 +1,12 @@
 # Changes
 
+## 1.5.0 — 2026-10-30
+
+- Add an optional live tray icon with actual 5-hour and weekly quota bars, shared outline settings, and persisted opt-in.
+- Keep live tray quota refreshing independently of ChatGPT window and taskbar visibility, respecting pause and stop.
+- Use the branded full-color alpha tray icon and shared themed tray menu.
+- Use muted taskbar-menu separators and put Stop panel at the bottom of the tray menu.
+
 ## 1.4.4 — 2026-10-29
 
 - Keep the taskbar indicator attached during automatic taskbar hiding and revealing.

@@ -6,17 +6,16 @@
 
 A Windows panel for the shared Codex / Work usage limits in desktop ChatGPT. Shows remaining percentages and reset times beside the app, with an optional two-row indicator on the Windows taskbar. Instant displays the same Codex / Work counters.
 
-**[Download ChatGPT Limit Panel 1.4.4 for Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.4/chatgpt-limit-panel-1.4.4-windows-x64.zip)** · [All releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Upgrade an installed panel](UPGRADING.md)
+**[Download ChatGPT Limit Panel 1.5.0 for Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.5.0/chatgpt-limit-panel-1.5.0-windows-x64.zip)** · [All releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) · [Upgrade an installed panel](UPGRADING.md)
 
-Choose **chatgpt-limit-panel-1.4.4-windows-x64.zip** under Assets. The complete ZIP includes the programs, Node.js and its license. Git and a separate Node.js installation are not required. GitHub's automatic **Source code** archives contain repository materials.
+Choose **chatgpt-limit-panel-1.5.0-windows-x64.zip** under Assets. The complete ZIP includes the programs, Node.js and its license. Git and a separate Node.js installation are not required. GitHub's automatic **Source code** archives contain repository materials.
 
-## New in 1.4.4
+## New in 1.5.0
 
-- Fix taskbar indicator delays and flicker with automatic taskbar hiding.
-
-- Settings and diagnostics now use the **ChatGPTLimitPanel** directory, with automatic migration of existing data.
-- Language, theme, view, position and autostart preferences are preserved.
-- The [upgrade guide](UPGRADING.md) describes package replacement without references to older versions.
+- **Live tray icon** with actual 5-hour and weekly quota bars and shared outline settings. Enable via Right-click the tray icon → Live tray icon.
+- The choice between the original logo and live data persists. Live mode refreshes without an open ChatGPT window.
+- A full-color transparent tray icon, themed tray menu and muted taskbar-menu separators.
+- Stop panel is the final tray-menu action.
 
 Windows 10 compatibility is still under investigation.
 
@@ -88,10 +87,10 @@ Actually checked on Windows 11, including Start11 and an adjacent NetWorx indica
 
 ## Checksum and data
 
-[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.4.4/chatgpt-limit-panel-1.4.4-windows-x64.zip.sha256):
+[SHA-256](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.5.0/chatgpt-limit-panel-1.5.0-windows-x64.zip.sha256):
 
 ```text
-f6fb885e7e7c7dc479d87388a40ab3a927c4212ebe28a010c19977eab46afbd4
+03f32f1f485a07c2f4825a9187d7c97f55c215237810f2a2c1bacc07677c8d66
 ```
 
 The panel uses your own local Codex sign-in. Author credentials, conversations and account settings are not included. ChatGPT files are unchanged. ChatGPT Limit Panel is an independent project, not an official OpenAI product.
