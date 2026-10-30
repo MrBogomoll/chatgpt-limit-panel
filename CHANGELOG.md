@@ -1,5 +1,11 @@
 # Changes
 
+## 1.6.0 — 2026-10-30
+
+- Add optional unpinned placement inside the ChatGPT window, preserving bounds, saved positions and sidebar repinning.
+- Keep unpinning and position reset beside the sidebar instead of jumping to the centre.
+- Add a separate sidebar background opacity slider, independent of taskbar transparency and preserving opaque content.
+
 ## 1.5.0 — 2026-10-30
 
 - Add an optional live tray icon with actual 5-hour and weekly quota bars, shared outline settings, and persisted opt-in.

@@ -1,4 +1,4 @@
-# ChatGPT Limit Panel 1.6.0-beta.3
+# ChatGPT Limit Panel 1.6.0
 
 Панель оставшихся лимитов Codex / Work в настольном ChatGPT для Windows x64. Показывает проценты и серверные даты сброса в боковой полосе и, при включении, на панели задач Windows. В Instant отображаются те же лимиты.
 
