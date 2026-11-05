@@ -457,7 +457,7 @@ class OverlayNativeTest {
     Console.WriteLine("PASS native menu-actions: real menu clicks send refresh, pause, resume and cooperative stop");
   }
   static void FullIndicatorTest(ref OverlayWindow window,string directory) {
-    Check(Field<string>(window,"fullProgressMode")=="bars","full indicator must default to existing bars");
+    Check(Field<string>(window,"fullProgressMode")=="both","fresh installation must default to bars and outline");
     var fullSource=Field<MenuItem>(window,"contourSourceItem");
     Check(fullSource.IsEnabled && Field<ContextMenu>(window,"optionsMenu").Items.Contains(fullSource),"full contour source must be an explicit top-level selection available even with bars only");
     Apply(window,Row("5 ч","30%","25.10","06:13","","warning"),Row("Нед.","10%","31.10","20:10","","critical"));

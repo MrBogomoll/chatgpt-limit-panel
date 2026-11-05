@@ -393,7 +393,8 @@ namespace QuotaOverlay {
         string sharedMode=Convert.ToString(preferences["indicatorMode"]);
         if(sharedMode=="bars"||sharedMode=="outline"||sharedMode=="both"||sharedMode=="off")savedFullMode=sharedMode;
       }
-      fullProgressMode=savedFullMode=="bars"||savedFullMode=="outline"||savedFullMode=="both"||savedFullMode=="off"?savedFullMode:showFullProgress?"bars":"off";
+      bool hasIndicatorPreference=preferences.ContainsKey("indicatorMode")||preferences.ContainsKey("fullProgressMode")||preferences.ContainsKey("showFullProgress")||preferences.ContainsKey("showCompactProgress")||preferences.ContainsKey("showUltraProgress");
+      fullProgressMode=savedFullMode=="bars"||savedFullMode=="outline"||savedFullMode=="both"||savedFullMode=="off"?savedFullMode:!hasIndicatorPreference?"both":showFullProgress?"bars":"off";
       showFullProgress=fullProgressMode!="off";
       showCompactProgress=showUltraProgress=fullProgressMode=="outline"||fullProgressMode=="both";
       string legacySource=preferredMode=="full"?"fullProgressWindow":preferredMode=="ultra"?"ultraProgressWindow":"compactProgressWindow";
