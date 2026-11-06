@@ -1,5 +1,9 @@
 # ChatGPT Limit Panel
 
+**Right-click → Show resets** toggles a block above the quotas: count, expiration date and time in full mode; count and date in compact; a small `↻ 3` count badge in ultra. The shared visibility setting persists across modes and restarts. Expiration is orange at 10 days or less and red at 3 days or less. Viewing does not redeem a reset; missing and stale data are labelled explicitly. The Available resets submenu lists each reset in expiration order with its date and time.
+
+**Right-click → Show credits** toggles the Codex credit balance between resets and quotas. It is separate from API billing, which this data source does not provide. Full and compact modes show a label; ultra shows only the number. Hover for the exact value. A lighter 2 px divider separates these extras from the main quotas in full and compact modes; ultra keeps a thin line.
+
 [Русский](README.md)
 
 <img src="plugins/chatgpt-limit-panel/assets/chatgpt-limit-panel.png" width="88" height="88" alt="ChatGPT Limit Panel">

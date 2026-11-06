@@ -55,3 +55,44 @@ test('stale quota labels are explicit and never imply an automatic reset', () =>
   assert(context.content.every(x => x._meta['openai/group'].title.includes('устар.')));
   assert.equal(snapshot.windows[0].remaining, 38);
 });
+
+test('banked reset count is authoritative even when credit details are missing or capped', () => {
+  const now = Date.parse('2026-11-06T12:00:00Z');
+  for (const credits of [null, [], [{ status: 'available', resetType: 'codexRateLimits', expiresAt: now / 1000 + 86400 }]]) {
+    const result = api.normalizeQuota({ rateLimitResetCredits: { availableCount: 5, credits } }, now);
+    assert.equal(result.bankedResets.availableCount, 5);
+    assert.equal(result.bankedResets.expiresAt, credits?.length ? now / 1000 + 86400 : null);
+  }
+  for (const availableCount of [undefined, null, -1, 1.5, '5', Number.MAX_SAFE_INTEGER + 1]) {
+    assert.deepEqual(api.normalizeQuota({ rateLimitResetCredits: { availableCount } }, now).bankedResets, { availableCount: null, expiresAt: null, entries: null });
+  }
+  assert.deepEqual(api.normalizeQuota(null, now).bankedResets, { availableCount: null, expiresAt: null, entries: null });
+});
+
+test('banked resets retain earliest usable expiry without counting detail rows', () => {
+  const now = Date.parse('2026-11-06T12:00:00Z'), seconds = now / 1000;
+  const credit = (expiresAt, changes = {}) => ({ status: 'available', resetType: 'codexRateLimits', expiresAt, ...changes });
+  const credits = [credit(seconds + 864000), credit(seconds + 86400), credit(seconds - 1), credit(null), credit(seconds + 1, { status: 'redeemed' }), credit(seconds + 2, { resetType: 'unknown' }), credit(Number.MAX_SAFE_INTEGER)];
+  const result = api.normalizeQuota({ rateLimitResetCredits: { availableCount: 8, credits } }, now).bankedResets;
+  assert.equal(result.availableCount,8);assert.equal(result.expiresAt,seconds+86400);
+  assert.deepEqual(result.entries,[{expiresAt:seconds+86400},{expiresAt:seconds+864000},{expiresAt:null},{expiresAt:null}]);
+  assert.deepEqual(api.normalizeQuota({ rateLimitResetCredits: { availableCount: 0, credits } }, now).bankedResets, { availableCount: 0, expiresAt: null, entries: [] });
+});
+
+test('Codex credit balance is a validated exact decimal string and never inferred from flags',()=>{
+  for(const balance of ['0','12.3456789','-2.5','-0','100000000000000000000000.5']) {
+    const result=api.normalizeQuota({rateLimits:{credits:{balance,hasCredits:true,unlimited:false}}});
+    assert.deepEqual(result.credits,{balance,hasCredits:true,unlimited:false});
+  }
+  for(const balance of [null,undefined,0,'','NaN','Infinity','1e3',' 4','1,000']) {
+    assert.deepEqual(api.normalizeQuota({rateLimits:{credits:{balance,hasCredits:false,unlimited:false}}}).credits,{balance:null,hasCredits:false,unlimited:false});
+  }
+  assert.deepEqual(api.normalizeQuota(null).credits,{balance:null,hasCredits:null,unlimited:false});
+});
+
+test('credit normalization obeys the mapped Codex bucket and handles unlimited separately',()=>{
+  const legacy={credits:{balance:'20',hasCredits:true,unlimited:false}};
+  const raw={rateLimits:legacy,rateLimitsByLimitId:{codex:{credits:{balance:null,hasCredits:true,unlimited:true}},other:legacy}};
+  assert.deepEqual(api.normalizeQuota(raw).credits,{balance:null,hasCredits:true,unlimited:true});
+  assert.deepEqual(api.normalizeQuota({rateLimits:legacy,rateLimitsByLimitId:{other:legacy}}).credits,{balance:null,hasCredits:null,unlimited:false});
+});

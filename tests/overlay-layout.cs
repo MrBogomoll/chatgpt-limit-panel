@@ -4,6 +4,8 @@ class LayoutTest {
   static void Check(bool ok,string name) { if(!ok) throw new Exception(name); }
   static void Main() { try { Run(); } catch(Exception e) { Console.Error.WriteLine(e.Message);Environment.ExitCode=1; } }
   static void Run() {
+    ResetExtension();
+    CreditExtensions();
     foreach(double scale in new double[]{1,1.25,1.5,2}) {
       foreach(string choice in new[]{"full","compact"}) {
         var automaticUltra=Layout.Place(-1800,40,500*scale,600*scale,scale,choice);
@@ -71,5 +73,55 @@ class LayoutTest {
     Check(Layout.Place(0,0,500,778,1).Visible,"raised panel still fits the tested narrow window");
     Check(!Layout.Place(0,0,100,800,1).Visible,"tiny window hides");
     Console.WriteLine("PASS overlay geometry: full and compact modes, preferences, DPI, boundaries, update button clearance");
+  }
+  static void ResetExtension() {
+    foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(string mode in new[]{"full","compact","ultra"}) {
+      double extra=mode=="full"?64:mode=="compact"?36:22;
+      var plain=Layout.Place(-1800,40,1200*scale,1000*scale,scale,mode);
+      var extended=Layout.Place(-1800,40,1200*scale,1000*scale,scale,mode,true);
+      Check(extended.Visible&&extended.Mode==mode,"extended view preserves its mode when space allows");
+      Check(Math.Abs(extended.Height-plain.Height-extra*scale)<.01,"reset extension height scales independently in each view");
+      Check(Math.Abs(extended.Y+extended.Height-plain.Y-plain.Height)<.01,"turning resets on grows upward without moving the bottom edge");
+      Check(Layout.ResetsHeight(mode)==extra&&Layout.HeightForMode(mode,true)==Layout.HeightForMode(mode)+extra,"shared mode sizing includes optional reset extension");
+      var floating=Layout.PlaceFloating(-1800,40,500*scale,500*scale,scale,mode,.5,.5,true);
+      Check(floating.Visible&&floating.Height==extended.Height&&floating.Y>=40+4*scale&&floating.Y+floating.Height<=40+496*scale,"floating extended views remain inside client bounds at every DPI");
+      var occupied=new System.Collections.Generic.List<RailRegion>{new RailRegion{Top=0,Bottom=600*scale},new RailRegion{Top=700*scale,Bottom=1000*scale}};
+      var fit=Layout.PlaceInAvailableRail(-1800,40,500*scale,1000*scale,scale,mode,occupied,null,true);
+      Check(fit.Visible&&fit.Mode=="ultra"&&fit.Height==54*scale&&fit.Y>=40+604*scale&&fit.Y+fit.Height<=40+696*scale,"only the full extended ultra height may fit a measured gap");
+      occupied[1].Top=650*scale;
+      Check(!Layout.PlaceInAvailableRail(-1800,40,500*scale,1000*scale,scale,mode,occupied,null,true).Visible,"reset extension cannot overlap controls when even ultra is too tall");
+      Check(Layout.PlaceInAvailableRail(-1800,40,500*scale,1000*scale,scale,mode,occupied,null).Visible,"the same gap still fits ordinary ultra with resets disabled");
+    }
+    Check(Layout.Place(0,0,500,823,1,"full",true).Mode=="compact","reset extension raises the conservative full-mode height boundary");
+    Check(Layout.Place(0,0,500,685,1,"compact",true).Mode=="ultra","reset extension raises the conservative compact-mode height boundary");
+    Check(!Layout.Place(0,0,500,603,1,"ultra",true).Visible,"reset extension preserves navigation clearance below minimum client height");
+    Check(Layout.PlaceFloating(0,0,500,100,1,"full",null,null,true).Mode=="ultra","floating mode falls back using the full extension height");
+    Check(!Layout.PlaceFloating(0,0,500,60,1,"ultra",null,null,true).Visible,"floating extension never escapes an undersized client");
+  }
+  static void CreditExtensions() {
+    foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(bool resets in new[]{false,true})foreach(bool credits in new[]{false,true})foreach(string mode in new[]{"full","compact","ultra"}) {
+      double creditExtra=mode=="full"?40:mode=="compact"?32:22;
+      double expected=Layout.HeightForMode(mode,resets)+(credits?creditExtra:0);
+      Check(Layout.CreditsHeight(mode)==creditExtra&&Layout.HeightForMode(mode,resets,credits)==expected,"credit and reset extensions add their independent heights");
+      var plain=Layout.Place(-1800,40,1200*scale,1000*scale,scale,mode);
+      var placed=Layout.Place(-1800,40,1200*scale,1000*scale,scale,mode,resets,credits);
+      Check(placed.Visible&&placed.Mode==mode&&Math.Abs(placed.Height-expected*scale)<.01,"all optional-block combinations preserve requested mode and scaled height when space allows");
+      Check(Math.Abs(placed.Y+placed.Height-plain.Y-plain.Height)<.01,"optional blocks grow above the original bottom edge");
+      var floating=Layout.PlaceFloating(-1800,40,500*scale,500*scale,scale,mode,.5,.5,resets,credits);
+      Check(floating.Visible&&floating.Height==placed.Height&&floating.Y>=40+4*scale&&floating.Y+floating.Height<=40+496*scale,"floating geometry bounds include both optional blocks");
+      var occupied=new System.Collections.Generic.List<RailRegion>{new RailRegion{Top=0,Bottom=600*scale},new RailRegion{Top=700*scale,Bottom=1000*scale}};
+      var fit=Layout.PlaceInAvailableRail(-1800,40,500*scale,1000*scale,scale,mode,occupied,null,resets,credits);
+      double ultraHeight=Layout.HeightForMode("ultra",resets,credits);
+      Check(fit.Visible&&fit.Mode=="ultra"&&Math.Abs(fit.Height-ultraHeight*scale)<.01&&fit.Y>=40+604*scale&&fit.Y+fit.Height<=40+696*scale,"measured rail fallback includes every visible optional block");
+      occupied[1].Top=(600+ultraHeight+7)*scale;
+      Check(!Layout.PlaceInAvailableRail(-1800,40,500*scale,1000*scale,scale,mode,occupied,null,resets,credits).Visible,"even ultra cannot overlap rail controls when its total height does not fit");
+      double minimum=(mode=="full"?760:mode=="compact"?650:582)+expected-Layout.HeightForMode(mode);
+      var boundary=Layout.Place(0,0,500*scale,minimum*scale,scale,mode,resets,credits);
+      Check(boundary.Visible&&boundary.Mode==mode,"optional blocks retain exact supported minimum boundary at all scales");
+      if(mode!="ultra")Check(Layout.Place(0,0,500*scale,(minimum-1)*scale,scale,mode,resets,credits).Mode!=mode,"optional blocks trigger fallback below the expanded minimum boundary");
+      else Check(!Layout.Place(0,0,500*scale,(minimum-1)*scale,scale,mode,resets,credits).Visible,"expanded ultra hides below its minimum boundary");
+    }
+    Check(Layout.PlaceFloating(0,0,500,100,1,"full",null,null,true,true).Mode=="ultra","floating fallback uses the full combined height");
+    Check(!Layout.PlaceFloating(0,0,500,83,1,"ultra",null,null,true,true).Visible,"combined ultra blocks respect the client margin when height is insufficient");
   }
 }

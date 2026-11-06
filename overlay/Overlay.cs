@@ -349,6 +349,18 @@ namespace QuotaOverlay {
     readonly Func<TaskbarSnapshot> taskbarSnapshotReader;
     MenuItem updatesItem;
     Window updateDialog;
+    MenuItem resetsItem,trayResetsItem;
+    string resetsMenuSignature="";
+    Dictionary<string,object> resetsView;
+    bool showResets;
+    bool showCredits;
+    Dictionary<string,object> creditsView;
+    Border creditsBlock;
+    TextBlock creditsPanelLabel,creditsPanelBalance;
+    MenuItem showCreditsItem,trayShowCreditsItem;
+    Border resetsBlock;
+    TextBlock resetsPanelCount,resetsPanelDate,resetsPanelTime;
+    MenuItem showResetsItem,trayShowResetsItem;
     Action<Window> showUpdateDialog=delegate(Window dialog){dialog.Show();};
     Action<string> openReleasePage=delegate(string url){Process.Start(new ProcessStartInfo(url){UseShellExecute=true});};
     bool autoStartEnabled,autostartBusy,appSignalSent,lastAppReady;
@@ -367,6 +379,8 @@ namespace QuotaOverlay {
       StartupCheckpoint("constructing");
       settingsFile=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(statePath)),"settings.json");
       var preferences=ReadPreferences();
+      showResets=BooleanPreference(preferences,"showResets",false);
+      showCredits=BooleanPreference(preferences,"showCredits",false);
       liveTrayIcon=BooleanPreference(preferences,"liveTrayIcon",false);
       taskbarEnabled=BooleanPreference(preferences,"taskbarEnabled",false);
       taskbarSide=preferences.ContainsKey("taskbarSide")&&Convert.ToString(preferences["taskbarSide"])=="right"?"right":"left";
@@ -409,6 +423,17 @@ namespace QuotaOverlay {
       panel=new Border { Width=Layout.PanelWidth,Height=Layout.PanelHeight,Background=Brush(palette.Background(100-sidebarBackgroundOpacity)),BorderBrush=Brush(palette.Border),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(3,5,3,5) };
       ToolTipService.SetIsEnabled(panel,false);
       var stack=new StackPanel(); panel.Child=stack;
+      var resetStack=new StackPanel {VerticalAlignment=VerticalAlignment.Center};
+      resetsPanelCount=Text("↻ —",16,FontWeights.SemiBold,palette.Secondary);
+      resetsPanelDate=Text("—",10.5,FontWeights.Normal,palette.Secondary);
+      resetsPanelTime=Text("—",11.5,FontWeights.Bold,palette.Secondary);
+      resetStack.Children.Add(resetsPanelCount);resetStack.Children.Add(resetsPanelDate);resetStack.Children.Add(resetsPanelTime);
+      resetsBlock=new Border {BorderThickness=new Thickness(0,0,0,1),BorderBrush=Brush(palette.Divider),Margin=new Thickness(0),Child=resetStack,Visibility=Visibility.Collapsed};
+      stack.Children.Add(resetsBlock);
+      var creditStack=new StackPanel {VerticalAlignment=VerticalAlignment.Center};
+      creditsPanelLabel=Text(T("creditsLabel"),9,FontWeights.Normal,palette.Secondary);creditsPanelBalance=Text("—",14,FontWeights.SemiBold,palette.Secondary);
+      creditStack.Children.Add(creditsPanelLabel);creditStack.Children.Add(creditsPanelBalance);
+      creditsBlock=new Border {BorderThickness=new Thickness(0,0,0,1),BorderBrush=Brush(palette.Divider),Child=creditStack,Visibility=Visibility.Collapsed};stack.Children.Add(creditsBlock);
       for(int i=0;i<2;i++) {
         if(i==1) {divider=new Border { Height=1,Background=Brush(palette.Divider),Margin=new Thickness(1,5,1,5) };stack.Children.Add(divider);}
         periods[i]=Text(T(i==0?"shortLabel":"weekLabel"),10,FontWeights.Normal,palette.Secondary);
@@ -526,7 +551,7 @@ namespace QuotaOverlay {
       if(selected!="ru"&&selected!="en")return;
       language=selected;
       try {Preferences.Update(settingsFile,preferences=>{preferences["language"]=language;});}catch{}
-      LocalizeRows();SyncMenu();ApplyTrayLanguage();SavePreview();lastState="";UpdatePlacement();
+      LocalizeRows();SyncMenu();ApplyTrayLanguage();RefreshResetsPanel();RefreshResetsMenu();RefreshCreditsPanel();SavePreview();lastState="";UpdatePlacement();
     }
     void LocalizeRows() {
       var message=view as Dictionary<string,object>;var rows=message!=null&&message.ContainsKey("rows")?message["rows"] as object[]:null;
@@ -560,7 +585,7 @@ namespace QuotaOverlay {
         dates[i].Foreground=i==1&&compact?values[i].Foreground:Brush(palette.Date);
         progressTracks[i].Background=Brush(palette.Track);
       }
-      ApplyMenuPalette();ApplyTrayPalette();UpdateProgress();SyncTaskbar();SavePreview();lastState="";return true;
+      ApplyMenuPalette();ApplyTrayPalette();RefreshResetsPanel();RefreshResetsMenu();RefreshCreditsPanel();UpdateProgress();SyncTaskbar();SavePreview();lastState="";return true;
     }
     IntPtr WindowProc(IntPtr h,int message,IntPtr w,IntPtr l,ref bool handled) {
       if(message==0x21) {handled=true;return new IntPtr(3);} // MA_NOACTIVATE
@@ -578,6 +603,8 @@ namespace QuotaOverlay {
       try {
         Preferences.Update(settingsFile,preferences=>{preferences["compact"]=preferCompact;preferences["showFullProgress"]=showFullProgress;
         preferences["displayMode"]=preferredMode;
+        preferences["showResets"]=showResets;
+        preferences["showCredits"]=showCredits;
         preferences["themeMode"]=themeMode;
         bool contour=fullProgressMode=="outline"||fullProgressMode=="both";
         preferences["showUltraProgress"]=contour;
@@ -716,6 +743,10 @@ namespace QuotaOverlay {
           <Border Height='1' Margin='8,4' Background='{DynamicResource Quota.MenuDivider}'/>
         </ControlTemplate>")));optionsMenu.Resources.Add(typeof(Separator),separatorStyle);
       var refresh=Menu("refresh");refresh.Click+=delegate {Command("refresh");};optionsMenu.Items.Add(refresh);
+      showResetsItem=Menu("showResets",true);showResetsItem.Click+=delegate {SetShowResets(showResetsItem.IsChecked);};optionsMenu.Items.Add(showResetsItem);
+      resetsItem=Menu("availableResets");optionsMenu.Items.Add(resetsItem);resetsMenuSignature="";
+      resetsItem.SubmenuOpened+=delegate {RefreshResetsMenu();Command("refresh");};
+      showCreditsItem=Menu("showCredits",true);showCreditsItem.Click+=delegate {SetShowCredits(showCreditsItem.IsChecked);};optionsMenu.Items.Add(showCreditsItem);
       updatesItem=Menu("checkUpdates");updatesItem.Click+=delegate {
         if(!updatesItem.IsEnabled)return;
         updatesItem.IsEnabled=false;updatesItem.Header=T("checkingUpdates");Command("check-updates");
@@ -770,8 +801,13 @@ namespace QuotaOverlay {
       optionsMenu.Closed+=delegate {menuDismiss.Stop();};panel.ContextMenu=optionsMenu;
     }
     void SyncMenu() {
+      if(showCreditsItem!=null)showCreditsItem.IsChecked=showCredits;
+      if(trayShowCreditsItem!=null)trayShowCreditsItem.IsChecked=showCredits;
+      if(showResetsItem!=null)showResetsItem.IsChecked=showResets;
+      if(trayShowResetsItem!=null)trayShowResetsItem.IsChecked=showResets;
       SyncSidebarOpacityControl();
       TranslateMenu(optionsMenu);languageRussianItem.IsChecked=language=="ru";languageEnglishItem.IsChecked=language=="en";
+      RefreshResetsMenu();
       if(updatesItem!=null&&!updatesItem.IsEnabled)updatesItem.Header=T("checkingUpdates");
       taskbarEnabledItem.IsChecked=taskbarEnabled;taskbarLeftItem.IsChecked=taskbarSide=="left";taskbarRightItem.IsChecked=taskbarSide=="right";
       taskbarLeftItem.Header=T(TaskbarSideKey(false));taskbarRightItem.Header=T(TaskbarSideKey(true));
@@ -855,7 +891,7 @@ namespace QuotaOverlay {
         var frame=lastSidebarFrame;
         double height=frame.Rect.Bottom-frame.Rect.Top;
         double margin=sidebarPinned?0:4*frame.Scale;
-        var next=sidebarPinned?Layout.Place(frame.Origin.X,frame.Origin.Y,frame.Rect.Right-frame.Rect.Left,height,frame.Scale,mode):Layout.PlaceFloating(frame.Origin.X,frame.Origin.Y,frame.Rect.Right-frame.Rect.Left,height,frame.Scale,mode,floatingX,floatingY);
+        var next=sidebarPinned?Layout.Place(frame.Origin.X,frame.Origin.Y,frame.Rect.Right-frame.Rect.Left,height,frame.Scale,mode,showResets,showCredits):Layout.PlaceFloating(frame.Origin.X,frame.Origin.Y,frame.Rect.Right-frame.Rect.Left,height,frame.Scale,mode,floatingX,floatingY,showResets,showCredits);
         var position=Layout.PositionForBottom(frame.Placement.Y+frame.Placement.Height,frame.Origin.Y+margin,height-2*margin,next.Height);
         if(position.HasValue) {
           if(sidebarPinned)sidebarPosition=position;else floatingY=position;
@@ -873,7 +909,7 @@ namespace QuotaOverlay {
     }
     void SetMode(string mode) {
       presentationMode=mode;compact=mode!="full";bool ultra=mode=="ultra";
-      panel.Height=ultra?Layout.UltraHeight:compact?Layout.CompactHeight:Layout.PanelHeight;
+      panel.Height=Layout.HeightForMode(mode,showResets,showCredits);
       // A live HWND is resized and repositioned together by ApplyNativePlacement.
       // Setting Window.Height here would resize first at its previous top edge.
       if(hwnd==IntPtr.Zero)Height=panel.Height;
@@ -892,7 +928,7 @@ namespace QuotaOverlay {
       times[1].Visibility=compact?Visibility.Collapsed:Visibility.Visible;
       dates[1].FontSize=compact?11.5:10.5;dates[1].FontWeight=compact?FontWeights.Bold:FontWeights.Normal;
       dates[1].Foreground=compact?values[1].Foreground:Brush(palette.Date);
-      UpdateCompactStatus();UpdateProgress();
+      RefreshResetsPanel();RefreshCreditsPanel();UpdateCompactStatus();UpdateProgress();
       if(hwnd==IntPtr.Zero)SavePreview();
     }
     void UpdateCompactStatus() {
@@ -958,6 +994,9 @@ namespace QuotaOverlay {
       trayMenu=new ContextMenu {StaysOpen=false,Resources=optionsMenu.Resources,Template=optionsMenu.Template,FontSize=12,
         Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),Placement=System.Windows.Controls.Primitives.PlacementMode.MousePoint};
       var refresh=Menu("refreshNow");refresh.Click+=delegate {Command("refresh");};trayMenu.Items.Add(refresh);
+      trayShowResetsItem=Menu("showResets",true);trayShowResetsItem.Click+=delegate {SetShowResets(trayShowResetsItem.IsChecked);};trayMenu.Items.Add(trayShowResetsItem);
+      trayResetsItem=Menu("availableResets");trayResetsItem.SubmenuOpened+=delegate {RefreshResetsMenu();Command("refresh");};trayMenu.Items.Add(trayResetsItem);resetsMenuSignature="";
+      trayShowCreditsItem=Menu("showCredits",true);trayShowCreditsItem.Click+=delegate {SetShowCredits(trayShowCreditsItem.IsChecked);};trayMenu.Items.Add(trayShowCreditsItem);
       pause.Click+=delegate {TogglePaused();};trayMenu.Items.Add(pause);
       taskbarTrayItem=Menu("taskbarShow",true);taskbarTrayItem.Click+=delegate {SetTaskbarEnabled(taskbarTrayItem.IsChecked);};
       taskbarTraySides=Menu("taskbar");
@@ -994,6 +1033,8 @@ namespace QuotaOverlay {
       object update;
       if(message.TryGetValue("update",out update)) {ApplyUpdate(update as Dictionary<string,object>);return;}
       if(!message.ContainsKey("rows"))return;
+      object creditData;creditsView=message.TryGetValue("credits",out creditData)?creditData as Dictionary<string,object>:null;
+      object resetData;resetsView=message.TryGetValue("resets",out resetData)?resetData as Dictionary<string,object>:null;RefreshResetsPanel();RefreshResetsMenu();RefreshCreditsPanel();
       receivedUpdates++;
       view=message;var rows=message["rows"] as object[];if(rows==null||rows.Length!=2)return;
       var tooltip=new StringBuilder();
@@ -1018,6 +1059,71 @@ namespace QuotaOverlay {
       }else {
         SavePreview();UpdatePlacement();
         if(receivedUpdates<=30)StartupCheckpoint("received-data");
+      }
+    }
+    void SetShowResets(bool enabled) {
+      if(showResets==enabled)return;
+      showResets=enabled;SetMode(presentationMode);SelectMode(preferredMode);SyncMenu();SavePreview();
+      if(enabled)Command("refresh");
+    }
+    void RefreshResetsPanel() {
+      if(resetsBlock==null)return;
+      bool ultra=presentationMode=="ultra",full=presentationMode=="full";
+      resetsBlock.Height=Layout.ResetsHeight(presentationMode);resetsBlock.Visibility=showResets?Visibility.Visible:Visibility.Collapsed;
+      var data=resetsView??new Dictionary<string,object>();object count;
+      string value=data.TryGetValue("availableCount",out count)&&count!=null?Convert.ToString(count,CultureInfo.InvariantCulture):"—";
+      string date=Get(data,"date"),time=Get(data,"time"),tone=Get(data,"tone");
+      resetsPanelCount.Text="↻ "+value;resetsPanelCount.FontSize=full?16:14;
+      resetsPanelDate.Text=date.Length>=5?date.Substring(0,5):"—";resetsPanelTime.Text=time.Length>0?time:"—";
+      resetsPanelDate.Visibility=ultra?Visibility.Collapsed:Visibility.Visible;resetsPanelTime.Visibility=full?Visibility.Visible:Visibility.Collapsed;
+      foreach(var text in new[]{resetsPanelCount,resetsPanelDate,resetsPanelTime})text.Foreground=Brush(palette.Tone(tone));
+      bool emphasize=showResets&&!showCredits&&!ultra;
+      resetsBlock.BorderThickness=new Thickness(0,0,0,emphasize?2:1);
+      resetsBlock.BorderBrush=Brush(emphasize?palette.Secondary:palette.Divider);resetsBlock.Opacity=Get(data,"stale")=="True"?.5:1;
+      resetsBlock.ToolTip=String.Format(T("resetsCount"),value)+"\n"+(date.Length>0&&date!="—"?String.Format(T("resetsExpiry"),date,time):T("resetsNoExpiry"))+(Get(data,"stale")=="True"?"\n"+T("resetsStale"):"");
+    }
+    void SetShowCredits(bool enabled) {
+      if(showCredits==enabled)return;
+      showCredits=enabled;SetMode(presentationMode);SelectMode(preferredMode);SyncMenu();SavePreview();
+      if(enabled)Command("refresh");
+    }
+    void RefreshCreditsPanel() {
+      if(creditsBlock==null)return;
+      var data=creditsView??new Dictionary<string,object>();
+      string value=Get(data,"display"),balance=Get(data,"balance"),tone=Get(data,"tone");
+      creditsBlock.Height=Layout.CreditsHeight(presentationMode);creditsBlock.Visibility=showCredits?Visibility.Visible:Visibility.Collapsed;
+      creditsPanelLabel.Text=T("creditsLabel");creditsPanelLabel.Visibility=presentationMode=="ultra"?Visibility.Collapsed:Visibility.Visible;
+      creditsPanelBalance.Text=value.Length>0?value:"—";creditsPanelBalance.FontSize=presentationMode=="full"?14:12;
+      creditsPanelBalance.Foreground=Brush(palette.Tone(tone));creditsPanelLabel.Foreground=Brush(palette.Secondary);
+      var measured=new FormattedText(creditsPanelBalance.Text,CultureInfo.CurrentCulture,creditsPanelBalance.FlowDirection,new Typeface(creditsPanelBalance.FontFamily,creditsPanelBalance.FontStyle,creditsPanelBalance.FontWeight,creditsPanelBalance.FontStretch),creditsPanelBalance.FontSize,creditsPanelBalance.Foreground);
+      double available=Layout.PanelWidth-panel.Padding.Left-panel.Padding.Right-panel.BorderThickness.Left-panel.BorderThickness.Right;
+      if(measured.WidthIncludingTrailingWhitespace>available)creditsPanelBalance.FontSize*=available/measured.WidthIncludingTrailingWhitespace;
+      bool emphasize=presentationMode!="ultra";creditsBlock.BorderBrush=Brush(emphasize?palette.Secondary:palette.Divider);creditsBlock.BorderThickness=new Thickness(0,0,0,emphasize?2:1);
+      creditsBlock.Opacity=Get(data,"stale")=="True"?.5:1;
+      creditsBlock.ToolTip=(Get(data,"unlimited")=="True"?T("creditsUnlimited"):balance.Length>0?String.Format(T("creditsBalance"),balance):T("creditsUnavailable"))+(Get(data,"stale")=="True"?"\n"+T("resetsStale"):"");
+    }
+    void RefreshResetsMenu() {
+      if(resetsItem==null)return;
+      var data=resetsView??new Dictionary<string,object>();
+      string signature=language+effectiveTheme+json.Serialize(data)+(trayResetsItem==null?"no-tray":"tray");
+      if(signature==resetsMenuSignature)return;resetsMenuSignature=signature;
+      foreach(var menu in new[]{resetsItem,trayResetsItem}) {
+        if(menu==null)continue;menu.IsCheckable=false;menu.IsChecked=false;menu.Items.Clear();
+        var body=new StackPanel {Margin=new Thickness(4),Width=245};
+        object count;bool known=data.TryGetValue("availableCount",out count)&&count!=null;
+        string countText=known?Convert.ToString(count,CultureInfo.InvariantCulture):"—";
+        body.Children.Add(new TextBlock {Text=String.Format(T("resetsCount"),countText),FontWeight=FontWeights.SemiBold,Foreground=Brush(palette.MenuText),Margin=new Thickness(0,0,0,8)});
+        if(Get(data,"stale")=="True")body.Children.Add(new TextBlock {Text=T("resetsStale"),TextWrapping=TextWrapping.Wrap,Foreground=Brush(palette.Secondary),Margin=new Thickness(0,0,0,6)});
+        var entries=data.ContainsKey("entries")?data["entries"] as object[]:null;
+        int number=0;
+        if(entries!=null)foreach(var item in entries) {
+          var entry=item as Dictionary<string,object>;if(entry==null)continue;number++;
+          string date=Get(entry,"date"),time=Get(entry,"time");
+          string label=date.Length>0&&date!="—"?String.Format(T("resetEntry"),number,date,time):String.Format(T("resetNoExpiry"),number);
+          body.Children.Add(new TextBlock {Text=label,TextWrapping=TextWrapping.Wrap,Foreground=Brush(palette.Tone(Get(entry,"tone"))),Margin=new Thickness(0,4,0,4)});
+        }
+        if(!known||countText=="0"||Get(data,"detailsComplete")!="True")body.Children.Add(new TextBlock {Text=!known?T("resetsUnavailable"):countText=="0"?T("resetsEmpty"):T("resetsPartial"),TextWrapping=TextWrapping.Wrap,Foreground=Brush(palette.Secondary),Margin=new Thickness(0,4,0,0)});
+        menu.Items.Add(new MenuItem {Header=new ScrollViewer {Content=body,MaxHeight=360,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled},StaysOpenOnClick=true});
       }
     }
     static bool SafeReleaseUrl(string url) {
@@ -1049,7 +1155,7 @@ namespace QuotaOverlay {
       double? x=!pinned&&sidebarPinned?null:floatingX,y=!pinned&&sidebarPinned?null:floatingY;
       if(!pinned&&sidebarPinned&&lastSidebarFrame!=null&&lastSidebarFrame.Valid) {
         var f=lastSidebarFrame;double margin=4*f.Scale;
-        var free=Layout.PlaceFloating(f.Origin.X,f.Origin.Y,f.Rect.Right-f.Rect.Left,f.Rect.Bottom-f.Rect.Top,f.Scale,preferredMode,null,null);
+        var free=Layout.PlaceFloating(f.Origin.X,f.Origin.Y,f.Rect.Right-f.Rect.Left,f.Rect.Bottom-f.Rect.Top,f.Scale,preferredMode,null,null,showResets,showCredits);
         x=Layout.PositionForBottom(f.Placement.X+free.Width,f.Origin.X+margin,f.Rect.Right-f.Rect.Left-2*margin,free.Width);
         y=Layout.PositionForBottom(f.Placement.Y+free.Height,f.Origin.Y+margin,f.Rect.Bottom-f.Rect.Top-2*margin,free.Height);
       }
@@ -1118,10 +1224,10 @@ namespace QuotaOverlay {
       if(appPresent){Native.DwmGetWindowAttribute(target,14,out cloaked,4);appPresent=cloaked==0;}
       bool appReady=appStartup.Ready(target,appPresent,NowMilliseconds());
       double scale=valid?Native.GetDpiForWindow(target)/96.0:1;
-      var placement=Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode);
+      var placement=Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,showResets,showCredits);
       var controls=valid&&sidebarPinned&&targetMatcher==null?sidebarGeometry.Read(target,rect.Right-rect.Left,rect.Bottom-rect.Top,scale):null;
-      if(valid&&sidebarPinned&&targetMatcher==null)placement=Layout.PlaceInAvailableRail(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,controls,sidebarPosition);
-      if(valid&&!sidebarPinned)placement=Layout.PlaceFloating(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,floatingX,floatingY);
+      if(valid&&sidebarPinned&&targetMatcher==null)placement=Layout.PlaceInAvailableRail(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,controls,sidebarPosition,showResets,showCredits);
+      if(valid&&!sidebarPinned)placement=Layout.PlaceFloating(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,scale,preferredMode,floatingX,floatingY,showResets,showCredits);
       bool modeChanged=presentationMode!=placement.Mode;
       if(modeChanged)SetMode(placement.Mode);
       bool preview=valid&&snapPreview.Active(target,NowMilliseconds());
@@ -1153,7 +1259,7 @@ namespace QuotaOverlay {
       if(!appSignalSent||lastAppReady!=appReady){appSignalSent=true;lastAppReady=appReady;Command(appReady?"app-open":"app-closed");}
       if(pendingPreview) {pendingPreview=false;UpdateLayout();SavePreview();}
       IntPtr owner=Native.GetWindowLongPtr(hwnd,-8);uint ownerProcess=0;if(owner!=IntPtr.Zero)Native.GetWindowThreadProcessId(owner,out ownerProcess);
-      var state=new {sidebar=new {geometry=sidebarGeometry.Debug,attached=false,host="window",status=sidebarStatus,parent=0L,pinned=sidebarPinned,backgroundOpacity=sidebarBackgroundOpacity,position=sidebarPosition,floatingX=floatingX,floatingY=floatingY},backgroundTransparency=backgroundTransparency,taskbar=new {enabled=taskbarEnabled,side=taskbarSide,position=taskbarPosition,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
+      var state=new {sidebar=new {geometry=sidebarGeometry.Debug,attached=false,host="window",status=sidebarStatus,parent=0L,pinned=sidebarPinned,backgroundOpacity=sidebarBackgroundOpacity,position=sidebarPosition,floatingX=floatingX,floatingY=floatingY},backgroundTransparency=backgroundTransparency,taskbar=new {enabled=taskbarEnabled,side=taskbarSide,position=taskbarPosition,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,showResets=showResets,showCredits=showCredits,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
       string encoded=json.Serialize(state);
       diagnosticState=state;
       if(encoded!=lastState){lastState=encoded;try{File.WriteAllText(stateFile,encoded,Encoding.UTF8);stateWriteError="";}catch(Exception error){stateWriteError=error.GetType().Name+":"+error.HResult.ToString();}}

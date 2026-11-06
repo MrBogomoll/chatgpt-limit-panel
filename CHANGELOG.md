@@ -1,5 +1,22 @@
 # Changes
 
+## 1.8.0 — 2026-11-07
+
+- Replace the reset dialog with a submenu listing individual expiration dates and times in order, with missing and stale details labelled.
+- Add an independently optional Codex credits block in all three modes, between resets and quotas. Preserve exact balances in the tooltip without implying an API money balance.
+- Separate supplementary information from the main quota rows with one lighter 2 px divider in full/compact modes; keep ultra and internal separators thin.
+
+## 1.7.1 — 2026-11-06
+
+- Add an optional reset block above the quota rows: count, expiry date and time in full mode; count and date in compact; count only in ultra.
+- Persist the shared Show resets toggle in panel and tray menus. Account for the extension in safe rail/floating placement and keep the panel bottom anchored.
+
+## 1.7.0 — 2026-11-06
+
+- Show available banked resets and the nearest expiration through a new Available resets action in the panel and tray menus.
+- Highlight expiration in orange at 10 days or less and red at 3 days or less, with explicit unknown and stale states. Viewing never redeems a reset.
+- Default new installations to bars and outline while preserving saved indicator choices.
+
 ## 1.6.1 — 2026-10-30
 
 - Automatically relocate a stopped, verified launch task when the plugin installation path changes, preserving task and autostart settings.

@@ -84,9 +84,14 @@ class OverlayNativeTest {
     Invoke(window,"SetupTrayMenu");var menu=Field<ContextMenu>(window,"trayMenu");
     var panelMenu=Field<ContextMenu>(window,"optionsMenu");
     Check(Object.ReferenceEquals(menu.Template,panelMenu.Template)&&Object.ReferenceEquals(menu.Resources,panelMenu.Resources),"tray must share panel styles and theme resources");
-    Check(((Separator)menu.Items[2]).Style!=null&&((Separator)menu.Items[7]).Style!=null,"tray separators must explicitly use the themed style");
-    Check(((MenuItem)menu.Items[8]).Tag.ToString()=="stop"&&Object.ReferenceEquals(menu.Items[5],Field<MenuItem>(window,"taskbarTrayItem")),"the final action must stop the entire monitor");
-    Check(menu.Items.Count==9,"refresh, pause, taskbar toggle, side and close must remain available");
+    int separators=0;bool resetAction=false;
+    foreach(object item in menu.Items) {
+      var separator=item as Separator;if(separator!=null){separators++;Check(separator.Style!=null,"tray separators must explicitly use the themed style");}
+      var action=item as MenuItem;if(action!=null&&Convert.ToString(action.Tag)=="availableResets")resetAction=true;
+    }
+    Check(separators==2&&resetAction,"tray must expose reset details alongside its themed separators");
+    Check(((MenuItem)menu.Items[menu.Items.Count-1]).Tag.ToString()=="stop"&&menu.Items.Contains(Field<MenuItem>(window,"taskbarTrayItem")),"the final action must stop the entire monitor");
+    Check(menu.Items.Count==12&&menu.Items.Contains(Field<MenuItem>(window,"trayShowResetsItem"))&&menu.Items.Contains(Field<MenuItem>(window,"trayShowCreditsItem")),"credit and reset visibility, reset list, refresh, pause, taskbar toggle, side and close must remain available");
     Invoke(window,"SelectTheme","light");
     Check(ColorOf(menu.Background)==ParseColor(ThemePalette.Light.MenuSurface),"tray must follow light theme");
     Invoke(window,"SelectLanguage","en");
@@ -681,6 +686,89 @@ class OverlayNativeTest {
       if(child.Id!=0&&!child.HasExited){child.StandardInput.WriteLine("quit");child.StandardInput.Flush();if(!child.WaitForExit(2000))child.Kill();}
       child.Dispose();
     }
+  }
+  static void ResetsPanelTest(ref OverlayWindow window,string directory) {
+    Known(window);Invoke(window,"SetupTrayMenu");
+    Check(!Field<bool>(window,"showResets"),"extension is optional and preserves existing panel height");
+    MenuClick(Field<MenuItem>(window,"showResetsItem"));
+    var data=new Dictionary<string,object>{{"availableCount",3},{"date","07.11.2026"},{"time","00:53"},{"daysRemaining",1},{"tone","critical"},{"stale",false}};
+    Invoke(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч","29%","07.11","04:19","","warning"),Row("Нед.","35%","12.11","00:28","","normal")}},{"resets",data}});
+    foreach(string mode in new[]{"full","compact","ultra"}) {
+      Invoke(window,"SelectMode",mode);
+      var panel=Field<Border>(window,"panel");var block=Field<Border>(window,"resetsBlock");
+      TextBlock count=Field<TextBlock>(window,"resetsPanelCount"),date=Field<TextBlock>(window,"resetsPanelDate"),time=Field<TextBlock>(window,"resetsPanelTime");
+      double expected=(mode=="full"?192+64:mode=="compact"?100+36:32+22);
+      Check(panel.Height==expected&&block.Visibility==Visibility.Visible,"reset extension increases the actual "+mode+" panel height");
+      Check(count.Text.Contains("3")&&date.Text=="07.11"&&time.Text=="00:53","panel uses live reset count, nearest expiry date and time");
+      Check(date.Visibility==(mode=="ultra"?Visibility.Collapsed:Visibility.Visible)&&time.Visibility==(mode=="full"?Visibility.Visible:Visibility.Collapsed),"each mode shows only its requested reset details");
+      Check(ColorOf(count.Foreground)==ParseColor(ThemePalette.Dark.Critical),"reset expiration has its own critical colour");
+      panel.Measure(new Size(46,expected));panel.Arrange(new Rect(0,0,46,expected));panel.UpdateLayout();
+      foreach(var label in new[]{count,date,time})if(label.Visibility==Visibility.Visible) {
+        var text=new FormattedText(label.Text,CultureInfo.GetCultureInfo("ru-RU"),label.FlowDirection,new Typeface(label.FontFamily,label.FontStyle,label.FontWeight,label.FontStretch),label.FontSize,label.Foreground);
+        Check(text.WidthIncludingTrailingWhitespace<=label.ActualWidth+.01,"reset text fits the narrow "+mode+" panel");
+        var bounds=label.TransformToAncestor(panel).TransformBounds(new Rect(new Point(),label.RenderSize));
+        Check(bounds.Top>=0&&bounds.Bottom<panel.Height,"reset text stays within the panel");
+      }
+      MenuClick(Field<MenuItem>(window,"showResetsItem"));Check(block.Visibility==Visibility.Collapsed&&panel.Height==expected-block.Height,"reset block can be hidden in "+mode);
+      MenuClick(Field<MenuItem>(window,"showResetsItem"));
+    }
+    Check(Field<MenuItem>(window,"trayShowResetsItem").IsChecked,"tray shares the reset visibility preference");
+    Invoke(window,"SelectTheme","light");Check(ColorOf(Field<TextBlock>(window,"resetsPanelCount").Foreground)==ParseColor(ThemePalette.Light.Critical),"extension follows live theme changes");
+    window.Close();window=NewWindow(Path.Combine(directory,"state.json"));
+    Check(Field<bool>(window,"showResets"),"reset visibility survives restart");
+    MenuClick(Field<MenuItem>(window,"showResetsItem"));window.Close();window=NewWindow(Path.Combine(directory,"state.json"));Check(!Field<bool>(window,"showResets"),"disabled preference survives restart");
+    Console.WriteLine("PASS native resets-panel: optional inline extension, all modes, fitting, colour and persistence");
+  }
+  static void CreditsPanelTest(ref OverlayWindow window,string directory) {
+    Known(window);Invoke(window,"SetupTrayMenu");MenuClick(Field<MenuItem>(window,"showCreditsItem"));MenuClick(Field<MenuItem>(window,"showResetsItem"));
+    foreach(string mode in new[]{"full","compact","ultra"}) {
+      Invoke(window,"SelectMode",mode);
+      var credit=new Dictionary<string,object>{{"balance","1234.5"},{"display","1.2k"},{"unlimited",false},{"tone","normal"},{"stale",false}};
+      Invoke(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч","89%","07.11","05:28","","normal"),Row("Нед.","98%","14.11","00:23","","normal")}},{"credits",credit}});
+      var panel=Field<Border>(window,"panel");var block=Field<Border>(window,"creditsBlock");var count=Field<TextBlock>(window,"creditsPanelBalance");
+      Check(count.Text=="1.2k"&&block.Visibility==Visibility.Visible,"credits use server balance in every mode");
+      Check(block.BorderThickness.Bottom==(mode=="ultra"?1:2)&&ColorOf(block.BorderBrush)==ParseColor(mode=="ultra"?ThemePalette.Dark.Divider:ThemePalette.Dark.Secondary)&&Field<Border>(window,"resetsBlock").BorderThickness.Bottom==1,"only full/compact quota boundaries are brighter and thicker");
+      Check(block.ToolTip.ToString().Contains("1234.5")&&!count.Text.Contains("$"),"credit detail retains exact value without inventing API dollars");
+      double expected=mode=="full"?296:mode=="compact"?168:76;
+      Check(panel.Height==expected,"both optional blocks contribute to "+mode+" placement");
+      panel.Measure(new Size(46,expected));panel.Arrange(new Rect(0,0,46,expected));panel.UpdateLayout();
+      var resetBounds=Field<Border>(window,"resetsBlock").TransformToAncestor(panel).TransformBounds(new Rect(new Point(),Field<Border>(window,"resetsBlock").RenderSize));
+      var creditBounds=block.TransformToAncestor(panel).TransformBounds(new Rect(new Point(),block.RenderSize));
+      var quotaBounds=Field<Border[]>(window,"progressTracks")[0].TransformToAncestor(panel).TransformBounds(new Rect(new Point(),Field<Border[]>(window,"progressTracks")[0].RenderSize));
+      Check(creditBounds.Top>=resetBounds.Bottom&&creditBounds.Bottom<=quotaBounds.Top,"credits sit between resets and quota rows");
+      foreach(string display in new[]{"123.4k","999.9k","-999.9k","1e-100"}) {
+        credit["display"]=display;Invoke(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч","89%","07.11","05:28","","normal"),Row("Нед.","98%","14.11","00:23","","normal")}},{"credits",credit}});
+        panel.Measure(new Size(46,expected));panel.Arrange(new Rect(0,0,46,expected));panel.UpdateLayout();
+        var measured=new FormattedText(count.Text,CultureInfo.InvariantCulture,count.FlowDirection,new Typeface(count.FontFamily,count.FontStyle,count.FontWeight,count.FontStretch),count.FontSize,count.Foreground);
+        Check(count.Text==display&&measured.WidthIncludingTrailingWhitespace<=count.ActualWidth+.01,"long credit balances fit without clipping in "+mode);
+      }
+      MenuClick(Field<MenuItem>(window,"showCreditsItem"));Check(block.Visibility==Visibility.Collapsed,"credit block can be hidden in every mode");MenuClick(Field<MenuItem>(window,"showCreditsItem"));
+    }
+    Invoke(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч","89%","07.11","05:28","","normal"),Row("Нед.","98%","14.11","00:23","","normal")}}});
+    Check(Field<TextBlock>(window,"creditsPanelBalance").Text=="—","missing API/credit balance must not appear as zero");
+    window.Close();window=NewWindow(Path.Combine(directory,"state.json"));Check(Field<bool>(window,"showCredits"),"credit visibility persists");
+    Console.WriteLine("PASS native credits-panel: optional ordered block, all modes, precise tooltip, unknown and persistence");
+  }
+  static void ResetsTest(OverlayWindow window) {
+    Known(window);var menu=Field<MenuItem>(window,"resetsItem");
+    Check(!menu.IsCheckable&&menu.HasItems,"available resets must be an explicit submenu rather than a checkbox or dialog action");
+    var entries=new object[]{new Dictionary<string,object>{{"date","30.11.2026"},{"time","23:17"},{"tone","warning"}},new Dictionary<string,object>{{"date","01.12.2026"},{"time","23:57"},{"tone","normal"}}};
+    var resets=new Dictionary<string,object>{{"availableCount",2},{"entries",entries},{"detailsComplete",true},{"stale",false}};
+    var message=new Dictionary<string,object>{{"rows",new object[]{Row("5 ч","89%","07.11","05:28","","normal"),Row("Нед.","98%","14.11","00:23","","normal")}},{"resets",resets}};
+    Invoke(window,"Apply",message);
+    var body=(StackPanel)((ScrollViewer)((MenuItem)menu.Items[0]).Header).Content;
+    Check(body.Children.Count==3,"submenu lists every reset separately after the total");
+    Check(((TextBlock)body.Children[1]).Text.Contains("1.")&&((TextBlock)body.Children[1]).Text.Contains("30.11.2026")&&((TextBlock)body.Children[1]).Text.Contains("23:17"),"first reset includes its own date and time");
+    Check(((TextBlock)body.Children[2]).Text.Contains("2.")&&((TextBlock)body.Children[2]).Text.Contains("01.12.2026"),"second reset keeps its distinct expiration");
+    Check(ColorOf(((TextBlock)body.Children[1]).Foreground)==ParseColor(ThemePalette.Dark.Warning),"each expiration has its own severity colour");
+    var content=menu.Items[0];Invoke(window,"Apply",message);Check(Object.ReferenceEquals(content,menu.Items[0]),"unchanged polling must not rebuild an open submenu");
+    Invoke(window,"SelectLanguage","en");Invoke(window,"SelectTheme","light");
+    body=(StackPanel)((ScrollViewer)((MenuItem)menu.Items[0]).Header).Content;
+    Check(((TextBlock)body.Children[1]).Text.Contains("Expires")&&ColorOf(((TextBlock)body.Children[1]).Foreground)==ParseColor(ThemePalette.Light.Warning),"submenu follows language and theme");
+    resets["detailsComplete"]=false;Invoke(window,"Apply",message);
+    body=(StackPanel)((ScrollViewer)((MenuItem)menu.Items[0]).Header).Content;
+    Check(body.Children.Count==4&&((TextBlock)body.Children[3]).Text.Contains("unavailable"),"incomplete server lists must be identified rather than inventing entries");
+    AssertUnshown(window);Console.WriteLine("PASS native resets: read-only ordered submenu, distinct dates, colours, themes and capped details");
   }
   static void UpdatesTest(OverlayWindow window) {
     Known(window);Window shown=null;string opened=null;
@@ -1405,6 +1493,9 @@ class OverlayNativeTest {
         case "motion":MotionTest(window,directory);break;
         case "motion-hook":MotionHookTest(window);break;
         case "updates":UpdatesTest(window);break;
+        case "resets":ResetsTest(window);break;
+        case "resets-panel":ResetsPanelTest(ref window,directory);break;
+        case "credits-panel":CreditsPanelTest(ref window,directory);break;
         case "taskbar-settings":TaskbarSettingsTest(ref window,directory);break;
         case "taskbar-recreation":TaskbarRecreationTest(window,directory);break;
         case "transparency":TransparencyTest(ref window,directory);break;

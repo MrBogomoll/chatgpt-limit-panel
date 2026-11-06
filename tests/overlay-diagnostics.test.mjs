@@ -47,6 +47,27 @@ async function runChecker(t, state, ageMs = 0) {
   });
 }
 
+test('diagnostics accepts optional reset extension heights only when explicitly enabled', () => {
+  for (const [mode,base,extra] of [['full',192,64],['compact',100,36],['ultra',32,22]]) {
+    const state={...healthyState(),mode,compact:mode!=='full',showResets:true};
+    state.panel={...state.panel,y:890-base-extra,height:base+extra};
+    assert.equal(verifyOverlayState(state,{updatedAt:Date.now()}).result,'PASS');
+    assert.throws(()=>verifyOverlayState({...state,showResets:false},{updatedAt:Date.now()}),/height/i);
+  }
+});
+
+test('diagnostics accounts for credits with and without the reset extension in every mode', () => {
+  for (const [mode,base,resets,credits] of [['full',192,64,40],['compact',100,36,32],['ultra',32,22,22]]) {
+    for (const showResets of [false,true]) {
+      const height=base+credits+(showResets?resets:0);
+      const state={...healthyState(),mode,compact:mode!=='full',showResets,showCredits:true};
+      state.panel={...state.panel,y:890-height,height};
+      assert.equal(verifyOverlayState(state,{updatedAt:Date.now()}).result,'PASS');
+      assert.throws(()=>verifyOverlayState({...state,showCredits:false},{updatedAt:Date.now()}),/height/i);
+    }
+  }
+});
+
 test('diagnostics CLI accepts a fresh state for this live Node process on every platform', async t => {
   const result = await runChecker(t, healthyState());
   assert.ifError(result.error);

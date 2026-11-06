@@ -17,7 +17,18 @@ export function normalizeQuota(raw, collectedAt = Date.now()) {
     };
   });
   const known = windows.filter(x => x.remaining !== null).length;
-  return { status: known === 2 ? 'ok' : known === 1 ? 'partial' : 'unavailable', collectedAt, source: 'codex-app-server', windows };
+  const resetCredits = raw?.rateLimitResetCredits;
+  const availableCount = Number.isSafeInteger(resetCredits?.availableCount) && resetCredits.availableCount >= 0 ? resetCredits.availableCount : null;
+  const entries = Array.isArray(resetCredits?.credits) && availableCount !== null ? (availableCount === 0 ? [] : resetCredits.credits
+    .filter(credit => credit?.status === 'available' && credit.resetType === 'codexRateLimits')
+    .map(credit => ({ expiresAt: Number.isSafeInteger(credit.expiresAt) && credit.expiresAt > 0 && Number.isFinite(new Date(credit.expiresAt * 1000).getTime()) ? credit.expiresAt : null }))
+    .filter(credit => credit.expiresAt === null || credit.expiresAt * 1000 > collectedAt)
+    .sort((a,b) => a.expiresAt === null ? b.expiresAt === null ? 0 : 1 : b.expiresAt === null ? -1 : a.expiresAt-b.expiresAt)) : null;
+  const bankedResets = { availableCount, expiresAt: entries?.find(credit => credit.expiresAt !== null)?.expiresAt ?? null, entries };
+  const creditSnapshot=bucket?.credits;
+  const credits={balance:typeof creditSnapshot?.balance==='string'&&/^-?\d+(?:\.\d+)?$/.test(creditSnapshot.balance)?creditSnapshot.balance:null,
+    unlimited:creditSnapshot?.unlimited===true,hasCredits:typeof creditSnapshot?.hasCredits==='boolean'?creditSnapshot.hasCredits:null};
+  return { status: known === 2 ? 'ok' : known === 1 ? 'partial' : 'unavailable', collectedAt, source: 'codex-app-server', windows, bankedResets, credits };
 }
 
 export function contextForQuota(snapshot, { now = Date.now(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone } = {}) {

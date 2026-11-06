@@ -49,7 +49,12 @@ export function verifyOverlayState(state, { isProcessAlive = processIsAlive, upd
       'panel must stay within client bounds');
     assert(state.panel.x>=state.client.x&&state.panel.x+state.panel.width<=state.client.x+52*state.dpi/96,'stay within rail');
     assert(state.panel.y+state.panel.height<=state.client.y+state.client.height-110*state.dpi/96,'leave update button and avatar free');
-    assert(Math.abs(state.panel.height-({full:192,compact:100,ultra:32}[mode])*state.dpi/96)<1,'effective mode must use the expected scaled height');
+    if(state.showResets!==undefined)assert.equal(typeof state.showResets,'boolean','reset visibility must be a boolean');
+    if(state.showCredits!==undefined)assert.equal(typeof state.showCredits,'boolean','credit visibility must be a boolean');
+    const expectedHeight={full:192,compact:100,ultra:32}[mode]
+      +(state.showResets===true?{full:64,compact:36,ultra:22}[mode]:0)
+      +(state.showCredits===true?{full:40,compact:32,ultra:22}[mode]:0);
+    assert(Math.abs(state.panel.height-expectedHeight*state.dpi/96)<1,'effective mode must use the expected scaled height');
   }
   assert.equal(state.view.rows.length,2);
   return {result:'PASS',visible:state.visible,compact:state.compact,preferredCompact:state.preferredCompact,dpi:state.dpi,owner:state.owner,rows:state.view.rows};
