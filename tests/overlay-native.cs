@@ -90,7 +90,7 @@ class OverlayNativeTest {
       var action=item as MenuItem;if(action!=null&&Convert.ToString(action.Tag)=="availableResets")resetAction=true;
     }
     Check(separators==2&&resetAction,"tray must expose reset details alongside its themed separators");
-    Check(((MenuItem)menu.Items[menu.Items.Count-1]).Tag.ToString()=="stop"&&Convert.ToString(((MenuItem)Field<MenuItem>(window,"taskbarTrayItem").Parent).Tag)=="placement","stop remains direct while placement contains taskbar controls");
+    Check(((MenuItem)menu.Items[menu.Items.Count-1]).Tag.ToString()=="stop"&&Convert.ToString(((MenuItem)Field<MenuItem>(window,"taskbarTrayItem").Parent).Tag)=="taskbar","stop remains direct while placement contains taskbar controls");
     Check(menu.Items.Count==8&&Convert.ToString(((MenuItem)Field<MenuItem>(window,"trayShowResetsItem").Parent).Tag)=="panelContent"&&Object.ReferenceEquals(Field<MenuItem>(window,"trayShowResetsItem").Parent,Field<MenuItem>(window,"trayShowCreditsItem").Parent),"tray groups supplementary content without duplicating toggles");
     Check(panelMenu.Items.Count==12&&Convert.ToString(((MenuItem)Field<MenuItem>(window,"showResetsItem").Parent).Tag)=="panelContent"&&Convert.ToString(((MenuItem)Field<MenuItem>(window,"fullProgressItem").Parent).Parent is MenuItem?((MenuItem)((MenuItem)Field<MenuItem>(window,"fullProgressItem").Parent).Parent).Tag:null)=="appearance","main menu groups content and appearance while preserving direct actions");
     Invoke(window,"SelectTheme","light");
@@ -729,7 +729,7 @@ class OverlayNativeTest {
       var panel=Field<Border>(window,"panel");var block=Field<Border>(window,"creditsBlock");var count=Field<TextBlock>(window,"creditsPanelBalance");
       Check(count.Text=="1.2k"&&block.Visibility==Visibility.Visible,"credits use server balance in every mode");
       var coin=Field<System.Windows.Shapes.Path>(window,"creditsPanelIcon");
-      Check(coin.Data!=null&&coin.Stroke!=null&&coin.Visibility==Visibility.Visible&&System.Windows.Automation.AutomationProperties.GetName(coin)=="Кредиты Codex","credits use a named monochrome vector icon in every mode");
+      Check(coin.Data!=null&&coin.Stroke!=null&&coin.Visibility==(mode=="ultra"?Visibility.Collapsed:Visibility.Visible)&&System.Windows.Automation.AutomationProperties.GetName(coin)=="Кредиты Codex","credits use an accessible C mark only in larger modes");
       Check(block.BorderThickness.Bottom==(mode=="ultra"?1:2)&&ColorOf(block.BorderBrush)==ParseColor(mode=="ultra"?ThemePalette.Dark.Divider:ThemePalette.Dark.Secondary)&&Field<Border>(window,"resetsBlock").BorderThickness.Bottom==1,"only full/compact quota boundaries are brighter and thicker");
       Check(block.ToolTip.ToString().Contains("1234.5")&&!count.Text.Contains("$"),"credit detail retains exact value without inventing API dollars");
       double expected=mode=="full"?296:mode=="compact"?168:76;
@@ -741,8 +741,8 @@ class OverlayNativeTest {
       Check(creditBounds.Top>=resetBounds.Bottom&&creditBounds.Bottom<=quotaBounds.Top,"credits sit between resets and quota rows");
       var iconBounds=coin.TransformToAncestor(block).TransformBounds(new Rect(new Point(),coin.RenderSize));
       var countBounds=count.TransformToAncestor(block).TransformBounds(new Rect(new Point(),count.RenderSize));
-      Check(mode=="ultra"?iconBounds.Right<=countBounds.Left+.01:iconBounds.Bottom<=countBounds.Top+.01,"credit icon sits beside the ultra balance and above larger balances");
-      foreach(string display in new[]{"123.4k","999.9k","-999.9k","1e-100"}) {
+      Check(mode=="ultra"?coin.RenderSize.Width==0&&coin.RenderSize.Height==0:iconBounds.Bottom<=countBounds.Top+.01,"ultra reserves no room for an icon while larger modes show C above the balance");
+      foreach(string display in new[]{"300000","300k","123.4k","999.9k","-999.9k","1e-100"}) {
         credit["display"]=display;Invoke(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч","89%","07.11","05:28","","normal"),Row("Нед.","98%","14.11","00:23","","normal")}},{"credits",credit}});
         panel.Measure(new Size(46,expected));panel.Arrange(new Rect(0,0,46,expected));panel.UpdateLayout();
         var measured=new FormattedText(count.Text,CultureInfo.InvariantCulture,count.FlowDirection,new Typeface(count.FontFamily,count.FontStyle,count.FontWeight,count.FontStretch),count.FontSize,count.Foreground);
@@ -812,17 +812,19 @@ class OverlayNativeTest {
     var toggle=Field<MenuItem>(window,"taskbarEnabledItem");
     Check(Convert.ToString(toggle.Header).Contains("Показывать"),"Russian taskbar toggle must be discoverable");
     MenuClick(toggle);Check(Field<bool>(window,"taskbarEnabled"),"taskbar toggle must enable independent view");
-    MenuClick(Field<MenuItem>(window,"taskbarRightItem"));
-    Check(Field<string>(window,"taskbarSide")=="right","right side selection must persist independently of panel mode");
+    var settings=(MenuItem)toggle.Parent;Check(settings.Items.Count==2&&((MenuItem)settings.Items[1]).Tag.ToString()=="taskbarResetPosition","taskbar menu exposes only visibility and reset, without redundant side or status entries");
+    Invoke(window,"SetTaskbarPosition",.23);Check(Field<double?>(window,"taskbarPosition")==.23,"manual drag position is retained until explicit reset");
+    MenuClick(Field<MenuItem>(window,"taskbarResetPositionItem"));
+    Check(Field<string>(window,"taskbarSide")=="right"&&!Field<double?>(window,"taskbarPosition").HasValue,"reset clears the dragged position and restores default placement without disabling the indicator");
     Invoke(window,"SelectMode","ultra");Invoke(window,"SelectTheme","light");Invoke(window,"SelectLanguage","en");
     Check(Convert.ToString(toggle.Header).Contains("Show"),"English toggle must translate live");
     window.Close();window=NewWindow(Path.Combine(directory,"state.json"));Known(window);
     Check(Field<bool>(window,"taskbarEnabled")&&Field<string>(window,"taskbarSide")=="right","taskbar settings must survive reconstruction");
     Check(Field<string>(window,"language")=="en"&&Field<string>(window,"themeMode")=="light"&&Field<string>(window,"preferredMode")=="ultra","taskbar settings must preserve language/theme/view");
-    MenuClick(Field<MenuItem>(window,"taskbarLeftItem"));MenuClick(Field<MenuItem>(window,"taskbarEnabledItem"));
+    Invoke(window,"SetTaskbarSide","left");MenuClick(Field<MenuItem>(window,"taskbarEnabledItem"));
     window.Close();window=NewWindow(Path.Combine(directory,"state.json"));Known(window);
     Check(!Field<bool>(window,"taskbarEnabled")&&Field<string>(window,"taskbarSide")=="left","off must persist and retain chosen side");
-    Console.WriteLine("PASS native taskbar-settings: independent toggle, both sides, RU/EN, reconstruction and preserved settings");
+    Console.WriteLine("PASS native taskbar-settings: visibility, explicit position reset, legacy placement, RU/EN and preserved settings");
   }
   static Border TaskbarSurface(OverlayWindow window) {
     var taskbar=Field<TaskbarWindow>(window,"taskbarWindow");
@@ -834,7 +836,7 @@ class OverlayNativeTest {
     typeof(OverlayWindow).GetField("taskbarSnapshotReader",PrivateInstance).SetValue(window,new Func<TaskbarSnapshot>(delegate{return sample;}));
     typeof(OverlayWindow).GetField("targetMatcher",PrivateInstance).SetValue(window,new Func<IntPtr,bool>(delegate{return false;}));
     Apply(window,Row("5 ч","73%","31.12","23:59","","normal"),Row("Нед.","29%","31.12","00:00","устар.","warning"));Invoke(window,"SelectLanguage","en");Invoke(window,"SelectTheme","light");Invoke(window,"SelectMode","ultra");
-    MenuClick(Field<MenuItem>(window,"taskbarRightItem"));MenuClick(Field<MenuItem>(window,"taskbarEnabledItem"));Invoke(window,"SetBackgroundTransparency",100);
+    MenuClick(Field<MenuItem>(window,"taskbarResetPositionItem"));MenuClick(Field<MenuItem>(window,"taskbarEnabledItem"));Invoke(window,"SetBackgroundTransparency",100);
     var mainHandle=new WindowInteropHelper(window).EnsureHandle();IntPtr foreground=Native.GetForegroundWindow();
     typeof(OverlayWindow).GetField("appSignalSent",PrivateInstance).SetValue(window,true);
     typeof(OverlayWindow).GetField("lastAppReady",PrivateInstance).SetValue(window,false);

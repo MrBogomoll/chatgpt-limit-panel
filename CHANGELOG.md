@@ -1,5 +1,12 @@
 # Changes
 
+## 1.7.2 — 2026-11-07
+
+- Use the same 4 px quota bar thickness in full, compact and ultra modes.
+- Use a simple 14 px C mark for credits in full and compact modes; ultra shows only the balance and reserves the full content width for large values.
+- Replace left/right placement choices with Reset position for the draggable taskbar indicator, consistently in panel, tray and indicator menus. Remove the redundant status line.
+- Preserve saved manual placement until an explicit reset; reset restores automatic default placement without disabling percentages.
+
 ## 1.7.1 — 2026-11-07
 
 - Replace the abbreviated credits label with a monochrome vector coin, alongside the balance in ultra mode and above it in larger modes. Preserve accessible names and exact balance tooltips.

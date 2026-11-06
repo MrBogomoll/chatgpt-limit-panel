@@ -44,6 +44,7 @@ namespace QuotaOverlay {
       {"resetPosition",new[]{"Расположение по умолчанию","Reset position"}},
       {"liveTrayIcon",new[]{"Живая иконка в трее","Live tray icon"}},
       {"taskbar",new[]{"Панель задач","Taskbar"}},
+      {"taskbarResetPosition",new[]{"Сбросить положение","Reset position"}},
       {"taskbarShow",new[]{"Показывать проценты","Show percentages"}},
       {"taskbarLeft",new[]{"Слева","Left"}},
       {"taskbarRight",new[]{"Справа","Right"}},
