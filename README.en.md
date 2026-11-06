@@ -1,8 +1,8 @@
 # ChatGPT Limit Panel
 
-**Right-click → Show resets** toggles a block above the quotas: count, expiration date and time in full mode; count and date in compact; a small `↻ 3` count badge in ultra. The shared visibility setting persists across modes and restarts. Expiration is orange at 10 days or less and red at 3 days or less. Viewing does not redeem a reset; missing and stale data are labelled explicitly. The Available resets submenu lists each reset in expiration order with its date and time.
+**Right-click → Panel content → Show resets** toggles a block above the quotas: count, expiration date and time in full mode; count and date in compact; a small `↻ 3` count badge in ultra. The shared visibility setting persists across modes and restarts. Expiration is orange at 10 days or less and red at 3 days or less. Viewing does not redeem a reset; missing and stale data are labelled explicitly. The Available resets submenu lists each reset in expiration order with its date and time.
 
-**Right-click → Show credits** toggles the Codex credit balance between resets and quotas. It is separate from API billing, which this data source does not provide. Full and compact modes show a label; ultra shows only the number. Hover for the exact value. A lighter 2 px divider separates these extras from the main quotas in full and compact modes; ultra keeps a thin line.
+**Right-click → Panel content → Show credits** toggles the Codex credit balance between resets and quotas. It is separate from API billing, which this data source does not provide. A monochrome coin appears above the balance in full and compact modes, and beside it in ultra. Hover for the exact value. A lighter 2 px divider separates these extras from the main quotas in full and compact modes; ultra keeps a thin line.
 
 [Русский](README.md)
 
@@ -54,7 +54,7 @@ Requires Windows x64, a desktop ChatGPT client supporting local plugins, and ins
 3. Open **ChatGPT Limit Panel** and its control card.
 4. Click **Start**.
 
-First activation creates a per-user Windows autostart task; it can be disabled in the panel menu. To enable the taskbar indicator, use **Right-click the panel → Taskbar → Show percentages**. Enable the live icon through **Right-click the tray icon → Live tray icon**.
+First activation creates a per-user Windows autostart task; it can be disabled in the panel menu. To enable the taskbar indicator, use **Right-click the panel → Placement → Taskbar → Show percentages**. Enable the live icon through **Right-click the tray icon → Placement → Live tray icon**.
 
 With the taskbar indicator **or** live tray icon enabled, the monitor can refresh limits without an open ChatGPT window. Closing the control card does not stop the monitor; choose **Stop panel** to stop it.
 
@@ -66,7 +66,7 @@ With the taskbar indicator **or** live tray icon enabled, the monitor can refres
 
 The panel has been checked on Windows 11, including Start11 and placement next to NetWorx. Windows 10 compatibility is not yet confirmed. If ZIP import is unavailable or an error occurs, include the Windows version, client version and details in [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues).
 
-The program uses your existing local Codex sign-in. User credentials and settings are not included in the archive. This is an independent project, not an official OpenAI product. [ZIP checksum for 1.7.0](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.7.0/chatgpt-limit-panel-1.7.0-windows-x64.zip.sha256).
+The program uses your existing local Codex sign-in. User credentials and settings are not included in the archive. This is an independent project, not an official OpenAI product. [ZIP checksum for 1.7.1](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.7.1/chatgpt-limit-panel-1.7.1-windows-x64.zip.sha256).
 
 ## Data and security
 

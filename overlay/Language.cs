@@ -5,11 +5,15 @@ using System.IO;
 namespace QuotaOverlay {
   internal static class PanelLanguage {
     static readonly Dictionary<string,string[]> Copy=new Dictionary<string,string[]> {
-      {"refresh",new[]{"Обновить лимиты","Refresh limits"}},
+      {"refresh",new[]{"Обновить данные","Refresh data"}},
       {"availableResets",new[]{"Доступные сбросы","Available resets"}},
       {"showResets",new[]{"Показывать сбросы","Show resets"}},
       {"showCredits",new[]{"Показывать кредиты","Show credits"}},
-      {"creditsLabel",new[]{"Кред.","Credits"}},
+      {"creditsName",new[]{"Кредиты Codex","Codex credits"}},
+      {"panelContent",new[]{"Содержимое панели","Panel content"}},
+      {"appearance",new[]{"Внешний вид","Appearance"}},
+      {"placement",new[]{"Расположение","Placement"}},
+      {"settings",new[]{"Настройки","Settings"}},
       {"creditsBalance",new[]{"Кредиты Codex: {0}","Codex credits: {0}"}},
       {"creditsUnavailable",new[]{"Нет данных о кредитах Codex. Баланс API этот источник не предоставляет.","Codex credit balance is unavailable. This source does not provide API billing balance."}},
       {"creditsUnlimited",new[]{"Кредиты Codex: без ограничений","Codex credits: unlimited"}},
@@ -35,7 +39,7 @@ namespace QuotaOverlay {
       {"openRelease",new[]{"Открыть релиз","Open release"}},
       {"dismiss",new[]{"Закрыть","Close"}},
       {"openReleaseError",new[]{"Не удалось открыть страницу релиза.","Could not open the release page."}},
-      {"view",new[]{"Вид панели","Panel view"}},
+      {"view",new[]{"Размер панели","Panel size"}},
       {"sidebarPinned",new[]{"Закрепить на боковой панели","Pin to sidebar"}},
       {"resetPosition",new[]{"Расположение по умолчанию","Reset position"}},
       {"liveTrayIcon",new[]{"Живая иконка в трее","Live tray icon"}},

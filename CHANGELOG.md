@@ -1,5 +1,11 @@
 # Changes
 
+## 1.7.1 — 2026-11-07
+
+- Replace the abbreviated credits label with a monochrome vector coin, alongside the balance in ultra mode and above it in larger modes. Preserve accessible names and exact balance tooltips.
+- Group panel settings into Content, Appearance, Placement and Settings; keep refresh, reset details, update checks, pause and stop directly accessible. Group content and placement consistently in the tray menu.
+- Rename panel size and data refresh controls to make their purpose clearer.
+
 ## 1.7.0 — 2026-11-07
 
 - Default fresh installations to bars and outline while preserving saved indicator choices.

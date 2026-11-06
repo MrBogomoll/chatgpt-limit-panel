@@ -356,7 +356,9 @@ namespace QuotaOverlay {
     bool showCredits;
     Dictionary<string,object> creditsView;
     Border creditsBlock;
-    TextBlock creditsPanelLabel,creditsPanelBalance;
+    TextBlock creditsPanelBalance;
+    System.Windows.Shapes.Path creditsPanelIcon;
+    StackPanel creditsStack;
     MenuItem showCreditsItem,trayShowCreditsItem;
     Border resetsBlock;
     TextBlock resetsPanelCount,resetsPanelDate,resetsPanelTime;
@@ -430,10 +432,11 @@ namespace QuotaOverlay {
       resetStack.Children.Add(resetsPanelCount);resetStack.Children.Add(resetsPanelDate);resetStack.Children.Add(resetsPanelTime);
       resetsBlock=new Border {BorderThickness=new Thickness(0,0,0,1),BorderBrush=Brush(palette.Divider),Margin=new Thickness(0),Child=resetStack,Visibility=Visibility.Collapsed};
       stack.Children.Add(resetsBlock);
-      var creditStack=new StackPanel {VerticalAlignment=VerticalAlignment.Center};
-      creditsPanelLabel=Text(T("creditsLabel"),9,FontWeights.Normal,palette.Secondary);creditsPanelBalance=Text("—",14,FontWeights.SemiBold,palette.Secondary);
-      creditStack.Children.Add(creditsPanelLabel);creditStack.Children.Add(creditsPanelBalance);
-      creditsBlock=new Border {BorderThickness=new Thickness(0,0,0,1),BorderBrush=Brush(palette.Divider),Child=creditStack,Visibility=Visibility.Collapsed};stack.Children.Add(creditsBlock);
+      creditsStack=new StackPanel {VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Center};
+      creditsPanelIcon=new System.Windows.Shapes.Path {Data=Geometry.Parse("M4.5,4 A3.5,3.5 0 1 1 4.5,11 A3.5,3.5 0 1 1 4.5,4 M5.3,3.4 A3.5,3.5 0 1 1 8.6,8.8 M4.5,6 L4.5,9"),Width=10,Height=10,Stretch=Stretch.Uniform,StrokeThickness=1.25,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
+      creditsPanelBalance=Text("—",14,FontWeights.SemiBold,palette.Secondary);
+      creditsStack.Children.Add(creditsPanelIcon);creditsStack.Children.Add(creditsPanelBalance);
+      creditsBlock=new Border {BorderThickness=new Thickness(0,0,0,1),BorderBrush=Brush(palette.Divider),Child=creditsStack,Visibility=Visibility.Collapsed};stack.Children.Add(creditsBlock);
       for(int i=0;i<2;i++) {
         if(i==1) {divider=new Border { Height=1,Background=Brush(palette.Divider),Margin=new Thickness(1,5,1,5) };stack.Children.Add(divider);}
         periods[i]=Text(T(i==0?"shortLabel":"weekLabel"),10,FontWeights.Normal,palette.Secondary);
@@ -763,7 +766,7 @@ namespace QuotaOverlay {
       TaskbarAppearance.ApplySliderStyle(sidebarOpacitySlider);
       sidebarOpacitySlider.ValueChanged+=delegate {if(!syncingSidebarOpacity)SetSidebarOpacity((int)Math.Round(sidebarOpacitySlider.Value));};
       var opacityContent=new StackPanel();opacityContent.Children.Add(sidebarOpacityLabel);opacityContent.Children.Add(sidebarOpacitySlider);
-      optionsMenu.Items.Add(new MenuItem {Header=opacityContent,StaysOpenOnClick=true});SyncSidebarOpacityControl();
+      var opacityItem=new MenuItem {Header=opacityContent,StaysOpenOnClick=true};optionsMenu.Items.Add(opacityItem);SyncSidebarOpacityControl();
       var resetPosition=Menu("resetPosition");resetPosition.Click+=delegate{ResetSidebarPosition();};optionsMenu.Items.Add(resetPosition);
       var taskbar=Menu("taskbar");
       taskbarEnabledItem=Menu("taskbarShow",true);taskbarEnabledItem.Click+=delegate {SetTaskbarEnabled(taskbarEnabledItem.IsChecked);};
@@ -796,9 +799,21 @@ namespace QuotaOverlay {
       optionsMenu.Items.Add(new Separator {Style=separatorStyle});
       pauseUpdatesItem=Menu("pauseUpdates");pauseUpdatesItem.Click+=delegate {TogglePaused();};optionsMenu.Items.Add(pauseUpdatesItem);
       var stop=Menu("stop");stop.Click+=delegate {Close();};optionsMenu.Items.Add(stop);
+      OrganizePanelMenu(opacityItem);
       menuDismiss=new MenuDismissWatcher(Dispatcher,delegate {return !closing&&optionsMenu.IsOpen;},delegate {optionsMenu.IsOpen=false;},null);
       optionsMenu.Opened+=delegate {SyncMenu();menuDismiss.Start();};
       optionsMenu.Closed+=delegate {menuDismiss.Stop();};panel.ContextMenu=optionsMenu;
+    }
+    void OrganizePanelMenu(MenuItem opacityItem) {
+      var original=new Dictionary<string,MenuItem>();
+      foreach(object entry in optionsMenu.Items) {var item=entry as MenuItem;if(item!=null&&item.Tag is string)original[(string)item.Tag]=item;}
+      optionsMenu.Items.Clear();
+      optionsMenu.Items.Add(original["refresh"]);optionsMenu.Items.Add(original["availableResets"]);optionsMenu.Items.Add(MenuSeparator());
+      var content=Menu("panelContent");content.Items.Add(original["showResets"]);content.Items.Add(original["showCredits"]);optionsMenu.Items.Add(content);
+      var appearance=Menu("appearance");appearance.Items.Add(original["view"]);appearance.Items.Add(original["indicator"]);appearance.Items.Add(original["source"]);appearance.Items.Add(MenuSeparator());appearance.Items.Add(original["theme"]);appearance.Items.Add(opacityItem);optionsMenu.Items.Add(appearance);
+      var placement=Menu("placement");placement.Items.Add(original["sidebarPinned"]);placement.Items.Add(original["resetPosition"]);placement.Items.Add(MenuSeparator());placement.Items.Add(original["taskbar"]);placement.Items.Add(original["liveTrayIcon"]);optionsMenu.Items.Add(placement);
+      var settings=Menu("settings");settings.Items.Add(original["language"]);settings.Items.Add(original["autostart"]);optionsMenu.Items.Add(settings);
+      optionsMenu.Items.Add(MenuSeparator());optionsMenu.Items.Add(original["checkUpdates"]);optionsMenu.Items.Add(MenuSeparator());optionsMenu.Items.Add(original["pauseUpdates"]);optionsMenu.Items.Add(original["stop"]);
     }
     void SyncMenu() {
       if(showCreditsItem!=null)showCreditsItem.IsChecked=showCredits;
@@ -1007,6 +1022,11 @@ namespace QuotaOverlay {
       traySidebarPinItem=Menu("sidebarPinned",true);traySidebarPinItem.Click+=delegate {SetSidebarPinned(traySidebarPinItem.IsChecked);};
       trayMenu.Items.Add(MenuSeparator());trayMenu.Items.Add(traySidebarPinItem);trayMenu.Items.Add(liveTrayItem);trayMenu.Items.Add(taskbarTrayItem);trayMenu.Items.Add(taskbarTraySides);
       trayMenu.Items.Add(MenuSeparator());var stop=Menu("stop");stop.Click+=delegate {Close();};trayMenu.Items.Add(stop);
+      trayMenu.Items.Clear();
+      trayMenu.Items.Add(refresh);trayMenu.Items.Add(trayResetsItem);trayMenu.Items.Add(MenuSeparator());
+      var content=Menu("panelContent");content.Items.Add(trayShowResetsItem);content.Items.Add(trayShowCreditsItem);trayMenu.Items.Add(content);
+      var placement=Menu("placement");placement.Items.Add(traySidebarPinItem);placement.Items.Add(liveTrayItem);placement.Items.Add(MenuSeparator());placement.Items.Add(taskbarTrayItem);placement.Items.Add(taskbarTraySides);trayMenu.Items.Add(placement);
+      trayMenu.Items.Add(MenuSeparator());trayMenu.Items.Add(pause);trayMenu.Items.Add(stop);
       trayMenuDismiss=new MenuDismissWatcher(Dispatcher,delegate{return trayMenu.IsOpen;},delegate{trayMenu.IsOpen=false;},null);
       trayMenu.Opened+=delegate {SyncMenu();ApplyTrayLanguage();trayMenuDismiss.Start();};
       trayMenu.Closed+=delegate {trayMenuDismiss.Stop();};SyncMenu();ApplyTrayLanguage();
@@ -1092,11 +1112,13 @@ namespace QuotaOverlay {
       var data=creditsView??new Dictionary<string,object>();
       string value=Get(data,"display"),balance=Get(data,"balance"),tone=Get(data,"tone");
       creditsBlock.Height=Layout.CreditsHeight(presentationMode);creditsBlock.Visibility=showCredits?Visibility.Visible:Visibility.Collapsed;
-      creditsPanelLabel.Text=T("creditsLabel");creditsPanelLabel.Visibility=presentationMode=="ultra"?Visibility.Collapsed:Visibility.Visible;
+      bool ultra=presentationMode=="ultra";creditsStack.Orientation=ultra?Orientation.Horizontal:Orientation.Vertical;
+      creditsPanelIcon.Width=creditsPanelIcon.Height=ultra?8:10;creditsPanelIcon.Margin=ultra?new Thickness(0,0,3,0):new Thickness(0,0,0,2);
+      System.Windows.Automation.AutomationProperties.SetName(creditsPanelIcon,T("creditsName"));
       creditsPanelBalance.Text=value.Length>0?value:"—";creditsPanelBalance.FontSize=presentationMode=="full"?14:12;
-      creditsPanelBalance.Foreground=Brush(palette.Tone(tone));creditsPanelLabel.Foreground=Brush(palette.Secondary);
+      creditsPanelBalance.Foreground=Brush(palette.Tone(tone));creditsPanelIcon.Stroke=Brush(palette.Secondary);
       var measured=new FormattedText(creditsPanelBalance.Text,CultureInfo.CurrentCulture,creditsPanelBalance.FlowDirection,new Typeface(creditsPanelBalance.FontFamily,creditsPanelBalance.FontStyle,creditsPanelBalance.FontWeight,creditsPanelBalance.FontStretch),creditsPanelBalance.FontSize,creditsPanelBalance.Foreground);
-      double available=Layout.PanelWidth-panel.Padding.Left-panel.Padding.Right-panel.BorderThickness.Left-panel.BorderThickness.Right;
+      double available=Layout.PanelWidth-panel.Padding.Left-panel.Padding.Right-panel.BorderThickness.Left-panel.BorderThickness.Right-(ultra?11:0);
       if(measured.WidthIncludingTrailingWhitespace>available)creditsPanelBalance.FontSize*=available/measured.WidthIncludingTrailingWhitespace;
       bool emphasize=presentationMode!="ultra";creditsBlock.BorderBrush=Brush(emphasize?palette.Secondary:palette.Divider);creditsBlock.BorderThickness=new Thickness(0,0,0,emphasize?2:1);
       creditsBlock.Opacity=Get(data,"stale")=="True"?.5:1;

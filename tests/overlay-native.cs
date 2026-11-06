@@ -90,8 +90,9 @@ class OverlayNativeTest {
       var action=item as MenuItem;if(action!=null&&Convert.ToString(action.Tag)=="availableResets")resetAction=true;
     }
     Check(separators==2&&resetAction,"tray must expose reset details alongside its themed separators");
-    Check(((MenuItem)menu.Items[menu.Items.Count-1]).Tag.ToString()=="stop"&&menu.Items.Contains(Field<MenuItem>(window,"taskbarTrayItem")),"the final action must stop the entire monitor");
-    Check(menu.Items.Count==12&&menu.Items.Contains(Field<MenuItem>(window,"trayShowResetsItem"))&&menu.Items.Contains(Field<MenuItem>(window,"trayShowCreditsItem")),"credit and reset visibility, reset list, refresh, pause, taskbar toggle, side and close must remain available");
+    Check(((MenuItem)menu.Items[menu.Items.Count-1]).Tag.ToString()=="stop"&&Convert.ToString(((MenuItem)Field<MenuItem>(window,"taskbarTrayItem").Parent).Tag)=="placement","stop remains direct while placement contains taskbar controls");
+    Check(menu.Items.Count==8&&Convert.ToString(((MenuItem)Field<MenuItem>(window,"trayShowResetsItem").Parent).Tag)=="panelContent"&&Object.ReferenceEquals(Field<MenuItem>(window,"trayShowResetsItem").Parent,Field<MenuItem>(window,"trayShowCreditsItem").Parent),"tray groups supplementary content without duplicating toggles");
+    Check(panelMenu.Items.Count==12&&Convert.ToString(((MenuItem)Field<MenuItem>(window,"showResetsItem").Parent).Tag)=="panelContent"&&Convert.ToString(((MenuItem)Field<MenuItem>(window,"fullProgressItem").Parent).Parent is MenuItem?((MenuItem)((MenuItem)Field<MenuItem>(window,"fullProgressItem").Parent).Parent).Tag:null)=="appearance","main menu groups content and appearance while preserving direct actions");
     Invoke(window,"SelectTheme","light");
     Check(ColorOf(menu.Background)==ParseColor(ThemePalette.Light.MenuSurface),"tray must follow light theme");
     Invoke(window,"SelectLanguage","en");
@@ -452,7 +453,7 @@ class OverlayNativeTest {
   }
   static void MenuActionsTest(OverlayWindow window) {
     Known(window);var menu=Field<ContextMenu>(window,"optionsMenu");
-    foreach(string header in new[]{"Обновить лимиты","Приостановить обновление лимитов","Возобновить обновление лимитов","Остановить панель"}) {
+    foreach(string header in new[]{"Обновить данные","Приостановить обновление лимитов","Возобновить обновление лимитов","Остановить панель"}) {
       MenuItem found=null;foreach(object item in menu.Items) {
         var candidate=item as MenuItem;if(candidate!=null && Convert.ToString(candidate.Header)==header){found=candidate;break;}
       }
@@ -464,7 +465,7 @@ class OverlayNativeTest {
   static void FullIndicatorTest(ref OverlayWindow window,string directory) {
     Check(Field<string>(window,"fullProgressMode")=="both","fresh installation must default to bars and outline");
     var fullSource=Field<MenuItem>(window,"contourSourceItem");
-    Check(fullSource.IsEnabled && Field<ContextMenu>(window,"optionsMenu").Items.Contains(fullSource),"full contour source must be an explicit top-level selection available even with bars only");
+    Check(fullSource.IsEnabled && Convert.ToString(((MenuItem)fullSource.Parent).Tag)=="appearance","contour source remains explicitly available in appearance settings even with bars only");
     Apply(window,Row("5 ч","30%","25.10","06:13","","warning"),Row("Нед.","10%","31.10","20:10","","critical"));
     MenuClick(Field<MenuItem>(window,"fullOutlineItem"));MenuClick(Field<MenuItem>(window,"weeklyProgressItem"));
     Invoke(window,"SetCompact",false);
@@ -727,6 +728,8 @@ class OverlayNativeTest {
       Invoke(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч","89%","07.11","05:28","","normal"),Row("Нед.","98%","14.11","00:23","","normal")}},{"credits",credit}});
       var panel=Field<Border>(window,"panel");var block=Field<Border>(window,"creditsBlock");var count=Field<TextBlock>(window,"creditsPanelBalance");
       Check(count.Text=="1.2k"&&block.Visibility==Visibility.Visible,"credits use server balance in every mode");
+      var coin=Field<System.Windows.Shapes.Path>(window,"creditsPanelIcon");
+      Check(coin.Data!=null&&coin.Stroke!=null&&coin.Visibility==Visibility.Visible&&System.Windows.Automation.AutomationProperties.GetName(coin)=="Кредиты Codex","credits use a named monochrome vector icon in every mode");
       Check(block.BorderThickness.Bottom==(mode=="ultra"?1:2)&&ColorOf(block.BorderBrush)==ParseColor(mode=="ultra"?ThemePalette.Dark.Divider:ThemePalette.Dark.Secondary)&&Field<Border>(window,"resetsBlock").BorderThickness.Bottom==1,"only full/compact quota boundaries are brighter and thicker");
       Check(block.ToolTip.ToString().Contains("1234.5")&&!count.Text.Contains("$"),"credit detail retains exact value without inventing API dollars");
       double expected=mode=="full"?296:mode=="compact"?168:76;
@@ -736,6 +739,9 @@ class OverlayNativeTest {
       var creditBounds=block.TransformToAncestor(panel).TransformBounds(new Rect(new Point(),block.RenderSize));
       var quotaBounds=Field<Border[]>(window,"progressTracks")[0].TransformToAncestor(panel).TransformBounds(new Rect(new Point(),Field<Border[]>(window,"progressTracks")[0].RenderSize));
       Check(creditBounds.Top>=resetBounds.Bottom&&creditBounds.Bottom<=quotaBounds.Top,"credits sit between resets and quota rows");
+      var iconBounds=coin.TransformToAncestor(block).TransformBounds(new Rect(new Point(),coin.RenderSize));
+      var countBounds=count.TransformToAncestor(block).TransformBounds(new Rect(new Point(),count.RenderSize));
+      Check(mode=="ultra"?iconBounds.Right<=countBounds.Left+.01:iconBounds.Bottom<=countBounds.Top+.01,"credit icon sits beside the ultra balance and above larger balances");
       foreach(string display in new[]{"123.4k","999.9k","-999.9k","1e-100"}) {
         credit["display"]=display;Invoke(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч","89%","07.11","05:28","","normal"),Row("Нед.","98%","14.11","00:23","","normal")}},{"credits",credit}});
         panel.Measure(new Size(46,expected));panel.Arrange(new Rect(0,0,46,expected));panel.UpdateLayout();
@@ -1102,7 +1108,7 @@ class OverlayNativeTest {
   }
   static void SharedIndicatorTest(OverlayWindow window) {
     var menu=Field<ContextMenu>(window,"optionsMenu");MenuItem shared=null;
-    foreach(object entry in menu.Items) {
+    foreach(object entry in ((MenuItem)((MenuItem)Field<MenuItem>(window,"fullProgressItem").Parent).Parent).Items) {
       var item=entry as MenuItem;if(item==null)continue;
       string header=Convert.ToString(item.Header);
       Check(header!="Контур в компактном виде" && header!="Ультракомпактный вид","separate contour settings must be removed");
