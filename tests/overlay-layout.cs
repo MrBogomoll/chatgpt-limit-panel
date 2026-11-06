@@ -47,12 +47,12 @@ class LayoutTest {
       var compact=Layout.Place(-1800,40,500*scale,680*scale,scale);
       Check(compact.Visible,"680 DIP client uses compact fallback at supported DPI");
       Check(compact.Compact,"fallback reports compact mode");
-      Check(Math.Abs(compact.Height-100*scale)<0.01,"compact height scales");
+      Check(Math.Abs(compact.Height-Layout.CompactHeight*scale)<0.01,"compact height scales");
       Check(Math.Abs(compact.Y+compact.Height-(40+(680-110)*scale))<0.01,"compact leaves update button and avatar free");
       Check(compact.X>=-1800 && compact.X+compact.Width<=-1800+52*scale,"compact stays in rail at negative monitor coordinates");
       var preferred=Layout.Place(-1800,40,500*scale,850*scale,scale,true);
       Check(preferred.Visible && preferred.Compact,"explicit compact preference is honored on tall windows");
-      Check(Math.Abs(preferred.Height-100*scale)<0.01,"preferred compact height scales");
+      Check(Math.Abs(preferred.Height-Layout.CompactHeight*scale)<0.01,"preferred compact height scales");
       Check(Math.Abs(preferred.Y+preferred.Height-(40+(850-110)*scale))<0.01,"preferred compact keeps bottom clearance");
       var ultra=Layout.Place(-1800,40,500*scale,600*scale,scale,"ultra");
       Check(ultra.Visible && ultra.Compact && ultra.Mode=="ultra" && Math.Abs(ultra.Height-32*scale)<.01,"explicit ultra must use a 32 DIP frame on shorter windows");
@@ -100,7 +100,7 @@ class LayoutTest {
   }
   static void CreditExtensions() {
     foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(bool resets in new[]{false,true})foreach(bool credits in new[]{false,true})foreach(string mode in new[]{"full","compact","ultra"}) {
-      double creditExtra=mode=="full"?40:mode=="compact"?32:22;
+      double creditExtra=mode=="full"?40:mode=="compact"?38:24;
       double expected=Layout.HeightForMode(mode,resets)+(credits?creditExtra:0);
       Check(Layout.CreditsHeight(mode)==creditExtra&&Layout.HeightForMode(mode,resets,credits)==expected,"credit and reset extensions add their independent heights");
       var plain=Layout.Place(-1800,40,1200*scale,1000*scale,scale,mode);

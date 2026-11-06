@@ -76,6 +76,7 @@ test('native overlay renders and accepts updates using only isolated own control
     ['resets','reset submenu lists individual expirations with live count and severity without redeeming'],
     ['resets-panel','optional reset extension fits full, compact and ultra modes and persists its visibility'],
     ['credits-panel','optional credit balance sits between resets and quotas in all modes without inventing API dollars'],
+    ['spacing','real content keeps separator gaps, caption insets and the same bottom inset in every mode'],
     ['taskbar-settings','taskbar visibility, manual placement and explicit reset persist with language, theme and view preserved'],
     ['taskbar-recreation','destroyed percentage windows recreate on ordinary tracking ticks with live data and settings preserved'],
     ['transparency','the live background slider persists validated percentages in both views without fading text or graphics'],

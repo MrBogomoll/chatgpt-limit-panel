@@ -1,5 +1,12 @@
 # Changes
 
+## 1.7.3 — 2026-11-07
+
+- Restore the readable Credits label in full and compact views; keep only the balance in ultra.
+- Reserve a 3 px inset around credit content and at least 4 px between quota bars and the row divider.
+- Align the last visible content 8 px above the bottom edge in all three modes, including stale states and optional content combinations.
+- Give compact content sufficient height without shrinking quota text. Remove invisible stale labels from fresh full-mode layout.
+
 ## 1.7.2 — 2026-11-07
 
 - Use the same 4 px quota bar thickness in full, compact and ultra modes.

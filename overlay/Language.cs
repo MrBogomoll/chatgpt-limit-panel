@@ -9,6 +9,7 @@ namespace QuotaOverlay {
       {"availableResets",new[]{"Доступные сбросы","Available resets"}},
       {"showResets",new[]{"Показывать сбросы","Show resets"}},
       {"showCredits",new[]{"Показывать кредиты","Show credits"}},
+      {"creditsLabel",new[]{"Кредиты","Credits"}},
       {"creditsName",new[]{"Кредиты Codex","Codex credits"}},
       {"panelContent",new[]{"Содержимое панели","Panel content"}},
       {"appearance",new[]{"Внешний вид","Appearance"}},

@@ -357,7 +357,8 @@ namespace QuotaOverlay {
     Dictionary<string,object> creditsView;
     Border creditsBlock;
     TextBlock creditsPanelBalance;
-    System.Windows.Shapes.Path creditsPanelIcon;
+    TextBlock creditsPanelLabel;
+    RowDefinition quotaDividerRow;
     StackPanel creditsStack;
     MenuItem showCreditsItem,trayShowCreditsItem;
     Border resetsBlock;
@@ -422,9 +423,10 @@ namespace QuotaOverlay {
       AllowsTransparency=true; Background=TaskbarAppearance.InputSurface(100-sidebarBackgroundOpacity);
       ShowInTaskbar=false; ShowActivated=false; Topmost=false; Focusable=false;
       FontFamily=new FontFamily("Segoe UI");
-      panel=new Border { Width=Layout.PanelWidth,Height=Layout.PanelHeight,Background=Brush(palette.Background(100-sidebarBackgroundOpacity)),BorderBrush=Brush(palette.Border),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(3,5,3,5) };
+      panel=new Border { Width=Layout.PanelWidth,Height=Layout.PanelHeight,Background=Brush(palette.Background(100-sidebarBackgroundOpacity)),BorderBrush=Brush(palette.Border),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(9),Padding=new Thickness(3,3,3,7) };
       ToolTipService.SetIsEnabled(panel,false);
-      var stack=new StackPanel(); panel.Child=stack;
+      var stack=new Grid(); panel.Child=stack;
+      for(int n=0;n<6;n++) {var row=new RowDefinition {Height=n==3?new GridLength(1,GridUnitType.Star):GridLength.Auto};stack.RowDefinitions.Add(row);if(n==3)quotaDividerRow=row;}
       var resetStack=new StackPanel {VerticalAlignment=VerticalAlignment.Center};
       resetsPanelCount=Text("↻ —",16,FontWeights.SemiBold,palette.Secondary);
       resetsPanelDate=Text("—",10.5,FontWeights.Normal,palette.Secondary);
@@ -433,23 +435,24 @@ namespace QuotaOverlay {
       resetsBlock=new Border {BorderThickness=new Thickness(0,0,0,1),BorderBrush=Brush(palette.Divider),Margin=new Thickness(0),Child=resetStack,Visibility=Visibility.Collapsed};
       stack.Children.Add(resetsBlock);
       creditsStack=new StackPanel {VerticalAlignment=VerticalAlignment.Center,HorizontalAlignment=HorizontalAlignment.Center};
-      creditsPanelIcon=new System.Windows.Shapes.Path {Data=Geometry.Parse("M19,6 A8,8 0 1 0 19,18"),Width=14,Height=14,Stretch=Stretch.Uniform,StrokeThickness=2,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center};
+      creditsPanelLabel=Text(T("creditsLabel"),9,FontWeights.Normal,palette.Secondary);creditsPanelLabel.Margin=new Thickness(0,0,0,1);
       creditsPanelBalance=Text("—",14,FontWeights.SemiBold,palette.Secondary);
-      creditsStack.Children.Add(creditsPanelIcon);creditsStack.Children.Add(creditsPanelBalance);
-      creditsBlock=new Border {BorderThickness=new Thickness(0,0,0,1),BorderBrush=Brush(palette.Divider),Child=creditsStack,Visibility=Visibility.Collapsed};stack.Children.Add(creditsBlock);
+      creditsStack.Children.Add(creditsPanelLabel);creditsStack.Children.Add(creditsPanelBalance);
+      creditsBlock=new Border {BorderThickness=new Thickness(0,0,0,1),BorderBrush=Brush(palette.Divider),Child=creditsStack,Padding=new Thickness(0,3,0,3),Visibility=Visibility.Collapsed};Grid.SetRow(creditsBlock,1);stack.Children.Add(creditsBlock);
       for(int i=0;i<2;i++) {
-        if(i==1) {divider=new Border { Height=1,Background=Brush(palette.Divider),Margin=new Thickness(1,5,1,5) };stack.Children.Add(divider);}
+        var rowStack=new StackPanel();Grid.SetRow(rowStack,i==0?2:4);stack.Children.Add(rowStack);
+        if(i==1) {divider=new Border {Height=1,Background=Brush(palette.Divider),Margin=new Thickness(1,4,1,4),VerticalAlignment=VerticalAlignment.Center};Grid.SetRow(divider,3);stack.Children.Add(divider);}
         periods[i]=Text(T(i==0?"shortLabel":"weekLabel"),10,FontWeights.Normal,palette.Secondary);
         values[i]=Text("—",16,FontWeights.SemiBold,palette.Primary);
         dates[i]=Text("—",10.5,FontWeights.Normal,palette.Date);
         times[i]=Text("—",11.5,FontWeights.Bold,palette.Primary);
         markers[i]=Text("",8,FontWeights.Normal,palette.Secondary);
-        foreach(var t in new[]{periods[i],values[i],dates[i],times[i]}) stack.Children.Add(t);
+        foreach(var t in new[]{periods[i],values[i],dates[i],times[i]}) rowStack.Children.Add(t);
         progressFills[i]=new Border {Height=3,Width=0,CornerRadius=new CornerRadius(1.5),HorizontalAlignment=HorizontalAlignment.Left};
         progressTracks[i]=new Border {Width=32,Height=3,CornerRadius=new CornerRadius(1.5),Background=Brush(palette.Track),Margin=new Thickness(3,3,3,1),Child=progressFills[i]};
-        stack.Children.Add(progressTracks[i]);stack.Children.Add(markers[i]);
+        rowStack.Children.Add(markers[i]);rowStack.Children.Add(progressTracks[i]);
       }
-      compactStale=Text("",8,FontWeights.Normal,palette.Secondary);stack.Children.Add(compactStale);
+      compactStale=Text("",8,FontWeights.Normal,palette.Secondary);compactStale.Margin=new Thickness(0,2,0,0);Grid.SetRow(compactStale,5);stack.Children.Add(compactStale);
       panel.Cursor=Cursors.Hand;
       panel.MouseLeftButtonDown+=BeginSidebarPointer;
       panel.MouseMove+=MoveSidebarPointer;
@@ -866,14 +869,13 @@ namespace QuotaOverlay {
       bool bars=ultra||fullProgressMode=="bars"||fullProgressMode=="both";
       bool contour=fullProgressMode=="outline"||fullProgressMode=="both";
       showCompactProgress=showUltraProgress=contour;
-      bool compactBars=compact&&!ultra&&bars;
-      panel.Padding=new Thickness(3,compactBars?2:compact?3:5,3,compactBars?2:compact?3:5);
-      divider.Margin=new Thickness(1,compactBars?1:compact?3:5,1,compactBars?1:compact?3:5);
+      panel.Padding=new Thickness(3,3,3,7);
+      divider.Margin=new Thickness(1,4,1,4);
       for(int i=0;i<2;i++) {
         double fraction=IndicatorFraction(remainingQuota[i]);
         progressTracks[i].Visibility=bars?Visibility.Visible:Visibility.Collapsed;
         progressTracks[i].Height=4;
-        progressTracks[i].Margin=ultra?new Thickness(3,4,3,4):compact?new Thickness(3,1,3,0):new Thickness(3,3,3,1);
+        progressTracks[i].Margin=ultra?new Thickness(3,4,3,0):new Thickness(3,2,3,0);
         progressFills[i].Height=progressTracks[i].Height;
         progressFills[i].Width=32*fraction;
         Brush colour=!remainingQuota[i].HasValue?Brush(palette.Secondary):remainingQuota[i]<=10?Brush(palette.Critical):remainingQuota[i]<=30?Brush(palette.Warning):Brush(i==0?palette.Short:palette.Weekly);
@@ -924,12 +926,12 @@ namespace QuotaOverlay {
       // Setting Window.Height here would resize first at its previous top edge.
       if(hwnd==IntPtr.Zero)Height=panel.Height;
       surface.Height=panel.Height;
-      panel.Padding=new Thickness(3,compact?3:5,3,compact?3:5);
-      divider.Margin=new Thickness(1,compact?3:5,1,compact?3:5);
+      panel.Padding=new Thickness(3,3,3,7);
+      divider.Margin=new Thickness(1,4,1,4);quotaDividerRow.MinHeight=ultra?0:9;
       for(int i=0;i<2;i++) {
         values[i].Visibility=ultra?Visibility.Collapsed:Visibility.Visible;
         periods[i].Visibility=compact?Visibility.Collapsed:Visibility.Visible;
-        markers[i].Visibility=compact?Visibility.Collapsed:Visibility.Visible;
+        markers[i].Visibility=!compact&&markers[i].Text.Length>0?Visibility.Visible:Visibility.Collapsed;
       }
       divider.Visibility=ultra?Visibility.Collapsed:Visibility.Visible;
       times[0].Visibility=ultra?Visibility.Collapsed:Visibility.Visible;
@@ -942,6 +944,7 @@ namespace QuotaOverlay {
       if(hwnd==IntPtr.Zero)SavePreview();
     }
     void UpdateCompactStatus() {
+      foreach(var marker in markers)marker.Visibility=presentationMode=="full"&&marker.Text.Length>0?Visibility.Visible:Visibility.Collapsed;
       compactStale.Text=markers[0].Text.Length>0 || markers[1].Text.Length>0 ? T("stale") : "";
       compactStale.Visibility=presentationMode=="compact" && compactStale.Text.Length>0?Visibility.Visible:Visibility.Collapsed;
     }
@@ -1107,10 +1110,10 @@ namespace QuotaOverlay {
       string value=Get(data,"display"),balance=Get(data,"balance"),tone=Get(data,"tone");
       creditsBlock.Height=Layout.CreditsHeight(presentationMode);creditsBlock.Visibility=showCredits?Visibility.Visible:Visibility.Collapsed;
       bool ultra=presentationMode=="ultra";creditsStack.Orientation=Orientation.Vertical;
-      creditsPanelIcon.Visibility=ultra?Visibility.Collapsed:Visibility.Visible;creditsPanelIcon.Margin=new Thickness(0,0,0,1);
-      System.Windows.Automation.AutomationProperties.SetName(creditsPanelIcon,T("creditsName"));
+      creditsPanelLabel.Visibility=ultra?Visibility.Collapsed:Visibility.Visible;creditsPanelLabel.Text=T("creditsLabel");
+      System.Windows.Automation.AutomationProperties.SetName(creditsPanelLabel,T("creditsName"));
       creditsPanelBalance.Text=value.Length>0?value:"—";creditsPanelBalance.FontSize=presentationMode=="full"?14:12;
-      creditsPanelBalance.Foreground=Brush(palette.Tone(tone));creditsPanelIcon.Stroke=Brush(palette.Secondary);
+      creditsPanelBalance.Foreground=Brush(palette.Tone(tone));creditsPanelLabel.Foreground=Brush(palette.Secondary);
       var measured=new FormattedText(creditsPanelBalance.Text,CultureInfo.CurrentCulture,creditsPanelBalance.FlowDirection,new Typeface(creditsPanelBalance.FontFamily,creditsPanelBalance.FontStyle,creditsPanelBalance.FontWeight,creditsPanelBalance.FontStretch),creditsPanelBalance.FontSize,creditsPanelBalance.Foreground);
       double available=Layout.PanelWidth-panel.Padding.Left-panel.Padding.Right-panel.BorderThickness.Left-panel.BorderThickness.Right;
       if(measured.WidthIncludingTrailingWhitespace>available)creditsPanelBalance.FontSize*=available/measured.WidthIncludingTrailingWhitespace;
