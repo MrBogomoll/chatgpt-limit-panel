@@ -20,7 +20,7 @@ class DocumentationPreviews {
   static void Save(BitmapSource image,string file){var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));using(var output=File.Create(file))encoder.Save(output);}
   static BitmapSource Render(Visual visual,double width,double height,int scale){var image=new RenderTargetBitmap((int)(width*scale),(int)(height*scale),96*scale,96*scale,PixelFormats.Pbgra32);image.Render(visual);return image;}
   static BitmapSource RenderElement(FrameworkElement visual,double width,double height){visual.Measure(new Size(width,height));visual.Arrange(new Rect(0,0,width,height));visual.UpdateLayout();return Render(visual,width,height,3);}
-  static object Row(string label,int value,string date,string time){return new Dictionary<string,object>{{"period",label},{"value",value+"%"},{"remaining",value},{"date",date},{"time",time},{"tone",value<=30?"warning":"normal"},{"marker",""}};}
+  static object Row(string label,int value,string date,string time){return new Dictionary<string,object>{{"period",label},{"value",value+"%"},{"remaining",value},{"date",date},{"time",time},{"tone",value<=10?"critical":value<=30?"warning":"normal"},{"marker",""}};}
   static void Text(DrawingContext dc,string value,double x,double y,double size,Brush color,bool bold=false){var text=new FormattedText(value,CultureInfo.InvariantCulture,FlowDirection.LeftToRight,new Typeface(new FontFamily("Segoe UI"),FontStyles.Normal,bold?FontWeights.SemiBold:FontWeights.Normal,FontStretches.Normal),size,color,1);dc.DrawText(text,new Point(x,y));}
   static BitmapSource Context(BitmapSource panel,bool light){
     var visual=new DrawingVisual();using(var dc=visual.RenderOpen()){
@@ -62,7 +62,8 @@ class DocumentationPreviews {
           Call(window,"StopTracking");
           var resetData=new Dictionary<string,object>{{"availableCount",3},{"date","12.11.2026"},{"time","18:30"},{"daysRemaining",5},{"tone","warning"},{"stale",false}};
           var creditData=new Dictionary<string,object>{{"balance","250"},{"display","250"},{"unlimited",false},{"hasCredits",true},{"tone","normal"},{"stale",false}};
-          Call(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч",29,"07.11","17:24"),Row("Нед.",75,"14.11","00:28")}},{"resets",resetData},{"credits",creditData}});Call(window,"SelectMode",mode);Call(window,"SelectFullProgress",indicator);
+          int shortRemaining=key=="resets-full-both-dark"?5:key=="credits-full-both-dark"?0:key=="both-full-both-dark"?100:29;
+          Call(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч",shortRemaining,"07.11","17:24"),Row("Нед.",75,"14.11","00:28")}},{"resets",resetData},{"credits",creditData}});Call(window,"SelectMode",mode);Call(window,"SelectFullProgress",indicator);
           var image=RenderElement(Field<Grid>(window,"surface"),46,Layout.HeightForMode(mode,resets,credits));
           if(selected){Save(image,Path.Combine(output,"panels",key+".png"));previews++;}
           if(legacy){Save(image,Path.Combine(output,(mode=="ultra"?"ultracompact":mode)+"-"+theme+".png"));if(mode=="full")full=image;}
