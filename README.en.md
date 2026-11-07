@@ -66,7 +66,7 @@ With the taskbar indicator **or** live tray icon enabled, the monitor can refres
 
 The panel has been checked on Windows 11, including Start11 and placement next to NetWorx. Windows 10 compatibility is not yet confirmed. If ZIP import is unavailable or an error occurs, include the Windows version, client version and details in [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues).
 
-The program uses your existing local Codex sign-in. User credentials and settings are not included in the archive. This is an independent project, not an official OpenAI product. [ZIP checksum for 1.7.4](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.7.4/chatgpt-limit-panel-1.7.4-windows-x64.zip.sha256).
+The program uses your existing local Codex sign-in. User credentials and settings are not included in the archive. This is an independent project, not an official OpenAI product. [ZIP checksum for 1.7.5](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.7.5/chatgpt-limit-panel-1.7.5-windows-x64.zip.sha256).
 
 ## Data and security
 

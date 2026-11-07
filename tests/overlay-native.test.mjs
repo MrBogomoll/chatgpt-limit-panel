@@ -38,6 +38,7 @@ test('native overlay renders and accepts updates using only isolated own control
     ['live-tray', 'live tray opt in uses actual quota, shared outline, states and cached full-color graphics'],
     ['tray-menu', 'tray uses branded icon and the shared themed accessible menu with live language and settings'],
     ['rail-resize', 'temporary resize geometry conservatively reserves moving rail controls at all supported scales'],
+    ['resize-follow', 'verified bottom anchors follow each height change between accessibility cache updates'],
     ['snap-preview', 'recorded Snap preview hides only the sidebar while ordinary drag and unrelated shell windows remain unaffected'],
     ['layout', '100% and bold reset times fit actual available width with current fonts'],
     ['language', 'Russian and English switch live, fit all three sizes and survive restart without changing quota or settings'],

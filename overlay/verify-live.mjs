@@ -51,8 +51,8 @@ export function verifyOverlayState(state, { isProcessAlive = processIsAlive, upd
     if(state.sidebar?.pinned!==false&&state.sidebar?.position==null)assert(state.panel.y+state.panel.height<=state.client.y+state.client.height-110*state.dpi/96,'leave update button and avatar free');
     if(state.showResets!==undefined)assert.equal(typeof state.showResets,'boolean','reset visibility must be a boolean');
     if(state.showCredits!==undefined)assert.equal(typeof state.showCredits,'boolean','credit visibility must be a boolean');
-    const expectedHeight={full:169,compact:115,ultra:39}[mode]
-      +(state.showResets===true?{full:54,compact:31,ultra:17}[mode]:0)
+    const expectedHeight={full:169,compact:115,ultra:29}[mode]
+      +(state.showResets===true?{full:54,compact:31,ultra:22}[mode]:0)
       +(state.showCredits===true?{full:40,compact:38,ultra:24}[mode]:0);
     assert(Math.abs(state.panel.height-expectedHeight*state.dpi/96)<1,'effective mode must use the expected scaled height');
   }

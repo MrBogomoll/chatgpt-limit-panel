@@ -609,6 +609,8 @@ class OverlayNativeTest {
       Invoke(window,"UpdatePlacement");PumpDispatcher();Check(window.IsVisible&&FrameMatches(window,target,overlay),"initial own frame must be aligned");
       string statePath=Path.Combine(directory,"state.json"),previewPath=Path.Combine(directory,"panel.png");File.WriteAllText(statePath,"hot-path-must-not-write-diagnostics");var oldPreview=new DateTime(2000,1,1,0,0,0,DateTimeKind.Utc);File.SetLastWriteTimeUtc(previewPath,oldPreview);
       var callback=Field<Native.EventProc>(window,"nativeEvent");callback(IntPtr.Zero,0xA,target,0,0,0,0);
+      typeof(OverlayWindow).GetField("motionDeadline",PrivateInstance).SetValue(window,now-1);
+      Check((bool)Method("MotionActive").Invoke(window,null),"interactive resizing must not fall back to the slow tracker when its first one-second deadline expires");
       for(int step=1;step<=40;step++) {
         Native.SetWindowPos(target,IntPtr.Zero,-32000+step*37,-32000+step*13,1100,1000,0x10|0x4|0x40);
         callback(IntPtr.Zero,0x800B,target,0,0,0,0);
@@ -616,6 +618,11 @@ class OverlayNativeTest {
       }
       Check(File.ReadAllText(statePath)=="hot-path-must-not-write-diagnostics","motion callbacks must not serialize/write diagnostic state");
       Check(File.GetLastWriteTimeUtc(previewPath)==oldPreview,"motion callbacks must not render or save PNG previews");
+      for(int step=1;step<=20;step++) {
+        Native.SetWindowPos(target,IntPtr.Zero,-32000,-32000-step*3,1100,1000+step*3,0x10|0x4|0x40);
+        callback(IntPtr.Zero,0x800B,target,-4,0,0,0);
+        Check(FrameMatches(window,target,overlay),"client-area resize notifications must align each top-edge resize immediately, step "+step);
+      }
       string startupPath=Path.Combine(directory,"startup.json");File.SetLastWriteTimeUtc(startupPath,oldPreview);
       Apply(window,Row("5 ч","53%","25.10","01:32","","normal"),Row("Нед.","62%","01.11","09:59","","normal"));
       Check(File.GetLastWriteTimeUtc(previewPath)==oldPreview&&File.GetLastWriteTimeUtc(startupPath)==oldPreview,"incoming quota updates must defer preview and startup diagnostic writes during a drag");
@@ -710,7 +717,7 @@ class OverlayNativeTest {
         var bounds=label.TransformToAncestor(panel).TransformBounds(new Rect(new Point(),label.RenderSize));
         Check(bounds.Top>=0&&bounds.Bottom<panel.Height,"reset text stays within the panel");
       }
-      MenuClick(Field<MenuItem>(window,"showResetsItem"));Check(block.Visibility==Visibility.Collapsed&&panel.Height==expected-block.Height+Layout.StaleHeaderHeight,"reset block can be hidden in "+mode);
+      MenuClick(Field<MenuItem>(window,"showResetsItem"));Check(block.Visibility==Visibility.Collapsed&&panel.Height==expected-block.Height+Layout.HeaderHeight(mode),"reset block can be hidden in "+mode);
       MenuClick(Field<MenuItem>(window,"showResetsItem"));
     }
     Check(Field<MenuItem>(window,"trayShowResetsItem").IsChecked,"tray shares the reset visibility preference");
@@ -729,8 +736,8 @@ class OverlayNativeTest {
       var panel=Field<Border>(window,"panel");panel.Measure(new Size(46,panel.Height));panel.Arrange(new Rect(0,0,46,panel.Height));panel.UpdateLayout();
       string key=language+"/"+resets+"/"+credits+"/"+mode;if(!stale)freshHeights[key]=panel.ActualHeight;else Check(Math.Abs(panel.ActualHeight-freshHeights[key])<.01,"stale warning must not change panel height");
       var bars=Field<Border[]>(window,"progressTracks");if(!stale)freshBars[key]=new[]{ContentBounds(bars[0],panel).Y,ContentBounds(bars[1],panel).Y};else Check(Math.Abs(ContentBounds(bars[0],panel).Y-freshBars[key][0])<.01&&Math.Abs(ContentBounds(bars[1],panel).Y-freshBars[key][1])<.01,"stale label must not shift either quota row");double last=ContentBounds(bars[1],panel).Bottom;
-      var footer=Field<TextBlock>(window,"staleLabel");Check((footer.Visibility==Visibility.Visible)==stale,"one common header reflects stale state in every mode");
-      if(stale) {
+      var footer=Field<TextBlock>(window,"staleLabel");Check((footer.Visibility==Visibility.Visible)==(stale&&mode!="ultra"),"one common header reflects stale state in every mode");
+      if(stale&&mode!="ultra") {
         double offset=0;
         Check(Math.Abs(ContentBounds(footer,panel).Top-1-offset)<.05,"shared stale label uses the available gap above content");
         if(resets) {
@@ -788,6 +795,10 @@ class OverlayNativeTest {
     }
     Invoke(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч","89%","07.11","05:28","","normal"),Row("Нед.","98%","14.11","00:23","","normal")}}});
     Check(Field<TextBlock>(window,"creditsPanelBalance").Text=="—","missing API/credit balance must not appear as zero");
+    Invoke(window,"SelectMode","ultra");double freshHeight=Field<Border>(window,"panel").Height;
+    Invoke(window,"Apply",new Dictionary<string,object>{{"stale",true},{"rows",new object[]{Row("5 ч","89%","07.11","05:28","устар.","normal"),Row("Нед.","98%","14.11","00:23","устар.","normal")}},{"credits",new Dictionary<string,object>{{"display","300k"},{"balance","300000"},{"tone","normal"},{"stale",true}}},{"resets",new Dictionary<string,object>{{"availableCount",2},{"stale",true}}}});
+    Check(Field<TextBlock>(window,"staleLabel").Visibility==Visibility.Collapsed&&Field<Border>(window,"creditsBlock").Opacity<1&&Field<Border>(window,"resetsBlock").Opacity<1,"ultra shows stale credit/reset counts dimmed without adding a warning label");
+    Check(Field<Border>(window,"panel").Height==freshHeight,"stale ultra text never enlarges its frame");
     window.Close();window=NewWindow(Path.Combine(directory,"state.json"));Check(Field<bool>(window,"showCredits"),"credit visibility persists");
     Console.WriteLine("PASS native credits-panel: optional ordered block, all modes, precise tooltip, unknown and persistence");
   }
@@ -1135,11 +1146,11 @@ class OverlayNativeTest {
     var outline=Field<System.Windows.Shapes.Path>(window,"progressOutline");
     Check(outline.Visibility==Visibility.Visible && outline.Height==Layout.UltraHeight && ColorOf(outline.Stroke)==ParseColor("#E3B382"),"ultra default contour must represent short quota");
     MenuClick(Field<MenuItem>(window,"weeklyProgressItem"));
-    Check(ColorOf(outline.Stroke)==ParseColor("#E6A0A1") && outline.Data.Bounds.Bottom>30,"ultra weekly zero must draw a complete red frame");
+    Check(ColorOf(outline.Stroke)==ParseColor("#E6A0A1") && Math.Abs(outline.Data.Bounds.Bottom-(Layout.UltraHeight-1.25))<.1,"ultra weekly zero must draw a complete red frame");
     Apply(window,Row("5 ч","—","—","—","","unknown"),Row("Нед.","—","—","—","","unknown"));
     Check(fills[0].Width==0 && fills[1].Width==0 && outline.Data.IsEmpty(),"ultra unknown must not fabricate remaining quota");
     Apply(window,Row("5 ч","50%","25.10","14:59","устар.","normal"),Row("Нед.","75%","01.11","09:59","устар.","normal"));
-    Check(tracks[0].Opacity<1 && outline.Opacity<1 && Field<TextBlock>(window,"staleLabel").Visibility==Visibility.Visible,"ultra stale values must dim without adding text");
+    Check(tracks[0].Opacity<1 && outline.Opacity<1 && Field<TextBlock>(window,"staleLabel").Visibility==Visibility.Collapsed,"ultra stale values must dim without adding text");
     MenuClick(Field<MenuItem>(window,"fullOffItem"));
     Check(outline.Visibility==Visibility.Collapsed && tracks[0].Visibility==Visibility.Visible,"ultra contour switch must preserve both bars");
     Console.WriteLine("PASS native ultra: two stacked bars, no text, selected frame, zero, unknown and stale states");
@@ -1442,6 +1453,33 @@ class OverlayNativeTest {
     Check(!SidebarSnapPreview.Matches(true,true,"XamlExplorerHostIslandWindow",2621600,bar,screen),"ordinary floating shell islands do not match a top-edge Snap bar");
     Known(window);Invoke(window,"SavePreview");Console.WriteLine("PASS native snap-preview: recorded preview, ordinary drag, trusted shell, monitor and stationary boundaries");
   }
+  static void ResizeFollowTest() {
+    foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(int direction in new[]{-1,1})foreach(bool topEdge in new[]{false,true}) {
+      int originalHeight=direction>0?900:1100;var target=new IntPtr(42);
+      Func<int,List<RailRegion>> controls=delegate(int h){return new List<RailRegion>{new RailRegion{Top=80*scale,Bottom=120*scale},new RailRegion{Top=(h-60)*scale,Bottom=(h-20)*scale}};};
+      var sample=new SidebarGeometrySource.Sample{Target=target,Width=(int)(1200*scale),Height=(int)(originalHeight*scale),Scale=scale,At=1000,Verified=true,Controls=controls(originalHeight)};
+      var previous=new SidebarGeometrySource.Sample{Target=target,Width=sample.Width,Height=(int)((originalHeight-4*direction)*scale),Scale=scale,At=984,Verified=true,Controls=controls(originalHeight-4*direction)};
+      sample.FooterAnchored=SidebarGeometrySource.FooterTracksResize(previous,sample);
+      Check(sample.FooterAnchored,"two matching full-client receipts must establish fixed navigation and a bottom-anchored footer");
+      Check(SidebarGeometrySource.ProjectAnchoredReceipt(sample,sample.Width,sample.Width,sample.Height+20)!=null,"confirmed vertical-only receipts can project their footer");
+      Check(SidebarGeometrySource.ProjectAnchoredReceipt(sample,sample.Width,sample.Width+20,sample.Height+20)==null,"diagonal resizing cannot authorize a map at an unmeasured width");
+      Check(SidebarGeometrySource.ProjectAnchoredReceipt(sample,sample.Width+20,sample.Width+20,sample.Height+20)==null,"a raw receipt must match the native width before it can replace conservative geometry");
+      for(int step=1;step<=24;step++) {
+        int h=originalHeight+step*direction*4;double origin=100-(topEdge?(h-originalHeight)*scale:0);
+        if(step%6==0){var next=new SidebarGeometrySource.Sample{Target=target,Width=(int)(1200*scale),Height=(int)(h*scale),Scale=scale,At=1000+step*16,Verified=true,Controls=controls(h)};next.FooterAnchored=SidebarGeometrySource.FooterTracksResize(sample,next);sample=next;}
+        var current=SidebarGeometrySource.CurrentControls(sample,target,(int)(1200*scale),(int)(h*scale),scale,1000+step*16);
+        var place=Layout.PlaceInAvailableRail(-1920,origin,1200*scale,h*scale,scale,"ultra",current,.93,true,true);
+        double expected=Layout.PlaceInAvailableRail(-1920,origin,1200*scale,h*scale,scale,"ultra",controls(h),.93,true,true).Y;
+        Check(place.Visible&&Math.Abs(place.Y-expected)<.01,"pinned panel must follow each resize pixel instead of waiting for the next cached footer, step "+step+", actual="+place.Y+", expected="+expected);
+        Check(place.Y+place.Height<=origin+(h-60-4)*scale+.01,"continuous resize placement must stay above the actual footer controls");
+      }
+      var changed=new SidebarGeometrySource.Sample{Target=target,Width=sample.Width,Height=sample.Height+(int)(20*scale),Scale=scale,At=sample.At+16,Verified=true,Controls=controls((int)(sample.Height/scale)+20)};
+      changed.Controls[0].Top+=10*scale;changed.Controls[0].Bottom+=10*scale;
+      Check(!SidebarGeometrySource.FooterTracksResize(sample,changed),"a changed navigation layout must revoke the anchoring model");
+      changed.Verified=false;Check(!SidebarGeometrySource.FooterTracksResize(sample,changed),"unverified maps must never authorize projection");
+    }
+    Console.WriteLine("PASS native resize-follow: both edges, grow/shrink, cache refreshes, four DPI scales and footer clearance");
+  }
   static void RailResizeTest(OverlayWindow window) {
     var controls=new List<RailRegion>{new RailRegion{Top=80,Bottom=120},new RailRegion{Top=840,Bottom=880}};
     foreach(double scale in new[]{1.0,1.25,1.5,2.0}) {
@@ -1501,6 +1539,7 @@ class OverlayNativeTest {
         case "live-tray":LiveTrayTest(ref window,directory);break;
         case "tray-menu":TrayMenuTest(window);break;
         case "rail-resize":RailResizeTest(window);break;
+        case "resize-follow":ResizeFollowTest();break;
         case "snap-preview":SnapPreviewTest(window);break;
         case "rail-translation":RailTranslationTest(window);break;
         case "rail-overflow":RailOverflowTest(window);break;

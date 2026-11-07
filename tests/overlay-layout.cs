@@ -76,13 +76,13 @@ class LayoutTest {
   }
   static void ResetExtension() {
     foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(string mode in new[]{"full","compact","ultra"}) {
-      double extra=Layout.ResetsHeight(mode)-Layout.StaleHeaderHeight;
+      double extra=Layout.ResetsHeight(mode)-Layout.HeaderHeight(mode);
       var plain=Layout.Place(-1800,40,1200*scale,1000*scale,scale,mode);
       var extended=Layout.Place(-1800,40,1200*scale,1000*scale,scale,mode,true);
       Check(extended.Visible&&extended.Mode==mode,"extended view preserves its mode when space allows");
       Check(Math.Abs(extended.Height-plain.Height-extra*scale)<.01,"reset extension height scales independently in each view");
       Check(Math.Abs(extended.Y+extended.Height-plain.Y-plain.Height)<.01,"turning resets on grows upward without moving the bottom edge");
-      Check(Layout.ResetsHeight(mode)==extra+Layout.StaleHeaderHeight&&Layout.HeightForMode(mode,true)==Layout.HeightForMode(mode)+extra,"shared mode sizing includes optional reset extension");
+      Check(Layout.ResetsHeight(mode)==extra+Layout.HeaderHeight(mode)&&Layout.HeightForMode(mode,true)==Layout.HeightForMode(mode)+extra,"shared mode sizing includes optional reset extension");
       var floating=Layout.PlaceFloating(-1800,40,500*scale,500*scale,scale,mode,.5,.5,true);
       Check(floating.Visible&&floating.Height==extended.Height&&floating.Y>=40+4*scale&&floating.Y+floating.Height<=40+496*scale,"floating extended views remain inside client bounds at every DPI");
       var occupied=new System.Collections.Generic.List<RailRegion>{new RailRegion{Top=0,Bottom=600*scale},new RailRegion{Top=700*scale,Bottom=1000*scale}};
@@ -94,9 +94,9 @@ class LayoutTest {
     }
     Check(Layout.Place(0,0,500,760+Layout.ResetsHeight("full")-Layout.StaleHeaderHeight-1,1,"full",true).Mode=="compact","reset extension raises the conservative full-mode height boundary");
     Check(Layout.Place(0,0,500,650+Layout.ResetsHeight("compact")-Layout.StaleHeaderHeight-1,1,"compact",true).Mode=="ultra","reset extension raises the conservative compact-mode height boundary");
-    Check(!Layout.Place(0,0,500,582+Layout.ResetsHeight("ultra")-Layout.StaleHeaderHeight-1,1,"ultra",true).Visible,"reset extension preserves navigation clearance below minimum client height");
+    Check(!Layout.Place(0,0,500,582+Layout.ResetsHeight("ultra")-Layout.HeaderHeight("ultra")-1,1,"ultra",true).Visible,"reset extension preserves navigation clearance below minimum client height");
     Check(Layout.PlaceFloating(0,0,500,100,1,"full",null,null,true).Mode=="ultra","floating mode falls back using the full extension height");
-    Check(!Layout.PlaceFloating(0,0,500,60,1,"ultra",null,null,true).Visible,"floating extension never escapes an undersized client");
+    Check(!Layout.PlaceFloating(0,0,500,Layout.HeightForMode("ultra",true)+7,1,"ultra",null,null,true).Visible,"floating extension never escapes an undersized client");
   }
   static void CreditExtensions() {
     foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(bool resets in new[]{false,true})foreach(bool credits in new[]{false,true})foreach(string mode in new[]{"full","compact","ultra"}) {
@@ -122,6 +122,6 @@ class LayoutTest {
       else Check(!Layout.Place(0,0,500*scale,(minimum-1)*scale,scale,mode,resets,credits).Visible,"expanded ultra hides below its minimum boundary");
     }
     Check(Layout.PlaceFloating(0,0,500,100,1,"full",null,null,true,true).Mode=="ultra","floating fallback uses the full combined height");
-    Check(!Layout.PlaceFloating(0,0,500,83,1,"ultra",null,null,true,true).Visible,"combined ultra blocks respect the client margin when height is insufficient");
+    Check(!Layout.PlaceFloating(0,0,500,Layout.HeightForMode("ultra",true,true)+7,1,"ultra",null,null,true,true).Visible,"combined ultra blocks respect the client margin when height is insufficient");
   }
 }

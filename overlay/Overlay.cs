@@ -143,7 +143,7 @@ namespace QuotaOverlay {
     internal Rect RootBounds;
     internal readonly List<Rect> Controls=new List<Rect>();
     internal int Candidates;
-    static double FooterStart(IList<RailRegion> controls) {
+    internal static double FooterStart(IList<RailRegion> controls) {
       var sorted=new List<RailRegion>(controls);sorted.Sort(delegate(RailRegion a,RailRegion b){return a.Top.CompareTo(b.Top);});
       double end=Double.NegativeInfinity,gap=0,footer=Double.NegativeInfinity;
       foreach(var c in sorted){if(!Double.IsNegativeInfinity(end)&&c.Top-end>gap){gap=c.Top-end;footer=c.Top;}end=Math.Max(end,c.Bottom);}
@@ -166,6 +166,16 @@ namespace QuotaOverlay {
       // shortcut: the rail gap separates ChatGPT navigation and footer; revalidate if their anchoring changes.
       double footer=FooterStart(controls);
       foreach(var c in controls)result.Add(new RailRegion{Top=c.Top+(c.Top>=footer?Math.Min(0,heightChange):0),Bottom=c.Bottom+(c.Top>=footer?Math.Max(0,heightChange):0)});
+      return result;
+    }
+    internal static IList<RailRegion> ProjectFooter(IList<RailRegion> controls,double heightChange) {
+      var result=new List<RailRegion>();double footer=FooterStart(controls);
+      foreach(var c in controls){double shift=c.Top>=footer?heightChange:0;result.Add(new RailRegion{Top=c.Top+shift,Bottom=c.Bottom+shift});}
+      return result;
+    }
+    internal IList<RailRegion> RelativeControls(double scale) {
+      var result=new List<RailRegion>();
+      foreach(var b in Controls)if(!b.IsEmpty&&b.Width>0&&b.Height>0&&b.Left<RootBounds.Left+49*scale&&b.Right>RootBounds.Left+3*scale&&b.Top<RootBounds.Bottom&&b.Bottom>RootBounds.Top)result.Add(new RailRegion{Top=b.Top-RootBounds.Top,Bottom=b.Bottom-RootBounds.Top});
       return result;
     }
     internal IList<RailRegion> Project(Native.Point before,Native.Point after,int width,int height,int afterWidth,int afterHeight,double scale,double afterScale,bool verifiedClientDocument,out bool verified,IList<RailRegion> expectedControls=null) {
@@ -211,18 +221,36 @@ namespace QuotaOverlay {
     }
   }
   internal sealed class SidebarGeometrySource:IDisposable {
-    internal sealed class Sample {internal IntPtr Target;internal int Width,Height;internal double Scale;internal long At;internal bool Verified;internal IList<RailRegion> Controls;}
-    readonly object gate=new object();readonly Stopwatch clock=Stopwatch.StartNew();Sample sample;
+    internal sealed class Sample {internal IntPtr Target;internal int Width,Height;internal double Scale;internal long At;internal bool Verified,FooterAnchored;internal IList<RailRegion> Controls;}
+    readonly object gate=new object();readonly Stopwatch clock=Stopwatch.StartNew();Sample sample,anchorReference;
     bool busy,disposed;long next,lastRequested=-1000;
     internal Action Updated;
     internal static IList<RailRegion> CurrentControls(Sample value,IntPtr target,int width,int height,double scale,long now) {
       if(value==null||value.Controls==null||value.Target!=target||width<=0||height<=0||scale<=0||Math.Abs(value.Scale-scale)>=.001||Double.IsNaN(scale)||Double.IsInfinity(scale)||now<value.At||now-value.At>3000)return null;
       if(value.Width==width&&value.Height==height)return value.Controls;
-      return value.Verified?SidebarControlSnapshot.ResizeEnvelope(value.Controls,height-value.Height):null;
+      return value.Verified?(value.FooterAnchored&&value.Width==width?SidebarControlSnapshot.ProjectFooter(value.Controls,height-value.Height):SidebarControlSnapshot.ResizeEnvelope(value.Controls,height-value.Height)):null;
+    }
+    internal static bool FooterTracksResize(Sample before,Sample after) {
+      // Learn anchoring from two coherent document receipts, not from a guessed
+      // footer location. Any navigation/offset change revokes the prediction.
+      if(before==null||after==null||!before.Verified||!after.Verified||before.Target!=after.Target||Math.Abs(before.Scale-after.Scale)>.001||Math.Abs(before.Width-after.Width)>2||after.At<before.At||after.At-before.At>3000||before.Controls==null||after.Controls==null||before.Controls.Count!=after.Controls.Count)return false;
+      var a=new List<RailRegion>(before.Controls);var b=new List<RailRegion>(after.Controls);
+      Comparison<RailRegion> order=delegate(RailRegion x,RailRegion y){int n=x.Top.CompareTo(y.Top);return n!=0?n:x.Bottom.CompareTo(y.Bottom);};a.Sort(order);b.Sort(order);
+      double oldFooter=SidebarControlSnapshot.FooterStart(a),newFooter=SidebarControlSnapshot.FooterStart(b),tolerance=2*after.Scale;bool navigation=false,footer=false;
+      for(int i=0;i<a.Count;i++) {
+        bool oldBottom=a[i].Top>=oldFooter,newBottom=b[i].Top>=newFooter;if(oldBottom!=newBottom)return false;
+        if(oldBottom){footer=true;if(Math.Abs((a[i].Top-before.Height)-(b[i].Top-after.Height))>tolerance||Math.Abs((a[i].Bottom-before.Height)-(b[i].Bottom-after.Height))>tolerance)return false;}
+        else {navigation=true;if(Math.Abs(a[i].Top-b[i].Top)>tolerance||Math.Abs(a[i].Bottom-b[i].Bottom)>tolerance)return false;}
+      }
+      return navigation&&footer&&(before.FooterAnchored||Math.Abs(before.Height-after.Height)>tolerance);
+    }
+    internal static IList<RailRegion> ProjectAnchoredReceipt(Sample receipt,int beforeWidth,int afterWidth,int afterHeight) {
+      if(receipt==null||!receipt.FooterAnchored||beforeWidth!=afterWidth||Math.Abs(receipt.Width-afterWidth)>2)return null;
+      return SidebarControlSnapshot.ProjectFooter(receipt.Controls,afterHeight-receipt.Height);
     }
     AutomationElement document;IntPtr documentTarget;bool documentFillsClient;
     long lastDuration;int lastControls,lastVisited;bool lastBottom;string lastError;
-    internal object Debug {get{lock(gate)return new{busy=busy,duration=lastDuration,controls=lastControls,candidates=lastVisited,bottom=lastBottom,error=lastError,age=sample==null?-1:clock.ElapsedMilliseconds-sample.At};}}
+    internal object Debug {get{lock(gate)return new{busy=busy,duration=lastDuration,controls=lastControls,candidates=lastVisited,bottom=lastBottom,anchored=sample!=null&&sample.FooterAnchored,error=lastError,age=sample==null?-1:clock.ElapsedMilliseconds-sample.At};}}
     internal static SidebarControlSnapshot MeasureSnapshot(AutomationElement root,uint excludedProcess) {
       var filters=new List<System.Windows.Automation.Condition>();
       foreach(var type in new[]{ControlType.Window,ControlType.Document,ControlType.Button,ControlType.Hyperlink,ControlType.MenuItem,ControlType.TabItem,ControlType.ComboBox,ControlType.CheckBox,ControlType.Edit})filters.Add(new PropertyCondition(AutomationElement.ControlTypeProperty,type));
@@ -261,8 +289,15 @@ namespace QuotaOverlay {
                 var expected=previous!=null&&previous.Target==target&&Math.Abs(previous.Scale-scale)<.001?previous.Controls:null;
                 var measured=snapshot.Project(origin,afterOrigin,width,height,afterRect.Right,afterRect.Bottom,scale,Native.GetDpiForWindow(target)/96.0,documentFillsClient,out verified,expected);documentFillsClient=documentFillsClient||verified;
                 if(measured!=null) {
+                  bool anchored=false;
+                  if(verified) {
+                    var receipt=new Sample{Target=target,Width=(int)Math.Round(snapshot.RootBounds.Width),Height=(int)Math.Round(snapshot.RootBounds.Height),Scale=scale,At=measuredAt,Verified=true,Controls=snapshot.RelativeControls(scale)};
+                    lock(gate){receipt.FooterAnchored=FooterTracksResize(anchorReference,receipt);if(!disposed)anchorReference=receipt;}
+                    var projected=ProjectAnchoredReceipt(receipt,width,afterRect.Right,afterRect.Bottom);
+                    if(projected!=null){measured=projected;anchored=true;}
+                  }
                   controls.AddRange(measured);bool bottomKnown=false;foreach(var control in controls)if(control.Bottom>afterRect.Bottom-120*scale&&control.Top>afterRect.Bottom/2)bottomKnown=true;count=controls.Count;bottom=bottomKnown;
-                  if(controls.Count>=3&&bottomKnown)value=new Sample{Target=target,Width=afterRect.Right,Height=afterRect.Bottom,Scale=scale,At=measuredAt,Verified=verified,Controls=controls};
+                  if(controls.Count>=3&&bottomKnown)value=new Sample{Target=target,Width=afterRect.Right,Height=afterRect.Bottom,Scale=scale,At=measuredAt,Verified=verified,FooterAnchored=anchored,Controls=controls};
                 }
               }
             }
@@ -274,7 +309,7 @@ namespace QuotaOverlay {
         return CurrentControls(sample,target,width,height,scale,now);
       }
     }
-    public void Dispose(){lock(gate){disposed=true;sample=null;}}
+    public void Dispose(){lock(gate){disposed=true;sample=null;anchorReference=null;}}
   }
   public class OverlayWindow : Window {
     readonly SidebarGeometrySource sidebarGeometry=new SidebarGeometrySource();
@@ -488,7 +523,9 @@ namespace QuotaOverlay {
       tracker.Interval=TimeSpan.FromMilliseconds(200); tracker.Tick+=delegate { UpdatePlacement(); };tracker.Start();
       motionTracker.Interval=TimeSpan.FromMilliseconds(16);
       motionTracker.Tick+=delegate {
-        if(closing||NowMilliseconds()>=motionDeadline) {interactiveMove=false;motionTracker.Stop();QueuePlacementRefresh();return;}
+        // Keep frame-rate tracking for the entire native move/size loop.
+        // A missing end notification still times out after a long idle grace period.
+        if(closing||target==IntPtr.Zero||!Native.IsWindow(target)||NowMilliseconds()>=motionDeadline+(interactiveMove?30000:0)) {interactiveMove=false;motionTracker.Stop();QueuePlacementRefresh();return;}
         SyncTargetFrame();
       };
       // Out-of-context events run on this registering UI thread. Apply geometry
@@ -501,7 +538,7 @@ namespace QuotaOverlay {
       StartupCheckpoint("constructed");
     }
     static long NowMilliseconds() {return (long)(Stopwatch.GetTimestamp()*1000.0/Stopwatch.Frequency);}
-    bool MotionActive() {return motionTracker.IsEnabled&&NowMilliseconds()<motionDeadline;}
+    bool MotionActive() {return motionTracker.IsEnabled&&(interactiveMove||NowMilliseconds()<motionDeadline);}
     void QueuePlacementRefresh() {
       if(closing||refreshQueued)return;
       refreshQueued=true;
@@ -510,7 +547,7 @@ namespace QuotaOverlay {
     void ReceiveWindowEvent(IntPtr hook,uint ev,IntPtr window,int obj,int child,uint thread,uint time) {
       if(closing)return;
       if(ev==3){QueuePlacementRefresh();return;}
-      if(window!=target||target==IntPtr.Zero||obj!=0||child!=0)return;
+      if(window!=target||target==IntPtr.Zero||(obj!=0&&obj!=-4)||child!=0)return;
       if(ev==0xA)interactiveMove=true;
       if(ev==0xB) {
         interactiveMove=false;motionTracker.Stop();SyncTargetFrame();QueuePlacementRefresh();return;
@@ -928,7 +965,7 @@ namespace QuotaOverlay {
       if(hwnd==IntPtr.Zero)Height=panel.Height;
       surface.Height=panel.Height;
       panel.Padding=new Thickness(3,0,3,7);
-      divider.Margin=new Thickness(1,4,1,4);quotaDividerRow.MinHeight=ultra?0:9;staleHeaderRow.Height=new GridLength(showResets?0:Layout.StaleHeaderHeight);
+      divider.Margin=new Thickness(1,4,1,4);quotaDividerRow.MinHeight=ultra?0:9;staleHeaderRow.Height=new GridLength(showResets?0:Layout.HeaderHeight(mode));
       for(int i=0;i<2;i++) {
         values[i].Visibility=ultra?Visibility.Collapsed:Visibility.Visible;
         periods[i].Visibility=compact?Visibility.Collapsed:Visibility.Visible;
@@ -950,7 +987,7 @@ namespace QuotaOverlay {
       if(panel.Height!=required){panel.Height=required;surface.Height=required;if(hwnd==IntPtr.Zero)Height=required;}
       foreach(var marker in markers)marker.Visibility=Visibility.Collapsed;
       staleLabel.Text=stale?T("stale"):"";
-      staleLabel.Visibility=stale?Visibility.Visible:Visibility.Collapsed;
+      staleLabel.Visibility=stale&&presentationMode!="ultra"?Visibility.Visible:Visibility.Collapsed;
     }
     static void Command(string command) { try { Console.Out.WriteLine("{\"command\":\""+command+"\"}");Console.Out.Flush(); } catch {} }
     void SetLiveTrayIcon(bool enabled) {
@@ -1090,7 +1127,7 @@ namespace QuotaOverlay {
     void RefreshResetsPanel() {
       if(resetsBlock==null)return;
       bool ultra=presentationMode=="ultra",full=presentationMode=="full";
-      resetsBlock.Padding=new Thickness(0,full?0:5,0,0);resetsBlock.Height=Layout.ResetsHeight(presentationMode);resetsBlock.Visibility=showResets?Visibility.Visible:Visibility.Collapsed;
+      resetsBlock.Padding=new Thickness(0,full||ultra?0:5,0,0);resetsBlock.Height=Layout.ResetsHeight(presentationMode);resetsBlock.Visibility=showResets?Visibility.Visible:Visibility.Collapsed;
       var data=resetsView??new Dictionary<string,object>();object count;
       string value=data.TryGetValue("availableCount",out count)&&count!=null?Convert.ToString(count,CultureInfo.InvariantCulture):"—";
       string date=Get(data,"date"),time=Get(data,"time"),tone=Get(data,"tone");

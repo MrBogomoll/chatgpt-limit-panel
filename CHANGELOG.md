@@ -1,5 +1,11 @@
 # Changes
 
+## 1.7.5 — 2026-11-07
+
+- Remove the stale label and its reserved space from ultra mode. Keep stale data dimmed and retain the shared warning in full/compact modes.
+- Keep fast tracking active through the complete native move/resize interaction and accept client-area resize notifications.
+- Learn a bottom-anchored footer only from matching verified receipts at different heights. Project confirmed footer positions between accessibility updates, while retaining conservative handling for unverified, stale, changed or width-mismatched maps.
+
 ## 1.7.4 — 2026-11-07
 
 - Shorten full and compact panels to fit their content, keeping the quota divider gap between 4 and 6 px instead of expanding empty space.
