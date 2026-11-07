@@ -61,9 +61,9 @@ namespace QuotaOverlay {
       foreach(var span in spans){if(span.Top-cursor>=result.Height){double candidate=Math.Max(cursor,Math.Min(span.Top-result.Height,desired)),difference=Math.Abs(candidate-desired);if(difference<distance){distance=difference;best=candidate;}}cursor=Math.Max(cursor,span.Bottom);}
       result.Visible=!Double.IsPositiveInfinity(distance);if(result.Visible)result.Y=top+best;return result;
     }
-    public const double PanelWidth=46, PanelHeight=169, CompactHeight=115, UltraHeight=29, BottomClearance=110;
+    public const double PanelWidth=46, PanelHeight=169, CompactHeight=115, UltraHeight=32, BottomClearance=110;
     public const double StaleHeaderHeight=10;
-    public static double HeaderHeight(string mode) {return mode=="ultra"?0:StaleHeaderHeight;}
+    public static double HeaderHeight(string mode) {return mode=="ultra"?3:StaleHeaderHeight;}
     public static double ResetsHeight(string mode) {return mode=="ultra"?22:mode=="compact"?41:64;}
     public static double CreditsHeight(string mode) {return mode=="ultra"?24:mode=="compact"?38:40;}
     public static double HeightForMode(string mode,bool showResets=false,bool showCredits=false,int staleRows=0) {

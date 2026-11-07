@@ -748,6 +748,7 @@ class OverlayNativeTest {
       }
       var marker=Field<TextBlock[]>(window,"markers")[1];if(marker.Visibility==Visibility.Visible)last=Math.Max(last,ContentBounds(marker,panel).Bottom);
       Check(Math.Abs(panel.ActualHeight-last-8)<.05,"last visible content must leave exactly 8 DIP below it: "+mode+"/"+language+"/stale="+stale+", actual="+(panel.ActualHeight-last));
+      if(mode=="ultra"&&!resets&&!credits)Check(Math.Abs(ContentBounds(bars[0],panel).Top-8)<.05,"bare ultra bars need the same 8 DIP clearance above and below, away from the rounded border; actual top="+ContentBounds(bars[0],panel).Top);
       if(mode!="ultra") {
         Rect separator=ContentBounds(Field<Border>(window,"divider"),panel);
         double gap=separator.Top-ContentBounds(bars[0],panel).Bottom;

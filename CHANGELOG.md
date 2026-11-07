@@ -1,5 +1,10 @@
 # Changes
 
+## 1.7.6 — 2026-11-07
+
+- Give the bare ultracompact quota bars matching 8 px top and bottom insets so the upper bar stays clear of the rounded frame. Keep the panel compact and preserve optional reset block dimensions.
+- Refresh the Russian and English descriptions and render separate comparison images for reset, credit and indicator combinations.
+
 ## 1.7.5 — 2026-11-07
 
 - Remove the stale label and its reserved space from ultra mode. Keep stale data dimmed and retain the shared warning in full/compact modes.

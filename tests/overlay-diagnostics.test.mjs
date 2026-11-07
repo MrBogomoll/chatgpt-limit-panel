@@ -22,7 +22,7 @@ function healthyState() {
 }
 
 test('diagnostics keeps fixed dimensions when the shared stale label appears, including unknown quota', () => {
-  for(const [mode,base] of [['full',169],['compact',115],['ultra',29]]) {
+  for(const [mode,base] of [['full',169],['compact',115],['ultra',32]]) {
     for(const global of [false,true]) {
       const state={...healthyState(),mode,compact:mode!=='full',view:{rows:[{marker:global?'':'stale'},{marker:global?'':'stale'}],stale:global}};
       state.panel={...state.panel,y:890-base,height:base};
@@ -41,7 +41,7 @@ test('diagnostics accepts saved manual placement within the client and rejects o
 
 test('diagnostics accepts the explicit ultracompact geometry and rejects invalid or inconsistent mode reports', () => {
   const state={...healthyState(),mode:'ultra',preferredMode:'ultra'};
-  state.panel={...state.panel,y:861,height:29};
+  state.panel={...state.panel,y:858,height:32};
   assert.equal(verifyOverlayState(state,{updatedAt:Date.now()}).result,'PASS');
   assert.throws(()=>verifyOverlayState({...state,mode:'invalid'},{updatedAt:Date.now()}),/mode/i);
   assert.throws(()=>verifyOverlayState({...state,compact:false},{updatedAt:Date.now()}),/mode/i);
@@ -66,7 +66,7 @@ async function runChecker(t, state, ageMs = 0) {
 }
 
 test('diagnostics accepts optional reset extension heights only when explicitly enabled', () => {
-  for (const [mode,base,extra] of [['full',169,54],['compact',115,31],['ultra',29,22]]) {
+  for (const [mode,base,extra] of [['full',169,54],['compact',115,31],['ultra',32,19]]) {
     const state={...healthyState(),mode,compact:mode!=='full',showResets:true};
     state.panel={...state.panel,y:890-base-extra,height:base+extra};
     assert.equal(verifyOverlayState(state,{updatedAt:Date.now()}).result,'PASS');
@@ -75,7 +75,7 @@ test('diagnostics accepts optional reset extension heights only when explicitly 
 });
 
 test('diagnostics accounts for credits with and without the reset extension in every mode', () => {
-  for (const [mode,base,resets,credits] of [['full',169,54,40],['compact',115,31,38],['ultra',29,22,24]]) {
+  for (const [mode,base,resets,credits] of [['full',169,54,40],['compact',115,31,38],['ultra',32,19,24]]) {
     for (const showResets of [false,true]) {
       const height=base+credits+(showResets?resets:0);
       const state={...healthyState(),mode,compact:mode!=='full',showResets,showCredits:true};

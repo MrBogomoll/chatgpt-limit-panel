@@ -1,14 +1,10 @@
 # ChatGPT Limit Panel
 
-**Right-click → Panel content → Show resets** toggles a block above the quotas: count, expiration date and time in full mode; count and date in compact; a small `↻ 3` count badge in ultra. The shared visibility setting persists across modes and restarts. Expiration is orange at 10 days or less and red at 3 days or less. Viewing does not redeem a reset; missing and stale data are labelled explicitly. The Available resets submenu lists each reset in expiration order with its date and time.
-
-**Right-click → Panel content → Show credits** toggles the Codex credit balance between resets and quotas. It is separate from API billing, which this data source does not provide. The Credits label appears above the balance in full and compact modes; ultra shows only the number. Hover for the exact value. A lighter 2 px divider separates these extras from the main quotas in full and compact modes; ultra keeps a thin line.
-
 [Русский](README.md)
 
 <img src="plugins/chatgpt-limit-panel/assets/chatgpt-limit-panel.png" width="88" height="88" alt="ChatGPT Limit Panel">
 
-A Windows panel showing your remaining **5-hour and weekly Codex / Work limits** and their reset times. It appears over the desktop ChatGPT window; a taskbar indicator and live tray icon are optional. Instant displays the same Codex / Work counters.
+A **Codex / Work** limit panel for desktop ChatGPT on Windows. Shows remaining 5-hour and weekly quotas, reset times, available resets with expiration dates, and the Codex credit balance. Three panel sizes, light and dark themes, plus taskbar and tray indicators.
 
 **[Download for Windows x64](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/latest)** · [Update](UPGRADING.md) · [Uninstall](UNINSTALL.md) · [All releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases)
 
@@ -16,22 +12,40 @@ Download the built application ZIP under **Assets**. GitHub's **Source code** ar
 
 ## Features
 
-- Remaining limits and reset times from Codex, refreshed about every 30 seconds. Stale and unknown values are marked separately.
-- Full, compact and ultracompact views; left-click cycles views and right-click opens settings.
-- Pin to the sidebar or drag freely inside the ChatGPT window. The position is saved; Reset position returns the panel to the sidebar area.
-- Independent panel background opacity and taskbar indicator transparency. Set panel **background opacity to 100%** to prevent conversation text from showing through.
-- Bars and an outline show remaining quota; choose the 5-hour or weekly limit for the outline. Muted orange indicates ≤30% remaining, red ≤10%. Ultracompact always keeps both bars.
-- An optional taskbar indicator with percentages and selectable placement, and an optional live tray icon showing the same two limits.
-- Dark, light and automatic themes; Russian and English languages. Preferences persist across restarts.
-
-
+- **Codex / Work limits:** remaining 5-hour and weekly quotas with reset dates and times, refreshed about every 30 seconds. Instant shows the same counters.
+- **Available resets:** a count and nearest expiration on the panel, plus a submenu listing every expiration date and time. The block turns orange at 10 days or less and red at 3 days or less. Viewing does not redeem a reset.
+- **Codex credits:** a separate balance between resets and quotas. Reset and credit blocks can be toggled independently. The current data source does not provide the API billing balance.
+- **Three sizes:** full, compact and ultracompact. Left-click cycles views; right-click opens settings. The panel automatically shrinks when space is limited.
+- **Bars and outline:** choose the indicator combination and which quota drives the outline. Orange means ≤30% remaining; red means ≤10%. Ultracompact always keeps both bars, and stale data is dimmed.
+- **Placement:** pin to the sidebar or drag freely inside ChatGPT. Positions persist and can be reset from the menu.
+- **Taskbar and tray:** a draggable percentage indicator and a separately enabled live tray icon showing both quotas.
+- **Appearance:** dark, light and automatic themes, Russian and English, and independent panel background opacity and taskbar indicator transparency. Preferences persist.
 
 ## Preview
 
-| Theme | Full | Compact | Ultracompact |
-| :--- | :---: | :---: | :---: |
-| Dark | <img src="images/full-dark.png" width="80" alt="Full dark"> | <img src="images/compact-dark.png" width="80" alt="Compact dark"> | <img src="images/ultracompact-dark.png" width="80" alt="Ultracompact dark"> |
-| Light | <img src="images/full-light.png" width="80" alt="Full light"> | <img src="images/compact-light.png" width="80" alt="Compact light"> | <img src="images/ultracompact-light.png" width="80" alt="Ultracompact light"> |
+Resets and credits can be toggled independently through **Right-click → Panel content**. Each example below is a separate image with demonstration data.
+
+### Full view
+
+| Indicator | Limits only | With resets | With credits | Both blocks |
+| :--- | :---: | :---: | :---: | :---: |
+| Bars and outline | <img src="images/panels/limits-full-both-dark.png" width="64" alt="Limits only, full, both, dark"> | <img src="images/panels/resets-full-both-dark.png" width="64" alt="With resets, full, both, dark"> | <img src="images/panels/credits-full-both-dark.png" width="64" alt="With credits, full, both, dark"> | <img src="images/panels/both-full-both-dark.png" width="64" alt="Both blocks, full, both, dark"> |
+| Outline only | <img src="images/panels/limits-full-outline-light.png" width="64" alt="Limits only, full, outline, light"> | <img src="images/panels/resets-full-outline-light.png" width="64" alt="With resets, full, outline, light"> | <img src="images/panels/credits-full-outline-light.png" width="64" alt="With credits, full, outline, light"> | <img src="images/panels/both-full-outline-light.png" width="64" alt="Both blocks, full, outline, light"> |
+
+### Compact view
+
+| Indicator | Limits only | With resets | With credits | Both blocks |
+| :--- | :---: | :---: | :---: | :---: |
+| Bars and outline | <img src="images/panels/limits-compact-both-light.png" width="64" alt="Limits only, compact, both, light"> | <img src="images/panels/resets-compact-both-light.png" width="64" alt="With resets, compact, both, light"> | <img src="images/panels/credits-compact-both-light.png" width="64" alt="With credits, compact, both, light"> | <img src="images/panels/both-compact-both-light.png" width="64" alt="Both blocks, compact, both, light"> |
+| Outline only | <img src="images/panels/limits-compact-outline-dark.png" width="64" alt="Limits only, compact, outline, dark"> | <img src="images/panels/resets-compact-outline-dark.png" width="64" alt="With resets, compact, outline, dark"> | <img src="images/panels/credits-compact-outline-dark.png" width="64" alt="With credits, compact, outline, dark"> | <img src="images/panels/both-compact-outline-dark.png" width="64" alt="Both blocks, compact, outline, dark"> |
+
+### Ultracompact view
+
+Both quota bars are always visible; optional blocks show only the reset count and credit balance.
+
+| Limits only | With resets | With credits | Both blocks |
+| :---: | :---: | :---: | :---: |
+| <img src="images/panels/limits-ultra-both-dark.png" width="64" alt="Limits only, ultra, both, dark"> | <img src="images/panels/resets-ultra-both-dark.png" width="64" alt="With resets, ultra, both, dark"> | <img src="images/panels/credits-ultra-both-light.png" width="64" alt="With credits, ultra, both, light"> | <img src="images/panels/both-ultra-both-light.png" width="64" alt="Both blocks, ultra, both, light"> |
 
 ### Beside the chat
 
@@ -66,7 +80,7 @@ With the taskbar indicator **or** live tray icon enabled, the monitor can refres
 
 The panel has been checked on Windows 11, including Start11 and placement next to NetWorx. Windows 10 compatibility is not yet confirmed. If ZIP import is unavailable or an error occurs, include the Windows version, client version and details in [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues).
 
-The program uses your existing local Codex sign-in. User credentials and settings are not included in the archive. This is an independent project, not an official OpenAI product. [ZIP checksum for 1.7.5](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.7.5/chatgpt-limit-panel-1.7.5-windows-x64.zip.sha256).
+The program uses your existing local Codex sign-in. User credentials and settings are not included in the archive. This is an independent project, not an official OpenAI product. [ZIP checksum for 1.7.6](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.7.6/chatgpt-limit-panel-1.7.6-windows-x64.zip.sha256).
 
 ## Data and security
 
