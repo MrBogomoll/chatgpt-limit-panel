@@ -1,4 +1,4 @@
-# ChatGPT Limit Panel 1.7.6
+# ChatGPT Limit Panel 1.7.7
 
 «Показывать сбросы» в меню панели и трея включает блок над лимитами. Полный вид: количество, дата и время; компактный: количество и дата; ультракомпактный: `↻ 3`. Выбор сохраняется во всех режимах.
 
@@ -9,6 +9,14 @@
 Панель оставшихся лимитов Codex / Work в настольном ChatGPT для Windows x64. Показывает проценты и серверные даты сброса в боковой полосе и, при включении, на панели задач Windows. В Instant отображаются те же лимиты.
 
 Для установки открой **Плагины → Добавить → Загрузить архив плагина** и выбери этот ZIP. Затем открой ChatGPT Limit Panel в меню плагинов и нажми «Запустить» в карточке управления. ПКМ по панели открывает вид, индикаторы, тему, язык, автозапуск и настройки панели задач. ЛКМ переключает полный, компактный и ультракомпактный виды. При включённом индикаторе панели задач лимиты обновляются и с закрытым окном ChatGPT.
+
+### Как открыть карточку и удалить плагин
+
+Открой новый чат в настольном приложении, введи **@** в поле сообщения и выбери **ChatGPT Limit Panel** в разделе **«Плагины»**. Отправь **«Открой управление панелью лимитов Codex/Work»**. В ответе появится карточка с кнопками «Запустить», «Остановить» и «Обновить состояние».
+
+Для удаления раскрой **«Настройки плагина»** внизу карточки → **«Удалить плагин…»**. В отдельном окне подтверди удаление. Галочка «Также удалить настройки, положения и журналы» по умолчанию снята. Без неё настройки сохраняются. Помощник сам остановит панель, уберёт её задачу запуска и удалит плагин. Подробности и инструкция для старых версий — в UNINSTALL.txt внутри ZIP.
+
+Если плагина нет в списке @, проверь, что он установлен и включён в разделе «Плагины». После обновления открой новый чат.
 
 Нужны Windows x64, локальный исполнитель и установленный Codex с выполненным входом. API-ключ, Git и отдельная установка Node.js не требуются. Язык, тема и остальные настройки сохраняются.
 
@@ -23,6 +31,14 @@
 A Windows x64 panel for the shared Codex / Work limits in desktop ChatGPT. Shows remaining percentages and server reset times beside the app and optionally on the Windows taskbar. Instant uses the same counters.
 
 To install, open **Plugins → Add → Upload plugin archive** and select this ZIP. Then open ChatGPT Limit Panel from plugins and click Start in its control card. Right-click for view, indicators, theme, language, autostart and taskbar settings. Left-click cycles full, compact and ultracompact. Enabled taskbar mode continues refreshing with the ChatGPT window closed.
+
+### Opening the card and removing the plugin
+
+Start a new chat in the desktop app, type **@**, and select **ChatGPT Limit Panel** under **Plugins**. Send **"Open the Codex/Work limit panel controls."** The reply will contain the card with Start, Stop and Refresh status buttons.
+
+Expand **Plugin settings** at the bottom of the card → **Remove plugin…**, then confirm in the separate window. **Also delete settings, saved positions and logs** is unchecked by default; leave it unchecked to keep preferences. The helper stops the panel, removes its launch task, and uninstalls the plugin. See UNINSTALL.txt inside the ZIP for details and older-version instructions.
+
+If the plugin is missing from the @ menu, check that it is installed and enabled under Plugins. Start a new chat after updating.
 
 Requires a Windows x64 local executor and installed Codex signed in to your account. No API key, Git or separate Node.js installation is needed. Preferences are preserved.
 

@@ -21,7 +21,7 @@ npm run package:plugin
 
 The test suite runs files sequentially because native window tests share the Windows desktop. Tests use temporary fixtures and do not require your account limits. UI tests use installed Edge in headless mode.
 
-Build output: dist/overlay/ChatGPTLimitPanel.exe and ChatGPTLimitPanelLauncher.exe. Packaging includes the bundled Node runtime and third-party/NODE-LICENSE.txt. Built archives appear under dist/releases; packaging refuses to overwrite an existing archive. Change release metadata consistently before creating a different distributable version.
+Build output: dist/overlay/ChatGPTLimitPanel.exe and ChatGPTLimitPanelLauncher.exe, plus the independent ChatGPTLimitPanelUninstaller.exe. Packaging includes the bundled Node runtime and third-party/NODE-LICENSE.txt. Built archives appear under dist/releases; packaging refuses to overwrite an existing archive. Change release metadata consistently before creating a different distributable version.
 
 ## Preview images
 

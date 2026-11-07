@@ -22,6 +22,10 @@ if(!test && result.status===0) {
   const launcher=spawnSync(path.join(framework,'csc.exe'),['/nologo','/codepage:65001','/platform:x64','/target:winexe',`/out:${path.join(out,'ChatGPTLimitPanelLauncher.exe')}`,`/reference:${path.join(framework,'System.Web.Extensions.dll')}`,`/reference:${path.join(framework,'System.Windows.Forms.dll')}`,path.join(root,'overlay/ProductInfo.cs'),path.join(root,'overlay/Launcher.cs'),path.join(root,'overlay/TaskHost.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'overlay/Language.cs')],{encoding:'utf8',windowsHide:true});
   if(launcher.stdout)process.stdout.write(launcher.stdout);if(launcher.stderr)process.stderr.write(launcher.stderr);
   if(launcher.error)throw launcher.error;process.exitCode=launcher.status??1;
+  if(launcher.status!==0)process.exit(launcher.status??1);
+  const uninstaller=spawnSync(path.join(framework,'csc.exe'),['/nologo','/codepage:65001','/platform:x64','/target:winexe','/main:PanelUninstallerProgram',`/out:${path.join(out,'ChatGPTLimitPanelUninstaller.exe')}`,`/reference:${path.join(framework,'System.Web.Extensions.dll')}`,`/reference:${path.join(framework,'System.Windows.Forms.dll')}`,`/reference:${path.join(framework,'System.Drawing.dll')}`,`/reference:${path.join(framework,'System.Management.dll')}`,path.join(root,'overlay/ProductInfo.cs'),path.join(root,'overlay/Uninstall.cs'),path.join(root,'overlay/Launcher.cs'),path.join(root,'overlay/TaskHost.cs'),path.join(root,'overlay/Preferences.cs'),path.join(root,'overlay/Language.cs')],{encoding:'utf8',windowsHide:true});
+  if(uninstaller.stdout)process.stdout.write(uninstaller.stdout);if(uninstaller.stderr)process.stderr.write(uninstaller.stderr);
+  if(uninstaller.error)throw uninstaller.error;process.exitCode=uninstaller.status??1;
   const codex=process.env.QUOTA_CODEX_BIN||process.env.CODEX_CLI_PATH||'codex';
   writeFileSync(path.join(out,'runtime.json'),JSON.stringify({node:process.execPath,host:path.join(root,'overlay/host.mjs'),codex},null,2));
 }

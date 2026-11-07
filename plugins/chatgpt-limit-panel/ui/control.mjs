@@ -6,8 +6,11 @@ const stopButton = document.getElementById('stop');
 const refreshButton = document.getElementById('refresh');
 const updateButton=document.getElementById('check-updates'),releaseButton=document.getElementById('open-release'),updateStatus=document.getElementById('update-status');
 let updateBusy=false,updateSnapshot,openFailure=false;
+const uninstallButton=document.getElementById('open-uninstaller'),uninstallStatus=document.getElementById('uninstall-status');
+let uninstallBusy=false,uninstallState='';
 const copy = {
   ru: {
+    pluginSettings:'Настройки плагина',uninstall:'Удалить плагин…',uninstallNote:'Полное удаление панели. Настройки можно сохранить.',uninstallOpening:'Открываю окно подтверждения…',uninstallOpened:'Подтверди удаление в отдельном окне.',uninstallError:'Не удалось открыть окно удаления. Проверь установку плагина.',
     checkUpdates:'Проверить обновления',openRelease:'Открыть релиз',checkingUpdates:'Проверка обновлений…',
     updateAvailable:(latest,current)=>`Доступна ChatGPT Limit Panel ${latest}. Установлена: ${current}.`,
     updateCurrent:current=>`Установлена актуальная ChatGPT Limit Panel ${current}.`,
@@ -23,6 +26,7 @@ const copy = {
     notice: 'При первом запуске настраивается автозапуск при входе в Windows. Панель ждёт открытия ChatGPT и появляется примерно через 3 секунды. Автозапуск можно отключить через ПКМ по панели. «Остановить» завершает текущий монитор; настройка автозапуска сохраняется. Windows x64, локальный исполнитель.',
   },
   en: {
+    pluginSettings:'Plugin settings',uninstall:'Remove plugin…',uninstallNote:'Remove the panel completely. You can keep your settings.',uninstallOpening:'Opening the confirmation window…',uninstallOpened:'Confirm removal in the separate window.',uninstallError:'Could not open the removal window. Check the plugin installation.',
     checkUpdates:'Check for updates',openRelease:'Open release',checkingUpdates:'Checking for updates…',
     updateAvailable:(latest,current)=>`ChatGPT Limit Panel ${latest} is available. Installed: ${current}.`,
     updateCurrent:current=>`ChatGPT Limit Panel ${current} is up to date.`,
@@ -46,6 +50,7 @@ function applyLanguage(value) {
   startButton.textContent = t('start'); stopButton.textContent = t('stop'); refreshButton.textContent = t('refresh');
   document.getElementById('notice').textContent = t('notice');
   updateButton.textContent=t('checkUpdates');releaseButton.textContent=t('openRelease');renderUpdate();
+  document.getElementById('plugin-settings-label').textContent=t('pluginSettings');document.getElementById('uninstall-note').textContent=t('uninstallNote');uninstallButton.textContent=t('uninstall');uninstallStatus.textContent=uninstallState?t(uninstallState):'';
 }
 applyLanguage(language); status.textContent = t('connecting');
 
@@ -65,12 +70,23 @@ function applyHostContext(context) {
 }
 
 function buttons() {
-  const disabled = busy || !connected || disposed;
+  const disabled = busy || uninstallBusy || !connected || disposed;
   startButton.disabled = disabled || snapshot?.running === true;
   stopButton.disabled = disabled || snapshot?.running === false;
   refreshButton.disabled = disabled;
   updateButton.disabled=updateBusy||!connected||disposed;
+  uninstallButton.disabled=disabled;
 }
+uninstallButton.addEventListener('click',async()=>{
+  if(busy||uninstallBusy||disposed||!connected)return;
+  uninstallBusy=true;uninstallState='uninstallOpening';uninstallStatus.textContent=t(uninstallState);buttons();
+  try{
+    const result=await rpc('tools/call',{name:'open_quota_panel_uninstaller',arguments:{}});
+    if(result?.isError||result?.structuredContent?.opened!==true)throw Error();
+    if(!disposed){uninstallState='uninstallOpened';applyLanguage(result.structuredContent.language);}
+  }catch{if(!disposed)uninstallState='uninstallError';}
+  finally{uninstallBusy=false;if(!disposed){uninstallStatus.textContent=t(uninstallState);buttons();}}
+});
 function safeReleaseUrl(url) {return typeof url==='string'&&url.length<200&&url===url.trim()&&/^https:\/\/github\.com\/MrBogomoll\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\/releases\/tag\/v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(url);}
 function renderUpdate() {
   const value=updateSnapshot;releaseButton.hidden=updateBusy||value?.state!=='available'||!safeReleaseUrl(value.url);
@@ -144,7 +160,7 @@ refreshButton.addEventListener('click', () => call('get_quota_overlay_status'));
 window.addEventListener('pagehide', dispose, { once: true });
 
 try {
-  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'chatgpt-limit-panel', version: '1.7.6' }, appCapabilities: {} });
+  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'chatgpt-limit-panel', version: '1.7.7' }, appCapabilities: {} });
   if (!disposed) {
     applyHostContext(result?.hostContext); connected = true;
     window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized' }, '*');

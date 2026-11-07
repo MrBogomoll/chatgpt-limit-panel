@@ -12,8 +12,9 @@ const tools = [
   { name: 'stop_quota_overlay', title: 'Остановить панель лимитов', description: 'Кооперативно закрывает только локальный монитор лимитов. Повторная остановка безопасна. Клиент ChatGPT не закрывает.', inputSchema: emptyArguments, annotations: mutation, _meta: { 'openai/widgetAccessible': true } },
   { name: 'get_quota_overlay_status', title: 'Обновить состояние панели', description: 'Проверяет, запущен ли локальный монитор лимитов. Перекрытая другим окном или скрытая при сворачивании панель продолжает считаться запущенной.', inputSchema: emptyArguments, annotations: readOnly, _meta: { ui: { visibility: ['app'] }, 'openai/widgetAccessible': true } },
   {name:'check_quota_panel_updates',title:'Проверить обновления ChatGPT Limit Panel',description:'Вручную проверяет последний стабильный выпуск в публичном GitHub. Возвращает доступную версию и ссылку на релиз; не устанавливает обновление и не запускает монитор.',inputSchema:emptyArguments,annotations:{...readOnly,openWorldHint:true},_meta:{'openai/widgetAccessible':true}},
+  {name:'open_quota_panel_uninstaller',title:'Открыть удаление ChatGPT Limit Panel',description:'Открывает отдельное окно подтверждения удаления плагина. Сам вызов ничего не удаляет и не останавливает панель.',inputSchema:emptyArguments,annotations:mutation,_meta:{ui:{visibility:['app']},'openai/widgetAccessible':true}},
 ];
-const methodFor = { show_quota_overlay: 'status', start_quota_overlay: 'start', stop_quota_overlay: 'stop', get_quota_overlay_status: 'status' };
+const methodFor = { show_quota_overlay: 'status', start_quota_overlay: 'start', stop_quota_overlay: 'stop', get_quota_overlay_status: 'status',open_quota_panel_uninstaller:'openUninstaller' };
 
 export function createMcpHandler({ controller, readUi, getLanguage = () => 'ru',updateChecker=createUpdateChecker() }) {
   return async request => {
@@ -21,7 +22,7 @@ export function createMcpHandler({ controller, readUi, getLanguage = () => 'ru',
     const respond = result => ({ jsonrpc: '2.0', id: request.id, result });
     const error = (code, message) => ({ jsonrpc: '2.0', id: request.id, error: { code, message } });
     switch (request.method) {
-      case 'initialize': return respond({ protocolVersion: request.params?.protocolVersion || '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'chatgpt-limit-panel', title: 'ChatGPT Limit Panel', version: '1.7.6' } });
+      case 'initialize': return respond({ protocolVersion: request.params?.protocolVersion || '2025-06-18', capabilities: { tools: {}, resources: {} }, serverInfo: { name: 'chatgpt-limit-panel', title: 'ChatGPT Limit Panel', version: '1.7.7' } });
       case 'ping': return respond({});
       case 'tools/list': return respond({ tools: getLanguage() === 'en' ? tools.map(tool => ({ ...tool, title: englishTools[tool.name][0], description: englishTools[tool.name][1] })) : tools });
       case 'resources/list': return respond({ resources: [{ uri: UI_URI, name: getLanguage() === 'en' ? 'ChatGPT Limit Panel controls' : 'Управление панелью лимитов', mimeType: 'text/html;profile=mcp-app' }] });
@@ -42,7 +43,7 @@ export function createMcpHandler({ controller, readUi, getLanguage = () => 'ru',
         }
         if (!Object.hasOwn(methodFor, name) || typeof args !== 'object' || args === null || Array.isArray(args) || Object.keys(args).length) return error(-32602, 'Unknown tool or arguments');
         try {
-          const state = await controller[methodFor[name]]();
+          const state = name==='open_quota_panel_uninstaller'?await controller.openUninstaller(getLanguage()):await controller[methodFor[name]]();
           return respond({ structuredContent: state, content: [{ type: 'text', text: state.message }] });
         } catch {
           return respond({ isError: true, content: [{ type: 'text', text: connectionError(getLanguage()) }] });

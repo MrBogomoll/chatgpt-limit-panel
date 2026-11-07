@@ -32,6 +32,7 @@ class LimitPanelLauncher {
       string data=QuotaOverlay.Preferences.DataDirectory();
       string command=args.Length==0?"--start":args[0];
       if(args.Length>1 || !new[]{"--start","--stop","--status-json","--start-json","--stop-json","--run-host","--enable-autostart-json","--disable-autostart-json"}.Contains(command))throw new Exception(QuotaOverlay.PanelLanguage.Text(QuotaOverlay.PanelLanguage.Current,"unknownCommand"));
+      if(command!="--status-json"&&command!="--stop"&&command!="--stop-json")QuotaPanelTaskHost.ThrowIfUninstalling();
       var before=ReadStatus(data,MonitorMutex);
       string launcher=Path.Combine(dir,"ChatGPTLimitPanelLauncher.exe");
       if(command=="--status-json") {FillAutostart(before,launcher);WriteJson(before);return;}

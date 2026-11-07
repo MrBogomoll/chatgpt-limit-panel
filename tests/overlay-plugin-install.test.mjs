@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 
 const api = await import('../overlay/install-plugin.mjs').catch(() => ({}));
 const payloadFiles = [
@@ -10,9 +11,10 @@ const payloadFiles = [
   'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
   'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',
-  'dist/overlay/ChatGPTLimitPanel.exe', 'dist/overlay/ChatGPTLimitPanelLauncher.exe', 'dist/overlay/runtime.json',
+  'dist/overlay/ChatGPTLimitPanel.exe', 'dist/overlay/ChatGPTLimitPanelLauncher.exe', 'dist/overlay/ChatGPTLimitPanelUninstaller.exe', 'dist/overlay/runtime.json',
   'runtime/node.exe', 'runtime/NODE-LICENSE.txt',
   'server/updates.mjs','plugins/chatgpt-limit-panel/server/updates.mjs',
+  'server/uninstall.mjs',
 ];
 
 async function fixture(t, installed = true) {
@@ -69,6 +71,10 @@ test('plugin installer registers a complete private marketplace and verifies nat
   assert.equal((await readdir(result.sourcePath)).includes('private-author-config.toml'), false);
   assert.equal((await readdir(result.sourcePath)).includes('plugin.json'), false);
   assert.equal(await readFile(result.configBackupPath, 'utf8'), settings.originalConfig);
+  const inventory=JSON.parse(await readFile(path.join(result.marketplaceRoot,'uninstall-inventory.json'),'utf8'));
+  assert.equal(inventory.schema,1);assert.equal(inventory.pluginId,'quota-panel@quota-panel-local');
+  for(const [relative,digest] of Object.entries(inventory.files))assert.equal(createHash('sha256').update(await readFile(path.join(result.marketplaceRoot,relative))).digest('hex'),digest,'uninstall receipt records exact generated file bytes');
+  assert.equal(Object.keys(inventory.files).some(file=>file.includes('private-author')),false);
   assert.equal(await readFile(path.join(settings.codexHome, 'config.toml'), 'utf8'), settings.originalConfig);
   const calls = (await readFile(settings.log, 'utf8')).trim().split('\n').map(JSON.parse);
   assert.equal(calls.length, 3);

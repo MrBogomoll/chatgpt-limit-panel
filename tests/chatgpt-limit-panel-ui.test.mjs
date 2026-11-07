@@ -8,6 +8,27 @@ const api = await import('../plugins/chatgpt-limit-panel/server/ui.mjs').catch((
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
+test('plugin settings keep uninstall separate and only open a native confirmation window',async()=>{
+ const ui=await api.buildUi();
+ const host=`<iframe src='/control' style='width:100%;height:680px;border:0'></iframe><script>window.calls=[];window.language='ru';window.fail=false;addEventListener('message',event=>{const m=event.data;if(m?.jsonrpc!=='2.0')return;calls.push(m);let result={};if(m.method==='ui/initialize')result={hostContext:{theme:'dark'}};if(m.method==='tools/call')result=m.params.name==='open_quota_panel_uninstaller'?(fail?{isError:true}:{structuredContent:{opened:true,language}}):{structuredContent:{status:'running',running:true,paused:false,language}};if(m.id!==undefined)event.source.postMessage({jsonrpc:'2.0',id:m.id,result},'*');});</script>`;
+ const server=createServer((request,response)=>{response.setHeader('content-type','text/html;charset=utf-8');response.end(request.url==='/control'?ui:host);});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const browser=await chromium.launch({channel:'msedge',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:380,height:750}});await page.goto(`http://127.0.0.1:${server.address().port}`);const frame=page.frameLocator('iframe');
+  await frame.locator('#refresh:enabled').waitFor();assert.equal(await frame.locator('#plugin-settings').getAttribute('open'),null);assert.equal(await frame.locator('#open-uninstaller').isVisible(),false);
+  await frame.locator('#plugin-settings-label').click();await frame.locator('#open-uninstaller').click();await frame.locator('#uninstall-status').filter({hasText:'Подтверди'}).waitFor();
+  let calls=await page.evaluate(()=>calls);assert.equal(calls.filter(c=>c.params?.name==='open_quota_panel_uninstaller').length,1);assert.equal(calls.filter(c=>c.params?.name==='stop_quota_overlay').length,0);
+  if(process.env.QUOTA_CARD_ARTIFACT_DIR){await mkdir(process.env.QUOTA_CARD_ARTIFACT_DIR,{recursive:true});await frame.locator('main').screenshot({path:path.join(process.env.QUOTA_CARD_ARTIFACT_DIR,'plugin-settings-ru.png')});}
+  await page.evaluate(()=>{language='en';});await frame.locator('#refresh').click();await frame.getByRole('button',{name:'Remove plugin…',exact:true}).waitFor();assert.doesNotMatch(await frame.locator('main').textContent(),/[А-Яа-яЁё]/);
+  await page.evaluate(()=>{fail=true;});await frame.locator('#open-uninstaller').click();await frame.locator('#uninstall-status').filter({hasText:'Could not open'}).waitFor();
+  for(const theme of ['dark','light']){
+   await page.evaluate(theme=>document.querySelector('iframe').contentWindow.postMessage({jsonrpc:'2.0',method:'ui/notifications/host-context-changed',params:{theme}},'*'),theme);
+   assert(await frame.locator('html').evaluate(root=>root.scrollWidth<=root.clientWidth));
+   if(process.env.QUOTA_CARD_ARTIFACT_DIR){await mkdir(process.env.QUOTA_CARD_ARTIFACT_DIR,{recursive:true});await frame.locator('main').screenshot({path:path.join(process.env.QUOTA_CARD_ARTIFACT_DIR,'plugin-settings-'+theme+'.png')});}
+  }
+ }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+});
+
 test('manual update card keeps its result through status refreshes, opens only explicit verified links and fits narrow themes',async()=>{
   const ui=await api.buildUi();
   const host=`<iframe src='/control' style='width:100%;height:450px;border:0'></iframe><script>

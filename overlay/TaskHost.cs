@@ -23,6 +23,13 @@ internal static class QuotaPanelTaskHost {
     void Remove(string name);
   }
   static string CurrentSid() {using(var identity=WindowsIdentity.GetCurrent())return identity.User.Value;}
+  internal sealed class UninstallLease:IDisposable {
+    readonly System.Threading.Mutex mutex;
+    internal UninstallLease(string sid){bool created;mutex=new System.Threading.Mutex(true,"Local\\ChatGPTLimitPanel.Uninstall.Active."+CheckedSid(sid),out created);if(!created){mutex.Dispose();throw new InvalidOperationException("Уже выполняется удаление панели.");}}
+    public void Dispose(){mutex.ReleaseMutex();mutex.Dispose();}
+  }
+  internal static IDisposable AcquireUninstallLock(string sid=null){return new UninstallLease(sid??CurrentSid());}
+  internal static void ThrowIfUninstalling(string sid=null){try{using(var mutex=System.Threading.Mutex.OpenExisting("Local\\ChatGPTLimitPanel.Uninstall.Active."+CheckedSid(sid??CurrentSid())))throw new InvalidOperationException("Выполняется удаление панели. Дождись его завершения.");}catch(System.Threading.WaitHandleCannotBeOpenedException){}}
   static string CheckedSid(string sid) {return new SecurityIdentifier(sid).Value;}
   internal static string TaskName(string sid) {return "ChatGPTQuotaOverlay.Host."+CheckedSid(sid);}
   static string LauncherPath(string launcherPath) {
@@ -142,6 +149,17 @@ internal static class QuotaPanelTaskHost {
   static void Validate(TaskRecord record,string launcher,string sid) {
     if(record!=null && !IsOwnTaskXml(record.xml,launcher,sid))throw new InvalidOperationException("Задача запуска с этим именем не принадлежит этой установке панели. Изменения не выполнены.");
   }
+  static string RemovalOwner(TaskRecord record,string launcher,string sid){
+    if(record==null)return null;if(IsOwnTaskXml(record.xml,launcher,sid))return launcher;
+    string previous=PreviousLauncher(record,launcher,sid);
+    if(previous!=null){
+      string currentRoot=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(launcher),"..","..")),oldRoot=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(previous),"..",".."));
+      string family=Path.GetDirectoryName(currentRoot);
+      if(Path.GetFileName(family)=="quota-panel"&&Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(family)))=="cache"&&SamePath(family,Path.GetDirectoryName(oldRoot))&&System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(oldRoot),@"^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$"))return previous;
+    }
+    Validate(record,launcher,sid);return null;
+  }
+  internal static string ValidateRemoval(string launcher){using(var store=new SchedulerStore())return RemovalOwner(store.Read(TaskName(CurrentSid())),launcher,CurrentSid());}
   static TaskStatus Status(TaskRecord record) {
     bool configured=false,auto=false;
     if(record!=null){var doc=Parse(record.xml);var ns=Namespaces(doc);configured=Text(doc,ns,"/t:Task/t:RegistrationInfo/t:Description")==AutoMarker;auto=configured&&Text(doc,ns,"/t:Task/t:Triggers/t:LogonTrigger/t:Enabled")!="false";}
@@ -192,8 +210,14 @@ internal static class QuotaPanelTaskHost {
     return Status(store.Read(name));
   }
   internal static TaskStatus RemoveOwn(string launcherPath,string sid,ITaskStore store) {
-    string name=TaskName(sid);var record=store.Read(name);Validate(record,launcherPath,sid);
-    if(record!=null) {if(record.running)throw new InvalidOperationException("Сначала останови панель, затем удали её задачу запуска.");store.Remove(name);}
+    string name=TaskName(sid);var record=store.Read(name);
+    RemovalOwner(record,launcherPath,sid);
+    if(record!=null) {
+      if(record.running)throw new InvalidOperationException("Сначала останови панель, затем удали её задачу запуска.");
+      var latest=store.Read(name);if(latest==null)return new TaskStatus();
+      if(latest.running||latest.xml!=record.xml||latest.enabled!=record.enabled)throw new InvalidOperationException("Задача запуска изменилась. Удаление не выполнено.");
+      store.Remove(name);
+    }
     return new TaskStatus();
   }
   // Reflection keeps the .NET Framework build free of dynamic/interop packages.

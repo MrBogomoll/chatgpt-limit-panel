@@ -2,13 +2,14 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {createUninstaller} from './uninstall.mjs';
 
 const execute = promisify(execFile);
 const defaultRoot = fileURLToPath(new URL('../', import.meta.url));
 const failureMessage = 'Не удалось связаться с монитором. Проверь установку плагина и повтори попытку.';
 
 /** Invoke our cooperative native launcher; never inspect or stop unrelated processes. */
-export function createOverlayController({ pluginRoot = defaultRoot, command = join(pluginRoot, 'dist', 'overlay', 'ChatGPTLimitPanelLauncher.exe'), prefixArgs = [], timeoutMs = 8000, run = execute } = {}) {
+export function createOverlayController({ pluginRoot = defaultRoot, command = join(pluginRoot, 'dist', 'overlay', 'ChatGPTLimitPanelLauncher.exe'), prefixArgs = [], timeoutMs = 8000, run = execute, uninstaller=createUninstaller({pluginRoot}) } = {}) {
   async function invoke(operation) {
     try {
       const { stdout } = await run(command, [...prefixArgs, operation], { windowsHide: true, shell: false, timeout: timeoutMs, encoding: 'utf8', maxBuffer: 16 * 1024 });
@@ -23,5 +24,5 @@ export function createOverlayController({ pluginRoot = defaultRoot, command = jo
       throw new Error(failureMessage);
     }
   }
-  return { status: () => invoke('--status-json'), start: () => invoke('--start-json'), stop: () => invoke('--stop-json') };
+  return { status: () => invoke('--status-json'), start: () => invoke('--start-json'), stop: () => invoke('--stop-json'),openUninstaller:language=>uninstaller.open(language) };
 }

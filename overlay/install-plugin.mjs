@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import {createHash} from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -14,6 +15,7 @@ const payloadFiles = [
   'dist/overlay/ChatGPTLimitPanel.exe', 'dist/overlay/ChatGPTLimitPanelLauncher.exe', 'dist/overlay/runtime.json',
   'runtime/node.exe', 'runtime/NODE-LICENSE.txt',
   'server/updates.mjs','plugins/chatgpt-limit-panel/server/updates.mjs',
+  'server/uninstall.mjs','dist/overlay/ChatGPTLimitPanelUninstaller.exe',
 ];
 
 /** Install a complete release through the native Codex plugin commands. */
@@ -61,6 +63,8 @@ export function installPlugin({
     configBackupPath = path.join(marketplaceRoot, 'config-before-install.toml');
     copyFileSync(configPath, configBackupPath, constants.COPYFILE_EXCL);
   }
+  const inventoryFiles=[...files.map(relative=>'plugins/chatgpt-limit-panel/'+relative),'.agents/plugins/marketplace.json',...(configBackupPath?['config-before-install.toml']:[])];
+  writeFileSync(path.join(marketplaceRoot,'uninstall-inventory.json'),JSON.stringify({schema:1,pluginId,files:Object.fromEntries(inventoryFiles.map(relative=>[relative,createHash('sha256').update(readFileSync(path.join(marketplaceRoot,relative))).digest('hex')]))},null,2)+'\n',{flag:'wx'});
   const run = args => {
     const result = spawnSync(codexBin, [...codexPrefixArgs, ...args], {
       env: { ...process.env, CODEX_HOME: home }, encoding: 'utf8', windowsHide: true, timeout: 30_000,

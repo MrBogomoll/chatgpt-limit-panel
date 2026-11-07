@@ -22,8 +22,9 @@ class OverlayTaskHostTest {
   class Store : QuotaPanelTaskHost.ITaskStore {
     internal QuotaPanelTaskHost.TaskRecord record;
     internal int registrations,runs,removals;
+    internal int reads;internal Action<int> beforeRead;
     internal string name;
-    public QuotaPanelTaskHost.TaskRecord Read(string taskName) {name=taskName;return record;}
+    public QuotaPanelTaskHost.TaskRecord Read(string taskName) {name=taskName;reads++;if(beforeRead!=null)beforeRead(reads);return record;}
     public void Register(string taskName,string xml,string sid) {Check(record==null,"existing tasks must never be overwritten");registrations++;name=taskName;record=new QuotaPanelTaskHost.TaskRecord {xml=xml,enabled=true,running=false};}
     public void Update(string taskName,string xml,string sid) {throw new Exception("legacy demand-only operations must not update existing tasks");}
     public void Run(string taskName) {Check(record!=null && record.enabled,"task must already be enabled");runs++;record.running=true;}
@@ -94,6 +95,14 @@ class OverlayTaskHostTest {
       store.record.running=false;
       QuotaPanelTaskHost.RemoveOwn(Launcher,Sid,store);
       Check(!QuotaPanelTaskHost.Read(Launcher,Sid,store).installed && store.removals==1,"uninstall removes only a validated stopped task");
+      using(var lease=QuotaPanelTaskHost.AcquireUninstallLock(Sid))Throws(()=>QuotaPanelTaskHost.ThrowIfUninstalling(Sid),"удаление");
+      QuotaPanelTaskHost.ThrowIfUninstalling(Sid);
+      string other=@"C:\OtherCheckout\dist\overlay\ChatGPTLimitPanelLauncher.exe";store.record=new QuotaPanelTaskHost.TaskRecord{xml=QuotaPanelTaskHost.CreateTaskXml(other,Sid),enabled=true};
+      Throws(()=>QuotaPanelTaskHost.RemoveOwn(Launcher,Sid,store),"не принадлежит");Check(store.removals==1,"matching executable suffix cannot authorize another installation's task");
+      string current=@"C:\fixture\plugins\cache\local\quota-panel\1.7.7\dist\overlay\ChatGPTLimitPanelLauncher.exe",previous=current.Replace("1.7.7","1.7.6");
+      store.record=new QuotaPanelTaskHost.TaskRecord{xml=QuotaPanelTaskHost.CreateTaskXml(previous,Sid),enabled=true};QuotaPanelTaskHost.RemoveOwn(current,Sid,store);Check(store.removals==2,"only a previous version in the same cache family can be considered for cleanup");
+      store.record=new QuotaPanelTaskHost.TaskRecord{xml=xml,enabled=true};int before=store.reads;store.beforeRead=count=>{if(count==before+2)store.record=new QuotaPanelTaskHost.TaskRecord{xml=QuotaPanelTaskHost.CreateTaskXml(other,Sid),enabled=true};};
+      Throws(()=>QuotaPanelTaskHost.RemoveOwn(Launcher,Sid,store),"изменилась");Check(store.removals==2,"a task replaced immediately before removal is not deleted");
       Console.WriteLine("PASS demand-only task ownership, XML, manual disable, explicit start and removal");return 0;
     }catch(Exception error){Console.Error.WriteLine(error.Message);return 1;}
   }

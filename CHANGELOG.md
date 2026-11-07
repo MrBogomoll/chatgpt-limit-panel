@@ -1,5 +1,13 @@
 # Changes
 
+## 1.7.7 — 2026-11-07
+
+- Add plugin removal under the control card's collapsed settings, outside the panel context menu. Opening or cancelling the separate confirmation window does not uninstall anything.
+- Stop the monitor, validate and remove its own launch task, close only verified MCP processes, uninstall through the native plugin CLI, and optionally remove panel preferences.
+- Validate generated copies against strict inventories and installer SHA-256 receipts. Preserve changed or unrelated files and report incomplete cleanup.
+- Replace the manual uninstall walkthrough with the new two-step flow; retain instructions for older releases.
+- Explain how to open the plugin control card through an @ mention and a chat request, including in the ZIP instructions.
+
 ## 1.7.6 — 2026-11-07
 
 - Give the bare ultracompact quota bars matching 8 px top and bottom insets so the upper bar stays clear of the rounded frame. Keep the panel compact and preserve optional reset block dimensions.

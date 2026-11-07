@@ -131,10 +131,10 @@ test('MCP discovers a global and thread control card and marks lifecycle mutatio
   const { controller } = await controllerFor(t);
   const handle = mcpApi.createMcpHandler({ controller, readUi: async () => '<main>Панель управления</main>' });
   const init = (await handle({ id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } })).result;
-  assert.equal(init.serverInfo.version, '1.7.6');
+  assert.equal(init.serverInfo.version, '1.7.7');
   assert.equal(init.serverInfo.title, 'ChatGPT Limit Panel');
   const tools = (await handle({ id: 2, method: 'tools/list' })).result.tools;
-  assert.deepEqual(tools.map(tool => tool.name), ['show_quota_overlay', 'start_quota_overlay', 'stop_quota_overlay', 'get_quota_overlay_status','check_quota_panel_updates']);
+  assert.deepEqual(tools.map(tool => tool.name), ['show_quota_overlay', 'start_quota_overlay', 'stop_quota_overlay', 'get_quota_overlay_status','check_quota_panel_updates','open_quota_panel_uninstaller']);
   assert.deepEqual(tools[0]._meta['openai/ui'].entrypoints, [{ type: 'global' }, { type: 'thread' }]);
   assert.equal(tools[0].annotations.readOnlyHint, true);
   assert.equal(tools[3].annotations.readOnlyHint, true);
@@ -189,7 +189,7 @@ test('stdio entrypoint serves MCP resources and closes after EOF without lifecyc
   const responses = output.trim().split('\n').map(line => JSON.parse(line));
   assert.equal(responses.length, 3);
   assert.equal(responses.find(value => value.id === 1).result.serverInfo.name, 'chatgpt-limit-panel');
-  assert.equal(responses.find(value => value.id === 2).result.tools.length, 5);
+  assert.equal(responses.find(value => value.id === 2).result.tools.length, 6);
   assert.match(responses.find(value => value.id === 3).result.contents[0].text, /<button id="start"/);
 });
 

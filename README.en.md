@@ -65,14 +65,26 @@ Requires Windows x64, a desktop ChatGPT client supporting local plugins, and ins
 
 1. Download the built ZIP using the link above.
 2. Open **Plugins → Add → Upload plugin archive** and select the ZIP.
-3. Open **ChatGPT Limit Panel** and its control card.
+3. Open the [control card](#how-to-open-the-control-card).
 4. Click **Start**.
 
 First activation creates a per-user Windows autostart task; it can be disabled in the panel menu. To enable the taskbar indicator, use **Right-click the panel → Placement → Taskbar → Show percentages**. Enable the live icon through **Right-click the tray icon → Placement → Live tray icon**.
 
 With the taskbar indicator **or** live tray icon enabled, the monitor can refresh limits without an open ChatGPT window. Closing the control card does not stop the monitor; choose **Stop panel** to stop it.
 
+## How to open the control card
+
+The card is the plugin's reply in chat with **Start**, **Stop** and **Refresh status** buttons.
+
+1. Start a new chat in the desktop app where the plugin is installed.
+2. Type **@** in the message box, search for **ChatGPT Limit Panel**, and select it under **Plugins**.
+3. Send: **"Open the Codex/Work limit panel controls."** The reply will contain the control card.
+
+If the plugin is missing, check that it is installed and enabled under **Plugins**. Start a new chat after updating so it receives the new tools. See [OpenAI's documentation](https://learn.chatgpt.com/docs/build-plugins) for selecting plugins with @.
+
 ## Updating and uninstalling
+
+Uninstall from version 1.7.7: **plugin control card → Plugin settings → Remove plugin…**, then confirm in the separate window. You can keep your preferences.
 
 **Check for a new version** checks the stable release and offers to open its page. ZIP installation is manual. Guides: [update](UPGRADING.md) · [complete uninstall](UNINSTALL.md). See [CHANGELOG](CHANGELOG.md) and [releases](https://github.com/MrBogomoll/chatgpt-limit-panel/releases) for the history of changes.
 
@@ -80,7 +92,7 @@ With the taskbar indicator **or** live tray icon enabled, the monitor can refres
 
 The panel has been checked on Windows 11, including Start11 and placement next to NetWorx. Windows 10 compatibility is not yet confirmed. If ZIP import is unavailable or an error occurs, include the Windows version, client version and details in [Issues](https://github.com/MrBogomoll/chatgpt-limit-panel/issues).
 
-The program uses your existing local Codex sign-in. User credentials and settings are not included in the archive. This is an independent project, not an official OpenAI product. [ZIP checksum for 1.7.6](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.7.6/chatgpt-limit-panel-1.7.6-windows-x64.zip.sha256).
+The program uses your existing local Codex sign-in. User credentials and settings are not included in the archive. This is an independent project, not an official OpenAI product. [ZIP checksum for 1.7.7](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/download/v1.7.7/chatgpt-limit-panel-1.7.7-windows-x64.zip.sha256).
 
 ## Data and security
 

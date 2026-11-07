@@ -13,3 +13,4 @@ panel.png
 config-before-install.toml
 *.user
 *.suo
+.superpowers/
