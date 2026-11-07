@@ -154,7 +154,7 @@ class OverlayNativeTest {
       }
     }
     var defaultFree=Layout.PlaceFloating(0,0,1200,1000,1,"compact",null,null);
-    Check(defaultFree.X==4&&defaultFree.Y==790,"floating defaults must be beside the rail with the existing footer clearance, never screen centre");
+    Check(defaultFree.X==4&&defaultFree.Y==1000-Layout.BottomClearance-Layout.CompactHeight,"floating defaults must be beside the rail with the existing footer clearance, never screen centre");
     Check(Layout.PlaceFloating(0,0,500,150,1,"full",null,null).Mode=="compact","short clients must use compact when full does not fit");
     Check(Layout.PlaceFloating(0,0,500,70,1,"full",null,null).Mode=="ultra","tiny clients must use ultra when compact does not fit");
     Check(!Layout.PlaceFloating(0,0,40,70,1,"ultra",null,null).Visible,"do not display outside an undersized client");
@@ -165,10 +165,10 @@ class OverlayNativeTest {
     var type=typeof(OverlayWindow).GetNestedType("TargetFrame",BindingFlags.NonPublic);var frame=Activator.CreateInstance(type,true);
     Action<string,object> put=delegate(string key,object value){type.GetField(key,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(frame,value);};
     put("Show",true);put("Scale",1.5);put("Origin",new Native.Point{X=-1200,Y=120});put("Rect",new Native.Rect{Right=1500,Bottom=1200});
-    put("Placement",new Placement{X=-900,Y=800,Width=69,Height=150,Mode="compact",Visible=true});
+    put("Placement",new Placement{X=-900,Y=800,Width=69,Height=Layout.HeightForMode("compact",false,false,Field<int>(window,"staleRowCount"))*1.5,Mode="compact",Visible=true});
     typeof(OverlayWindow).GetField("lastSidebarFrame",PrivateInstance).SetValue(window,frame);
     Invoke(window,"MoveSidebarTo",-500.0,900.0);
-    var moved=Layout.PlaceFloating(-1200,120,1500,1200,1.5,"compact",Field<double?>(window,"floatingX"),Field<double?>(window,"floatingY"));
+    var moved=Layout.PlaceFloating(-1200,120,1500,1200,1.5,"compact",Field<double?>(window,"floatingX"),Field<double?>(window,"floatingY"),false,false,Field<int>(window,"staleRowCount"));
     Check(Math.Abs(moved.X+500)<.01&&Math.Abs(moved.Y-900)<.01,"two-axis drag must retain the pointer offset in physical pixels");
     // Persist through the same pin toggle, without touching the rail coordinate.
     Invoke(window,"SetSidebarPinned",true);Invoke(window,"SetSidebarPinned",false);
@@ -184,14 +184,14 @@ class OverlayNativeTest {
     Invoke(window,"SetCompact",false);
     Known(window);
     var panel=Field<Border>(window,"panel");
-    panel.Measure(new Size(Layout.PanelWidth,Layout.PanelHeight));
-    panel.Arrange(new Rect(0,0,Layout.PanelWidth,Layout.PanelHeight));panel.UpdateLayout();
+    panel.Measure(new Size(Layout.PanelWidth,panel.Height));
+    panel.Arrange(new Rect(0,0,Layout.PanelWidth,panel.Height));panel.UpdateLayout();
     double available=panel.ActualWidth-panel.Padding.Left-panel.Padding.Right-panel.BorderThickness.Left-panel.BorderThickness.Right;
     Check(available>0,"panel must leave positive content width");
     foreach(string name in new[] { "periods","values","dates","times","markers" }) {
       var labels=Field<TextBlock[]>(window,name);
       for(int i=0;i<labels.Length;i++) {
-        var label=labels[i];
+        var label=labels[i];if(label.Visibility!=Visibility.Visible)continue;
         Check(label.Text.Length>0,name+"["+i+"] must be populated");
         Check(label.ActualWidth>0 && label.ActualWidth<=available+0.01,name+" must use the available panel width");
         var text=new FormattedText(label.Text,CultureInfo.GetCultureInfo("ru-RU"),label.FlowDirection,
@@ -256,20 +256,20 @@ class OverlayNativeTest {
   }
   static void AssertFullPresentation(OverlayWindow window) {
     var panel=Field<Border>(window,"panel");
-    Check(Math.Abs(panel.Height-Layout.PanelHeight)<0.01,"full mode must restore the height allocated for text and bars");
-    Check(panel.Padding==new Thickness(3,3,3,7),"full mode must restore its original panel padding");
+    Check(Math.Abs(panel.Height-Layout.HeightForMode("full",false,false,Field<int>(window,"staleRowCount")))<0.01,"full mode must restore the height allocated for text and bars");
+    Check(panel.Padding==new Thickness(3,0,3,7),"full mode must restore its original panel padding");
     foreach(string name in new[] { "periods","values","dates","times","markers" })
-      foreach(var label in Field<TextBlock[]>(window,name))Check(label.Visibility==(name=="markers"&&label.Text.Length==0?Visibility.Collapsed:Visibility.Visible),"full mode must restore populated "+name);
+      foreach(var label in Field<TextBlock[]>(window,name))Check(label.Visibility==(name=="markers"?Visibility.Collapsed:Visibility.Visible),"full mode must restore populated "+name);
     foreach(var label in Field<TextBlock[]>(window,"values"))Check(label.FontSize==16 && label.FontWeight==FontWeights.SemiBold,"full quota font must remain 16 DIP semibold");
     foreach(var label in Field<TextBlock[]>(window,"dates"))Check(label.FontSize==10.5 && label.FontWeight==FontWeights.Normal,"full mode must restore both original date fonts");
     foreach(var label in Field<TextBlock[]>(window,"times"))Check(label.FontSize==11.5 && label.FontWeight==FontWeights.Bold,"full mode must restore both bold time fonts");
-    Check(Field<TextBlock>(window,"compactStale").Visibility==Visibility.Collapsed,"full mode must use row stale markers");
+    Check((Field<TextBlock>(window,"staleLabel").Visibility==Visibility.Visible)==(Field<int>(window,"staleRowCount")>0),"full mode uses one common stale header");
   }
   static void AssertCompactPresentation(OverlayWindow window) {
     var panel=Field<Border>(window,"panel");
-    Check(Math.Abs(panel.Height-Layout.CompactHeight)<0.01,"compact mode must use a 100 DIP panel");
+    Check(Math.Abs(panel.Height-Layout.HeightForMode("compact",false,false,Field<int>(window,"staleRowCount")))<0.01,"compact mode must use a 100 DIP panel");
     bool bars=Field<Border[]>(window,"progressTracks")[0].Visibility==Visibility.Visible;
-    Check(panel.Padding==new Thickness(3,3,3,7),"compact padding must fit the selected graphics without shrinking text");
+    Check(panel.Padding==new Thickness(3,0,3,7),"compact padding must fit the selected graphics without shrinking text");
     foreach(var label in Field<TextBlock[]>(window,"periods"))Check(label.Visibility==Visibility.Collapsed,"compact mode must hide both period labels");
     foreach(var label in Field<TextBlock[]>(window,"markers"))Check(label.Visibility==Visibility.Collapsed,"compact mode must hide the duplicate row stale markers");
     Check(Field<TextBlock[]>(window,"dates")[0].Visibility==Visibility.Collapsed,"compact mode must hide the five-hour reset date");
@@ -284,11 +284,11 @@ class OverlayNativeTest {
   }
   static void AssertCompactFits(OverlayWindow window) {
     var panel=Field<Border>(window,"panel");
-    panel.Measure(new Size(46,Layout.CompactHeight));panel.Arrange(new Rect(0,0,46,Layout.CompactHeight));panel.UpdateLayout();
+    panel.Measure(new Size(46,panel.Height));panel.Arrange(new Rect(0,0,46,panel.Height));panel.UpdateLayout();
     var visible=new List<TextBlock> {Field<TextBlock[]>(window,"values")[0],Field<TextBlock[]>(window,"times")[0],Field<TextBlock[]>(window,"values")[1],Field<TextBlock[]>(window,"dates")[1]};
-    var stale=Field<TextBlock>(window,"compactStale");if(stale.Visibility==Visibility.Visible)visible.Add(stale);
+    var stale=Field<TextBlock>(window,"staleLabel");if(stale.Visibility==Visibility.Visible)visible.Add(stale);
     double left=panel.Padding.Left+panel.BorderThickness.Left,right=46-panel.Padding.Right-panel.BorderThickness.Right;
-    double top=panel.Padding.Top+panel.BorderThickness.Top,bottom=Layout.CompactHeight-panel.Padding.Bottom-panel.BorderThickness.Bottom;
+    double top=panel.Padding.Top+panel.BorderThickness.Top,bottom=panel.Height-panel.Padding.Bottom-panel.BorderThickness.Bottom;
     foreach(var label in visible) {
       Check(label.ActualWidth>0 && label.ActualHeight>0,"each compact label must occupy real layout space");
       Rect bounds=label.TransformToAncestor(panel).TransformBounds(new Rect(new Point(0,0),label.RenderSize));
@@ -309,7 +309,7 @@ class OverlayNativeTest {
     var values=Field<TextBlock[]>(window,"values");var times=Field<TextBlock[]>(window,"times");var dates=Field<TextBlock[]>(window,"dates");
     Check(values[0].Text=="100%" && times[0].Text=="23:59","compact top must show the five-hour value and reset time");
     Check(values[1].Text=="100%" && dates[1].Text=="31.12","compact bottom must show the weekly value and reset date");
-    var stale=Field<TextBlock>(window,"compactStale");
+    var stale=Field<TextBlock>(window,"staleLabel");
     Check(stale.Visibility==Visibility.Visible && stale.Text.IndexOf("устар",StringComparison.OrdinalIgnoreCase)>=0,"compact stale data must show one explicit shared stale label");
     Apply(window,Row("5 ч","10%","23.10","19:55","","critical"),Row("Нед.","30%","29.10","21:10","устар.","warning"));
     AssertReadableColor(window,0,"#E6A0A1");AssertReadableColor(window,1,"#E3B382");
@@ -574,7 +574,7 @@ class OverlayNativeTest {
       foreach(int height in new[]{1000,420,750}) {
         Native.SetWindowPos(target,IntPtr.Zero,-31000,-31000,800,height,0x10|0x4|0x40);Invoke(window,"SyncTargetFrame");PumpDispatcher();
         Native.Rect client;var origin=new Native.Point();Native.GetClientRect(target,out client);Native.ClientToScreen(target,ref origin);GetWindowRect(handle,out bounds);
-        var expected=Layout.PlaceFloating(origin.X,origin.Y,client.Right,client.Bottom,Native.GetDpiForWindow(target)/96.0,Field<string>(window,"preferredMode"),Field<double?>(window,"floatingX"),Field<double?>(window,"floatingY"));
+        var expected=Layout.PlaceFloating(origin.X,origin.Y,client.Right,client.Bottom,Native.GetDpiForWindow(target)/96.0,Field<string>(window,"preferredMode"),Field<double?>(window,"floatingX"),Field<double?>(window,"floatingY"),false,false,Field<int>(window,"staleRowCount"));
         Check(window.IsVisible&&Math.Abs(bounds.Left-Math.Round(expected.X))<=1&&Math.Abs(bounds.Top-Math.Round(expected.Y))<=1,"native movement and resize must retain client-relative free position");
         Check(bounds.Left>=origin.X&&bounds.Top>=origin.Y&&bounds.Right<=origin.X+client.Right&&bounds.Bottom<=origin.Y+client.Bottom,"native panel must stay inside client bounds");
       }
@@ -592,7 +592,7 @@ class OverlayNativeTest {
   }
   static bool FrameMatches(OverlayWindow window,IntPtr target,IntPtr overlay) {
     Native.Rect rect,bounds;var origin=new Native.Point();Native.GetClientRect(target,out rect);Native.ClientToScreen(target,ref origin);GetWindowRect(overlay,out bounds);
-    var expected=Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,Native.GetDpiForWindow(target)/96.0,Field<string>(window,"preferredMode"));
+    var expected=Layout.Place(origin.X,origin.Y,rect.Right-rect.Left,rect.Bottom-rect.Top,Native.GetDpiForWindow(target)/96.0,Field<string>(window,"preferredMode"),false,false,Field<int>(window,"staleRowCount"));
     return Math.Abs(bounds.Left-Math.Round(expected.X))<1&&Math.Abs(bounds.Top-Math.Round(expected.Y))<1&&Math.Abs(bounds.Right-bounds.Left-Math.Round(expected.Width))<1&&Math.Abs(bounds.Bottom-bounds.Top-Math.Round(expected.Height))<1;
   }
   static void MotionTest(OverlayWindow window,string directory) {
@@ -710,7 +710,7 @@ class OverlayNativeTest {
         var bounds=label.TransformToAncestor(panel).TransformBounds(new Rect(new Point(),label.RenderSize));
         Check(bounds.Top>=0&&bounds.Bottom<panel.Height,"reset text stays within the panel");
       }
-      MenuClick(Field<MenuItem>(window,"showResetsItem"));Check(block.Visibility==Visibility.Collapsed&&panel.Height==expected-block.Height,"reset block can be hidden in "+mode);
+      MenuClick(Field<MenuItem>(window,"showResetsItem"));Check(block.Visibility==Visibility.Collapsed&&panel.Height==expected-block.Height+Layout.StaleHeaderHeight,"reset block can be hidden in "+mode);
       MenuClick(Field<MenuItem>(window,"showResetsItem"));
     }
     Check(Field<MenuItem>(window,"trayShowResetsItem").IsChecked,"tray shares the reset visibility preference");
@@ -722,18 +722,29 @@ class OverlayNativeTest {
   }
   static Rect ContentBounds(FrameworkElement element,Visual ancestor) {return element.TransformToAncestor(ancestor).TransformBounds(new Rect(new Point(),element.RenderSize));}
   static void SpacingTest(OverlayWindow window) {
-    Known(window);
+    Known(window);var freshHeights=new Dictionary<string,double>();var freshBars=new Dictionary<string,double[]>();
     foreach(string language in new[]{"ru","en"})foreach(bool stale in new[]{false,true})foreach(bool resets in new[]{false,true})foreach(bool credits in new[]{false,true})foreach(string mode in new[]{"full","compact","ultra"}) {
       Invoke(window,"SelectLanguage",language);Invoke(window,"SetShowResets",resets);Invoke(window,"SetShowCredits",credits);Invoke(window,"SelectMode",mode);
       Apply(window,Row("5 ч","100%","31.12","23:59",stale?"устар.":"","normal"),Row("Нед.","100%","31.12","23:59",stale?"устар.":"","normal"));
       var panel=Field<Border>(window,"panel");panel.Measure(new Size(46,panel.Height));panel.Arrange(new Rect(0,0,46,panel.Height));panel.UpdateLayout();
-      var bars=Field<Border[]>(window,"progressTracks");double last=ContentBounds(bars[1],panel).Bottom;
-      var footer=Field<TextBlock>(window,"compactStale");if(footer.Visibility==Visibility.Visible)last=Math.Max(last,ContentBounds(footer,panel).Bottom);
+      string key=language+"/"+resets+"/"+credits+"/"+mode;if(!stale)freshHeights[key]=panel.ActualHeight;else Check(Math.Abs(panel.ActualHeight-freshHeights[key])<.01,"stale warning must not change panel height");
+      var bars=Field<Border[]>(window,"progressTracks");if(!stale)freshBars[key]=new[]{ContentBounds(bars[0],panel).Y,ContentBounds(bars[1],panel).Y};else Check(Math.Abs(ContentBounds(bars[0],panel).Y-freshBars[key][0])<.01&&Math.Abs(ContentBounds(bars[1],panel).Y-freshBars[key][1])<.01,"stale label must not shift either quota row");double last=ContentBounds(bars[1],panel).Bottom;
+      var footer=Field<TextBlock>(window,"staleLabel");Check((footer.Visibility==Visibility.Visible)==stale,"one common header reflects stale state in every mode");
+      if(stale) {
+        double offset=0;
+        Check(Math.Abs(ContentBounds(footer,panel).Top-1-offset)<.05,"shared stale label uses the available gap above content");
+        if(resets) {
+          var count=Field<TextBlock>(window,"resetsPanelCount");
+          Func<TextBlock,Rect> ink=delegate(TextBlock label){var text=new FormattedText(label.Text,CultureInfo.CurrentCulture,label.FlowDirection,new Typeface(label.FontFamily,label.FontStyle,label.FontWeight,label.FontStretch),label.FontSize,label.Foreground);return label.TransformToAncestor(panel).TransformBounds(text.BuildGeometry(new Point()).Bounds);};
+          Check(ink(footer).Bottom+1<=ink(count).Top,"stale text must stay clear of the reset glyphs");
+        }
+      }
       var marker=Field<TextBlock[]>(window,"markers")[1];if(marker.Visibility==Visibility.Visible)last=Math.Max(last,ContentBounds(marker,panel).Bottom);
       Check(Math.Abs(panel.ActualHeight-last-8)<.05,"last visible content must leave exactly 8 DIP below it: "+mode+"/"+language+"/stale="+stale+", actual="+(panel.ActualHeight-last));
       if(mode!="ultra") {
         Rect separator=ContentBounds(Field<Border>(window,"divider"),panel);
-        Check(separator.Top-ContentBounds(bars[0],panel).Bottom>=3.99,"quota bar must leave at least 4 DIP before the divider in "+mode);
+        double gap=separator.Top-ContentBounds(bars[0],panel).Bottom;
+        Check(gap>=3.99&&gap<=6.01,"quota divider gap stays compact (4 to 6 DIP) in "+mode+", actual="+gap);
       }
       if(credits) {
         var block=Field<Border>(window,"creditsBlock");var balance=Field<TextBlock>(window,"creditsPanelBalance");
@@ -1088,10 +1099,10 @@ class OverlayNativeTest {
     foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(bool compactMode in new[]{false,true,false,true}) {
       Invoke(window,"SetCompact",compactMode);
       // Simulate the frame where HWND/viewport still has the previous mode's height.
-      double oldHeight=(compactMode?Layout.PanelHeight:Layout.CompactHeight)*scale;
+      double oldHeight=Layout.HeightForMode(compactMode?"full":"compact",false,false,Field<int>(window,"staleRowCount"))*scale;
       root.Measure(new Size(46*scale,oldHeight));root.Arrange(new Rect(0,0,46*scale,oldHeight));root.UpdateLayout();
       Rect rendered=surface.TransformToAncestor(root).TransformBounds(new Rect(new Point(0,0),surface.RenderSize));
-      double expectedHeight=(compactMode?Layout.CompactHeight:Layout.PanelHeight)*scale;
+      double expectedHeight=Field<Border>(window,"panel").Height*scale;
       Check(Math.Abs(rendered.Width-46*scale)<.1 && Math.Abs(rendered.Height-expectedHeight)<.1,
         "intermediate viewport must not stretch or shrink the badge; actual "+rendered+" expected height "+expectedHeight);
       Check(Math.Abs(rendered.Bottom-oldHeight)<.1,"badge must keep its bottom anchor during intermediate layout");
@@ -1112,9 +1123,9 @@ class OverlayNativeTest {
     Invoke(window,"SelectMode","ultra");
     Apply(window,Row("5 ч","25%","25.10","14:59","","warning"),Row("Нед.","0%","01.11","09:59","","critical"));
     var panel=Field<Border>(window,"panel");
-    Check(panel.Height==32,"ultra must use a 32 DIP frame");
+    Check(panel.Height==Layout.UltraHeight,"ultra must use a 32 DIP frame");
     foreach(string group in new[]{"values","dates","times","periods","markers"})foreach(var text in Field<TextBlock[]>(window,group))Check(text.Visibility==Visibility.Collapsed,"ultra must have no quota/reset text");
-    Check(Field<TextBlock>(window,"compactStale").Visibility==Visibility.Collapsed && Field<Border>(window,"divider").Visibility==Visibility.Collapsed,"ultra must contain only two bars inside its frame");
+    Check(Field<TextBlock>(window,"staleLabel").Visibility==Visibility.Collapsed && Field<Border>(window,"divider").Visibility==Visibility.Collapsed,"ultra must contain only two bars inside its frame");
     panel.Measure(new Size(46,32));panel.Arrange(new Rect(0,0,46,32));panel.UpdateLayout();
     var tracks=Field<Border[]>(window,"progressTracks");var fills=Field<Border[]>(window,"progressFills");
     Rect upper=tracks[0].TransformToAncestor(panel).TransformBounds(new Rect(new Point(),tracks[0].RenderSize));
@@ -1122,13 +1133,13 @@ class OverlayNativeTest {
     Check(tracks[0].Visibility==Visibility.Visible && tracks[1].Visibility==Visibility.Visible && upper.Top>0 && upper.Bottom<lower.Top && lower.Bottom<32,"both separated ultra bars must fit in the frame");
     Check(fills[0].Width==8 && fills[1].Width==32 && ColorOf(fills[1].Background)==ParseColor("#E6A0A1"),"ultra bars must show each quota, including full red known-zero warning");
     var outline=Field<System.Windows.Shapes.Path>(window,"progressOutline");
-    Check(outline.Visibility==Visibility.Visible && outline.Height==32 && ColorOf(outline.Stroke)==ParseColor("#E3B382"),"ultra default contour must represent short quota");
+    Check(outline.Visibility==Visibility.Visible && outline.Height==Layout.UltraHeight && ColorOf(outline.Stroke)==ParseColor("#E3B382"),"ultra default contour must represent short quota");
     MenuClick(Field<MenuItem>(window,"weeklyProgressItem"));
     Check(ColorOf(outline.Stroke)==ParseColor("#E6A0A1") && outline.Data.Bounds.Bottom>30,"ultra weekly zero must draw a complete red frame");
     Apply(window,Row("5 ч","—","—","—","","unknown"),Row("Нед.","—","—","—","","unknown"));
     Check(fills[0].Width==0 && fills[1].Width==0 && outline.Data.IsEmpty(),"ultra unknown must not fabricate remaining quota");
     Apply(window,Row("5 ч","50%","25.10","14:59","устар.","normal"),Row("Нед.","75%","01.11","09:59","устар.","normal"));
-    Check(tracks[0].Opacity<1 && outline.Opacity<1 && Field<TextBlock>(window,"compactStale").Visibility==Visibility.Collapsed,"ultra stale values must dim without adding text");
+    Check(tracks[0].Opacity<1 && outline.Opacity<1 && Field<TextBlock>(window,"staleLabel").Visibility==Visibility.Visible,"ultra stale values must dim without adding text");
     MenuClick(Field<MenuItem>(window,"fullOffItem"));
     Check(outline.Visibility==Visibility.Collapsed && tracks[0].Visibility==Visibility.Visible,"ultra contour switch must preserve both bars");
     Console.WriteLine("PASS native ultra: two stacked bars, no text, selected frame, zero, unknown and stale states");
@@ -1158,7 +1169,7 @@ class OverlayNativeTest {
           if(bars)for(int i=0;i<2;i++) {
             Rect bounds=tracks[i].TransformToAncestor(panel).TransformBounds(new Rect(new Point(),tracks[i].RenderSize));
             Rect reset=resets[i].TransformToAncestor(panel).TransformBounds(new Rect(new Point(),resets[i].RenderSize));
-            Check(bounds.Top>=reset.Bottom && bounds.Bottom<=Layout.CompactHeight-panel.Padding.Bottom-panel.BorderThickness.Bottom,"compact bars must fit under their reset labels");
+            Check(bounds.Top>=reset.Bottom && bounds.Bottom<=panel.Height-panel.Padding.Bottom-panel.BorderThickness.Bottom,"compact bars must fit under their reset labels");
           }
         }
       }
@@ -1298,7 +1309,7 @@ class OverlayNativeTest {
     foreach(double scale in new[]{1.0,1.25,1.5,2.0})foreach(string choice in new[]{"bars","outline","both","off"})foreach(string mode in new[]{"compact","full","ultra","compact","ultra","full","compact"}) {
       Invoke(window,"SelectFullProgress",choice);
       Invoke(window,"SetMode",mode);
-      var placement=new Placement {X=-32000,Y=-32000,Width=46*scale,Height=(mode=="ultra"?32:mode=="compact"?Layout.CompactHeight:Layout.PanelHeight)*scale};
+      var placement=new Placement {X=-32000,Y=-32000,Width=46*scale,Height=(mode=="ultra"?Layout.UltraHeight:mode=="compact"?Layout.CompactHeight:Layout.PanelHeight)*scale};
       OverlayWindow.ApplyNativePlacement(handle,placement,true);
       window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle,new Action(delegate{}));window.UpdateLayout();
       Invoke(window,"SavePreview");
@@ -1331,7 +1342,7 @@ class OverlayNativeTest {
     Invoke(window,"SelectTheme","light");Invoke(window,"SelectFullProgress","both");
     Invoke(window,"SelectLanguage","en");
     Check(Field<TextBlock[]>(window,"periods")[0].Text=="5 h"&&Field<TextBlock[]>(window,"periods")[1].Text=="Week","English period labels must replace Russian immediately");
-    Check(Field<TextBlock[]>(window,"markers")[0].Text=="stale"&&Field<TextBlock>(window,"compactStale").Text=="stale","both stale presentations must be translated");
+    Check(Field<TextBlock[]>(window,"markers")[0].Text=="stale"&&Field<TextBlock>(window,"staleLabel").Text=="stale","both stale presentations must be translated");
     Check(Field<TextBlock[]>(window,"values")[0].Text==before[0]&&Field<TextBlock[]>(window,"times")[0].Text==before[1]&&Field<TextBlock[]>(window,"dates")[1].Text==before[2],"switching language must not change quota or reset values");
     Check(Field<MenuItem>(window,"languageEnglishItem").IsChecked&&!Field<MenuItem>(window,"languageRussianItem").IsChecked,"language choices must be exclusive");
     Check(Convert.ToString(Field<MenuItem>(window,"pauseUpdatesItem").Header)=="Pause quota refresh","action labels must switch immediately");

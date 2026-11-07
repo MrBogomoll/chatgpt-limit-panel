@@ -1,5 +1,12 @@
 # Changes
 
+## 1.7.4 — 2026-11-07
+
+- Shorten full and compact panels to fit their content, keeping the quota divider gap between 4 and 6 px instead of expanding empty space.
+- Show one shared stale label at the top in every mode, replacing per-row and footer labels. The label appears inside reserved top space without resizing the panel or moving its contents.
+- Keep the 8 px bottom inset and readable credit labels across modes and optional block combinations.
+- Account for the temporary stale header in safe placement, floating layout and live diagnostics; respect custom positions in diagnostic checks.
+
 ## 1.7.3 — 2026-11-07
 
 - Restore the readable Credits label in full and compact views; keep only the balance in ultra.

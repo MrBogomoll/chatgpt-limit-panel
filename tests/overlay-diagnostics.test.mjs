@@ -15,15 +15,33 @@ function healthyState() {
     process: process.pid, owner: 0, ownerProcess: 0, target: 100, foreground: 100,
     targetVisible: true, topmost: false, targetTopmost: false,
     dpi: 96, client: { x: 100, y: 200, width: 1000, height: 800 },
-    panel: { x: 103, y: 770, width: 46, height: 120 },
+    panel: { x: 103, y: 775, width: 46, height: 115 },
     noActivate: true, clickThrough: false, clickToToggle: true,
     view: { rows: [{ period: '5 ч', value: '28%' }, { period: 'Нед.', value: '89%' }] },
   };
 }
 
+test('diagnostics keeps fixed dimensions when the shared stale label appears, including unknown quota', () => {
+  for(const [mode,base] of [['full',169],['compact',115],['ultra',39]]) {
+    for(const global of [false,true]) {
+      const state={...healthyState(),mode,compact:mode!=='full',view:{rows:[{marker:global?'':'stale'},{marker:global?'':'stale'}],stale:global}};
+      state.panel={...state.panel,y:890-base,height:base};
+      assert.equal(verifyOverlayState(state,{updatedAt:Date.now()}).result,'PASS');
+    }
+  }
+});
+
+test('diagnostics accepts saved manual placement within the client and rejects overflow', () => {
+  const state={...healthyState(),sidebar:{pinned:true,position:1}};
+  state.panel.y=state.client.y+state.client.height-state.panel.height;
+  assert.equal(verifyOverlayState(state,{updatedAt:Date.now()}).result,'PASS');
+  state.panel.y++;
+  assert.throws(()=>verifyOverlayState(state,{updatedAt:Date.now()}),/client bounds/i);
+});
+
 test('diagnostics accepts the explicit ultracompact geometry and rejects invalid or inconsistent mode reports', () => {
   const state={...healthyState(),mode:'ultra',preferredMode:'ultra'};
-  state.panel={...state.panel,y:858,height:32};
+  state.panel={...state.panel,y:851,height:39};
   assert.equal(verifyOverlayState(state,{updatedAt:Date.now()}).result,'PASS');
   assert.throws(()=>verifyOverlayState({...state,mode:'invalid'},{updatedAt:Date.now()}),/mode/i);
   assert.throws(()=>verifyOverlayState({...state,compact:false},{updatedAt:Date.now()}),/mode/i);
@@ -48,7 +66,7 @@ async function runChecker(t, state, ageMs = 0) {
 }
 
 test('diagnostics accepts optional reset extension heights only when explicitly enabled', () => {
-  for (const [mode,base,extra] of [['full',192,64],['compact',120,36],['ultra',32,22]]) {
+  for (const [mode,base,extra] of [['full',169,54],['compact',115,31],['ultra',39,17]]) {
     const state={...healthyState(),mode,compact:mode!=='full',showResets:true};
     state.panel={...state.panel,y:890-base-extra,height:base+extra};
     assert.equal(verifyOverlayState(state,{updatedAt:Date.now()}).result,'PASS');
@@ -57,7 +75,7 @@ test('diagnostics accepts optional reset extension heights only when explicitly 
 });
 
 test('diagnostics accounts for credits with and without the reset extension in every mode', () => {
-  for (const [mode,base,resets,credits] of [['full',192,64,40],['compact',120,36,38],['ultra',32,22,24]]) {
+  for (const [mode,base,resets,credits] of [['full',169,54,40],['compact',115,31,38],['ultra',39,17,24]]) {
     for (const showResets of [false,true]) {
       const height=base+credits+(showResets?resets:0);
       const state={...healthyState(),mode,compact:mode!=='full',showResets,showCredits:true};
