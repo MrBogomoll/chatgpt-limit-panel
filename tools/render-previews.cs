@@ -60,7 +60,8 @@ class DocumentationPreviews {
         var window=new OverlayWindow(Path.Combine(own,"state.json"),new ThemeResolver(Path.Combine(own,"app.toml"),delegate{return false;}),delegate{return false;},delegate{return null;});
         try{
           Call(window,"StopTracking");
-          var resetData=new Dictionary<string,object>{{"availableCount",3},{"date","12.11.2026"},{"time","18:30"},{"daysRemaining",5},{"tone","warning"},{"stale",false}};
+          bool normalReset=key=="resets-full-both-dark";
+          var resetData=new Dictionary<string,object>{{"availableCount",normalReset?1:3},{"date",normalReset?"30.11.2026":"12.11.2026"},{"time","18:30"},{"daysRemaining",normalReset?23:5},{"tone",normalReset?"normal":"warning"},{"stale",false}};
           var creditData=new Dictionary<string,object>{{"balance","250"},{"display","250"},{"unlimited",false},{"hasCredits",true},{"tone","normal"},{"stale",false}};
           int shortRemaining=key=="resets-full-both-dark"?5:key=="credits-full-both-dark"?0:key=="both-full-both-dark"?100:29;
           Call(window,"Apply",new Dictionary<string,object>{{"rows",new object[]{Row("5 ч",shortRemaining,"07.11","17:24"),Row("Нед.",75,"14.11","00:28")}},{"resets",resetData},{"credits",creditData}});Call(window,"SelectMode",mode);Call(window,"SelectFullProgress",indicator);
