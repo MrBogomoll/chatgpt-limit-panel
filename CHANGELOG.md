@@ -1,5 +1,9 @@
 # Changes
 
+## 1.7.8 — 2026-11-11
+
+- Show only ChatGPT Limit Panel in the tray tooltip, including after quota updates and language changes.
+
 ## 1.7.7 — 2026-11-07
 
 - Add plugin removal under the control card's collapsed settings, outside the panel context menu. Opening or cancelling the separate confirmation window does not uninstall anything.

@@ -599,15 +599,13 @@ namespace QuotaOverlay {
     }
     void LocalizeRows() {
       var message=view as Dictionary<string,object>;var rows=message!=null&&message.ContainsKey("rows")?message["rows"] as object[]:null;
-      var tooltip=new StringBuilder();
       for(int i=0;i<2;i++) {
         var row=rows!=null&&rows.Length==2?rows[i] as Dictionary<string,object>:null;
         string original=row==null?T(i==0?"shortLabel":"weekLabel"):Get(row,"period");
         periods[i].Text=PanelLanguage.Period(language,original,i);
         markers[i].Text=row!=null&&Get(row,"marker").Length>0?T("stale"):"";
-        if(i>0)tooltip.Append(" | ");tooltip.Append(periods[i].Text+": "+values[i].Text+" "+times[i].Text);
       }
-      tray.Text=tooltip.ToString().Substring(0,Math.Min(63,tooltip.Length));UpdateStaleStatus();
+      tray.Text=T("trayTitle");UpdateStaleStatus();
     }
     void ApplyTrayLanguage() {
       pause.Header=T(paused?"resume":"pause");
@@ -1095,7 +1093,6 @@ namespace QuotaOverlay {
       object resetData;resetsView=message.TryGetValue("resets",out resetData)?resetData as Dictionary<string,object>:null;RefreshResetsPanel();RefreshResetsMenu();RefreshCreditsPanel();
       receivedUpdates++;
       view=message;var rows=message["rows"] as object[];if(rows==null||rows.Length!=2)return;
-      var tooltip=new StringBuilder();
       for(int i=0;i<2;i++) {
         var row=rows[i] as Dictionary<string,object>;if(row==null)continue;
         remainingQuota[i]=null;object numeric;
@@ -1106,9 +1103,8 @@ namespace QuotaOverlay {
         rowTones[i]=Get(row,"tone");var color=Brush(palette.Tone(rowTones[i]));
         values[i].Foreground=color;times[i].Foreground=color;
         if(i==1)dates[i].Foreground=compact?color:Brush(palette.Date);
-        if(i>0)tooltip.Append(" | ");tooltip.Append(periods[i].Text+": "+values[i].Text+" "+times[i].Text);
       }
-      tray.Text=tooltip.ToString().Substring(0,Math.Min(63,tooltip.Length));
+      tray.Text=T("trayTitle");
       LocalizeRows();UpdateProgress();SyncTaskbar();
       lastState="";
       if(MotionActive()) {
