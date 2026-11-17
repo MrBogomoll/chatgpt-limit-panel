@@ -4,6 +4,11 @@ const api=await import('../plugins/chatgpt-limit-panel/server/updates.mjs').catc
 const origin='https://github.com/MrBogomoll/chatgpt-limit-panel';
 function release(version='1.2.0',slug='chatgpt-limit-panel') {const base='https://github.com/MrBogomoll/'+slug;return {id:99,url:'https://api.github.com/repos/MrBogomoll/'+slug+'/releases/99',tag_name:'v'+version,draft:false,prerelease:false,html_url:base+'/releases/tag/v'+version,assets:[{name:`chatgpt-limit-panel-${version}-windows-x64.zip`,state:'uploaded',size:123,browser_download_url:base+`/releases/download/v${version}/chatgpt-limit-panel-${version}-windows-x64.zip`}]};}
 const reply=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers});
+test('post-stable local beta does not offer its own older stable base as an update',async()=>{
+ const result=await api.createUpdateChecker({currentVersion:'1.7.8-b.1',fetchImpl:async()=>reply(release('1.7.8')),cooldownMs:0}).check();
+ assert.equal(result.state,'ahead');assert.equal(result.url,null);
+ const next=await api.createUpdateChecker({currentVersion:'1.7.8-b.1',fetchImpl:async()=>reply(release('1.7.9')),cooldownMs:0}).check();assert.equal(next.state,'available');
+});
 function checker(options={}) {assert.equal(typeof api.createUpdateChecker,'function');return api.createUpdateChecker({currentVersion:'1.1.0',cooldownMs:0,...options});}
 
 test('updates use the primary source repository after the release-only repository is retired',async()=>{
@@ -15,7 +20,7 @@ test('updates use the primary source repository after the release-only repositor
 
 test('the current release reports its own version and does not offer the older stable release',async()=>{
   const value=await api.createUpdateChecker({fetchImpl:async()=>reply(release('1.2.0')),cooldownMs:0}).check();
-  assert.equal(value.currentVersion,'1.7.8');assert.equal(value.latestVersion,'1.2.0');
+  assert.equal(value.currentVersion,'1.8.0');assert.equal(value.latestVersion,'1.2.0');
   assert.equal(value.state,'ahead');assert.equal(value.url,null);
 });
 

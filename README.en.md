@@ -1,5 +1,6 @@
 # ChatGPT Limit Panel
 
+
 [Русский](README.md)
 
 <img src="plugins/chatgpt-limit-panel/assets/chatgpt-limit-panel.png" width="88" height="88" alt="ChatGPT Limit Panel">
@@ -11,6 +12,8 @@ A **Codex / Work** limit panel for desktop ChatGPT on Windows. Shows remaining 5
 Download the built application ZIP under **Assets**. GitHub's **Source code** archives contain source files and are not plugin installation packages.
 
 ## Features
+
+Version **1.8.0**: **Panel content → Quota blocks** offers automatic hiding of an absent Pro short limit, both blocks with ∞, or weekly only. The contour falls back to weekly. **Placement → Taskbar → Content** selects quota percentages or remaining Codex credits.
 
 - **Codex / Work limits:** remaining 5-hour and weekly quotas with reset dates and times, refreshed about every 30 seconds. Instant shows the same counters.
 - **Available resets:** a count and nearest expiration on the panel, plus a submenu listing every expiration date and time. The block turns orange at 10 days or less and red at 3 days or less. Viewing does not redeem a reset.

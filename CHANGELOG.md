@@ -1,5 +1,12 @@
 # Changes
 
+## 1.8.0 — 2026-11-17
+
+- Automatically hide confirmed absent Pro five-hour limits, allow both blocks with infinity or weekly-only, and use the weekly frame when short limits are absent.
+- Add a persisted taskbar choice between quota percentages and Codex credit balance.
+- Stop copying the entire Codex configuration into installer-generated sources; verify synthetic-secret boundaries.
+
+
 ## 1.7.8 — 2026-11-11
 
 - Show only ChatGPT Limit Panel in the tray tooltip, including after quota updates and language changes.

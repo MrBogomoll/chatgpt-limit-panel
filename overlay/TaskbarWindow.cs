@@ -41,6 +41,7 @@ namespace QuotaOverlay {
     bool diagnosticTransient;
     long diagnosticAge;
     readonly TextBlock upper,lower;
+    readonly Grid rows;
     readonly Border surface;
     readonly Grid childRoot;
     TaskbarChildSurface childSurface;
@@ -69,7 +70,7 @@ namespace QuotaOverlay {
       Width=TaskbarLayout.Width;Height=TaskbarLayout.Height;WindowStartupLocation=WindowStartupLocation.Manual;
       WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;Background=Brushes.Transparent;
       ShowInTaskbar=false;ShowActivated=false;Focusable=false;UseLayoutRounding=true;SnapsToDevicePixels=true;
-      upper=Label();lower=Label();var rows=new Grid();rows.RowDefinitions.Add(new RowDefinition());rows.RowDefinitions.Add(new RowDefinition());
+      upper=Label();lower=Label();rows=new Grid();rows.RowDefinitions.Add(new RowDefinition());rows.RowDefinitions.Add(new RowDefinition());
       Grid.SetRow(lower,1);rows.Children.Add(upper);rows.Children.Add(lower);
       surface=new Border{Width=TaskbarLayout.Width,Height=TaskbarLayout.Height,Padding=new Thickness(3,0,3,0),CornerRadius=new CornerRadius(3),Child=rows};
       surface.MouseLeftButtonDown+=BeginPointer;
@@ -133,7 +134,20 @@ namespace QuotaOverlay {
     }
     public void ApplyRows(string upper,string lower,string upperTone,string lowerTone,bool stale) {
       if(disposed||closed)return;
+      this.upper.Visibility=this.lower.Visibility=Visibility.Visible;Grid.SetRowSpan(this.upper,1);this.upper.FontSize=12;
       this.upper.Text=Percentage(upper);this.lower.Text=Percentage(lower);this.upperTone=upperTone;this.lowerTone=lowerTone;this.stale=stale;ApplyPalette();
+    }
+    public void ApplyContent(string content,string credit,string creditTone,string shortValue,string weeklyValue,string shortTone,string weeklyTone,bool isStale,bool weeklyOnly,bool unlimited) {
+      if(disposed||closed)return;
+      ApplyRows(shortValue,weeklyValue,shortTone,weeklyTone,isStale);
+      if(content=="credits") {
+        bool valid=credit=="∞"||credit=="—"||credit!=null&&credit.Length<=10&&System.Text.RegularExpressions.Regex.IsMatch(credit,@"^-?\d+(?:\.\d+)?(?:[kmbt]|e-?\d+)?$");
+        upper.Text=valid?credit:"—";upperTone=valid?creditTone:"unknown";
+        upper.FontSize=upper.Text.Length>6?9:12;
+      }else if(weeklyOnly){upper.Text=Percentage(weeklyValue);upperTone=weeklyTone;}
+      else if(unlimited)upper.Text="∞";
+      if(content=="credits"||weeklyOnly){lower.Visibility=Visibility.Collapsed;Grid.SetRowSpan(upper,2);}
+      ApplyPalette();
     }
     void ApplyPalette() {Background=TaskbarAppearance.InputSurface(backgroundTransparency);if(childRoot!=null)childRoot.Background=Background;surface.Background=Color(palette.Background(backgroundTransparency));upper.Foreground=Color(palette.Tone(upperTone));lower.Foreground=Color(palette.Tone(lowerTone));upper.Opacity=lower.Opacity=stale?0.55:1;}
     void SetChildOpacity(double value){Opacity=value;if(childSurface!=null)childSurface.Opacity=value;}

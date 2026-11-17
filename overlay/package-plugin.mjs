@@ -5,8 +5,9 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
-const version = '1.7.8';
-const archiveName = `chatgpt-limit-panel-${version}-windows-x64.zip`;
+const version = '1.8.0';
+const displayVersion=version.replace("-b.","_b.");
+const archiveName = `chatgpt-limit-panel-${displayVersion}-windows-x64.zip`;
 const pluginFiles = [
   // The installed desktop parser ignores bundled MCP servers when root
   // plugin.json exists. Ship its supported compatibility entry point only.
@@ -67,7 +68,7 @@ export function stagePluginBundle({
     }
   }
   mkdirSync(output, { recursive: true });
-  const stagePath = mkdtempSync(path.join(output, `chatgpt-limit-panel-${version}-stage-`));
+  const stagePath = mkdtempSync(path.join(output, `chatgpt-limit-panel-${displayVersion}-stage-`));
   for (const file of files) {
     const target = path.join(stagePath, file.destination);
     mkdirSync(path.dirname(target), { recursive: true });

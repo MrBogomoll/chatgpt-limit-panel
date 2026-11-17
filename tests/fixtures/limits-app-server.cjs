@@ -5,6 +5,10 @@ rl.on('line', line => {
   if (request.method === 'initialize') {
     process.stdout.write(JSON.stringify({ id: request.id, result: { userAgent: 'test' } }) + '\n');
   } else if (request.method === 'account/rateLimits/read') {
+    if(process.argv.includes('--secret-error')) {
+      process.stderr.write('TEST_ONLY_SECRET_DO_NOT_COPY\n');
+      process.stdout.write(JSON.stringify({id:request.id,error:{message:'TEST_ONLY_SECRET_DO_NOT_COPY'}})+'\n');return;
+    }
     if (process.argv.includes('--hang')) return;
     process.stdout.write(JSON.stringify({ id: request.id, result: { rateLimits: { limitId: 'codex', primary: { usedPercent: 62, windowDurationMins: 300, resetsAt: 1792774530 }, secondary: null } } }) + '\n');
   } else if (request.id !== undefined) process.stdout.write(JSON.stringify({ id: request.id, error: { code: -32601, message: 'Forbidden in fixture' } }) + '\n');

@@ -92,7 +92,7 @@ function renderUpdate() {
   const value=updateSnapshot;releaseButton.hidden=updateBusy||value?.state!=='available'||!safeReleaseUrl(value.url);
   if(updateBusy){updateStatus.textContent=t('checkingUpdates');return;}
   if(!value){updateStatus.textContent='';return;}
-  updateStatus.textContent=openFailure?t('openError'):value.state==='available'&&safeReleaseUrl(value.url)?t('updateAvailable')(value.latestVersion,value.currentVersion):value.state==='current'?t('updateCurrent')(value.currentVersion):value.state==='ahead'?t('updateAhead')(value.currentVersion,value.latestVersion):t(value.reason==='rate-limit'?'updateRateLimit':value.reason==='timeout'?'updateTimeout':'updateError');
+  updateStatus.textContent=openFailure?t('openError'):value.state==='available'&&safeReleaseUrl(value.url)?t('updateAvailable')(value.latestVersion,value.currentVersion.replace("-b.","_b.")):value.state==='current'?t('updateCurrent')(value.currentVersion.replace("-b.","_b.")):value.state==='ahead'?t('updateAhead')(value.currentVersion.replace("-b.","_b."),value.latestVersion):t(value.reason==='rate-limit'?'updateRateLimit':value.reason==='timeout'?'updateTimeout':'updateError');
 }
 async function checkUpdates() {
   if(updateBusy||disposed||!connected)return;
@@ -160,7 +160,7 @@ refreshButton.addEventListener('click', () => call('get_quota_overlay_status'));
 window.addEventListener('pagehide', dispose, { once: true });
 
 try {
-  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'chatgpt-limit-panel', version: '1.7.8' }, appCapabilities: {} });
+  const result = await rpc('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'chatgpt-limit-panel', version: '1.8.0' }, appCapabilities: {} });
   if (!disposed) {
     applyHostContext(result?.hostContext); connected = true;
     window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized' }, '*');

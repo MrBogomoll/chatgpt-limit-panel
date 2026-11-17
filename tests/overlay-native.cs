@@ -18,6 +18,50 @@ using QuotaOverlay;
 // never show a window; the viewport case uses only its own offscreen no-activate
 // window. No tray is installed; previews are written under the runner's temp dir.
 class OverlayNativeTest {
+  static void ProDisplayTest(OverlayWindow window,string directory) {
+    var shortRow=Row("5 ч","∞","—","—","","normal");shortRow["unlimited"]=true;
+    var weekly=Row("Нед.","33%","16.11","23:36","","normal");
+    var message=new Dictionary<string,object>{{"rows",new object[]{shortRow,weekly}},{"credits",new Dictionary<string,object>{{"display","300k"},{"balance","300000"},{"tone","normal"},{"stale",false}}}};
+    Invoke(window,"Apply",message);
+    foreach(string visibility in new[]{"auto","both","weekly"}) {
+      Invoke(window,"SetQuotaVisibility",visibility);
+      foreach(string mode in new[]{"full","compact","ultra"}) {
+        Invoke(window,"SetMode",mode);
+        Check(Field<StackPanel[]>(window,"quotaRows")[0].Visibility==(visibility=="both"?Visibility.Visible:Visibility.Collapsed),"short block visibility follows preference");
+        Check(Field<TextBlock[]>(window,"values")[0].Text=="∞","no-limit value is infinity");
+        Check(Field<Border[]>(window,"progressTracks")[0].Visibility==Visibility.Collapsed,"infinity has no fake percentage bar");
+        Check(Field<Border>(window,"panel").Height<169,"Pro panel shrinks with real content");
+        var panel=Field<Border>(window,"panel");var surface=Field<Grid>(window,"surface");surface.Measure(new Size(46,panel.Height));surface.Arrange(new Rect(0,0,46,panel.Height));surface.UpdateLayout();
+        var track=Field<Border[]>(window,"progressTracks")[1];
+        Rect trackBounds=track.TransformToAncestor(panel).TransformBounds(new Rect(new Point(),track.RenderSize));
+        Check(trackBounds.Bottom<=panel.Height-panel.Padding.Bottom-panel.BorderThickness.Bottom+0.01,"weekly bar must fit above the shared bottom inset in "+mode+"/"+visibility);
+        Check(ColorOf(Field<System.Windows.Shapes.Path>(window,"progressOutline").Stroke)==ColorOf(Field<Border[]>(window,"progressFills")[1].Background),"contour uses weekly when short is unlimited");
+        if(mode=="ultra"&&visibility=="both") {
+          Check(Field<TextBlock[]>(window,"values")[0].Visibility==Visibility.Visible,"ultra both mode shows infinity");
+          Check(Field<Border>(window,"divider").Visibility==Visibility.Visible,"ultra infinity has the agreed thin divider above the weekly bar");
+        }
+        string preview=Environment.GetEnvironmentVariable("QUOTA_PRO_PREVIEWS");
+        if(!String.IsNullOrEmpty(preview)){Directory.CreateDirectory(preview);Invoke(window,"SavePreview");File.Copy(Path.Combine(directory,"panel.png"),Path.Combine(preview,visibility+"-"+mode+".png"),true);}
+      }
+    }
+    Invoke(window,"SetTaskbarEnabled",true);Invoke(window,"SetTaskbarContent","credits");
+    var taskbar=Field<TaskbarWindow>(window,"taskbarWindow");
+    var upper=(TextBlock)typeof(TaskbarWindow).GetField("upper",PrivateInstance).GetValue(taskbar);
+    var lower=(TextBlock)typeof(TaskbarWindow).GetField("lower",PrivateInstance).GetValue(taskbar);
+    Check(upper.Text=="300k"&&lower.Visibility==Visibility.Collapsed,"taskbar credits use one compact value");
+    Check(Grid.GetRowSpan(upper)==2,"single taskbar value occupies both rows");
+    Invoke(window,"SetTaskbarContent","percentages");
+    Check(upper.Text=="33%"&&lower.Visibility==Visibility.Collapsed,"weekly taskbar shows one percentage");
+    Invoke(window,"SetQuotaVisibility","both");Check(upper.Text=="∞"&&lower.Text=="33%"&&lower.Visibility==Visibility.Visible,"both taskbar retains infinity");
+    shortRow["marker"]="устар.";weekly["marker"]="устар.";message["stale"]=true;Invoke(window,"Apply",message);Invoke(window,"SetMode","ultra");
+    Check(Field<TextBlock[]>(window,"values")[0].Opacity<1&&Field<TextBlock>(window,"staleLabel").Visibility==Visibility.Collapsed,"stale ultra infinity dims without adding a label or growing");
+    Invoke(window,"SetTaskbarEnabled",false);
+    Apply(window,Row("5 ч","—","—","—","","unknown"),weekly);Invoke(window,"SetQuotaVisibility","auto");
+    Check(Field<StackPanel[]>(window,"quotaRows")[0].Visibility==Visibility.Visible,"unknown short quota must not hide");
+    var saved=new JavaScriptSerializer().DeserializeObject(File.ReadAllText(Path.Combine(directory,"settings.json"))) as Dictionary<string,object>;
+    Check(Convert.ToString(saved["quotaVisibility"])=="auto"&&Convert.ToString(saved["taskbarContent"])=="percentages","new settings persist");
+    Console.WriteLine("PASS native pro-display");
+  }
   static readonly BindingFlags PrivateInstance=BindingFlags.NonPublic|BindingFlags.Instance;
   static OverlayWindow NewWindow(string statePath) {
     var window=new OverlayWindow(statePath,new ThemeResolver(Path.Combine(Path.GetDirectoryName(statePath),"test-app-config.toml"),delegate{return false;}),null,delegate{return null;});
@@ -860,7 +904,7 @@ class OverlayNativeTest {
     var toggle=Field<MenuItem>(window,"taskbarEnabledItem");
     Check(Convert.ToString(toggle.Header).Contains("Показывать"),"Russian taskbar toggle must be discoverable");
     MenuClick(toggle);Check(Field<bool>(window,"taskbarEnabled"),"taskbar toggle must enable independent view");
-    var settings=(MenuItem)toggle.Parent;Check(settings.Items.Count==2&&((MenuItem)settings.Items[1]).Tag.ToString()=="taskbarResetPosition","taskbar menu exposes only visibility and reset, without redundant side or status entries");
+    var settings=(MenuItem)toggle.Parent;Check(settings.Items.Count==3&&((MenuItem)settings.Items[1]).Tag.ToString()=="taskbarContent"&&((MenuItem)settings.Items[2]).Tag.ToString()=="taskbarResetPosition","taskbar menu exposes visibility, content selection and reset without redundant side or status entries");
     Invoke(window,"SetTaskbarPosition",.23);Check(Field<double?>(window,"taskbarPosition")==.23,"manual drag position is retained until explicit reset");
     MenuClick(Field<MenuItem>(window,"taskbarResetPositionItem"));
     Check(Field<string>(window,"taskbarSide")=="right"&&!Field<double?>(window,"taskbarPosition").HasValue,"reset clears the dragged position and restores default placement without disabling the indicator");
@@ -1577,6 +1621,7 @@ class OverlayNativeTest {
         case "motion":MotionTest(window,directory);break;
         case "motion-hook":MotionHookTest(window);break;
         case "updates":UpdatesTest(window);break;
+        case "pro-display":ProDisplayTest(window,directory);break;
         case "resets":ResetsTest(window);break;
         case "resets-panel":ResetsPanelTest(ref window,directory);break;
         case "credits-panel":CreditsPanelTest(ref window,directory);break;

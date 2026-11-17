@@ -10,6 +10,17 @@ import { overlayView } from './model.mjs';
 import {createUpdateChecker,CURRENT_VERSION} from '../plugins/chatgpt-limit-panel/server/updates.mjs';
 
 const executablePath = fileURLToPath(new URL('../dist/overlay/ChatGPTLimitPanel.exe', import.meta.url));
+export function mergeQuotaSnapshot(previous,next) {
+  const planChanged = previous.planType && next.planType && previous.planType !== next.planType;
+  if (planChanged) return next;
+  let retained=false;
+  const windows=next.windows.map(window=>{
+    const old=previous.windows?.find(value=>value.kind===window.kind);
+    if(window.availability==='unknown' && old?.availability==='unlimited') {retained=true;return old;}
+    return window;
+  });
+  return retained ? {...next,windows,stale:true,planType:next.planType??previous.planType} : next;
+}
 const defaultStatePath = () => {
   const local=process.env.LOCALAPPDATA || join(homedir(),'AppData','Local'),current=join(local,'ChatGPTLimitPanel'),legacy=join(local,'ChatGPTQuotaOverlay');
   return join(!existsSync(current)&&existsSync(legacy)?legacy:current,'state.json');
@@ -96,7 +107,7 @@ export function createOverlayHost({
     const pending = Promise.resolve().then(async () => {
       if (stopping || paused || (!appPresent && !taskbarEnabled && !liveTrayEnabled)) return;
       const raw = await reader.read();
-      if (!stopping) snapshot = normalizeQuota(raw, now());
+      if (!stopping) snapshot = mergeQuotaSnapshot(snapshot,normalizeQuota(raw, now()));
     }).catch(() => {
       if (!stopping) snapshot = { ...snapshot, stale: true };
     }).then(() => {

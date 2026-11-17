@@ -31,7 +31,7 @@ async function fixture(t, installed = true) {
   }
   await writeFile(path.join(stagePath, 'private-author-config.toml'), 'do not install');
   await mkdir(codexHome, { recursive: true });
-  const originalConfig = '# preserve locale and other plugins\nlocale = "ru"\n[plugins."quota-chips@quota-chips-local"]\nenabled = true\n';
+  const originalConfig = '# preserve locale and other plugins\nlocale = "ru"\napi_key = "TEST_ONLY_SECRET_DO_NOT_COPY"\n[plugins."quota-chips@quota-chips-local"]\nenabled = true\n';
   await writeFile(path.join(codexHome, 'config.toml'), originalConfig);
   const log = path.join(directory, 'calls.jsonl'), cli = path.join(directory, 'fixture-cli.cjs');
   await writeFile(cli, `
@@ -50,7 +50,7 @@ if(args[1] === 'marketplace') {
   console.log(JSON.stringify({installed:true}));
 } else if(args[1] === 'list') {
   if(JSON.stringify(args.slice(2)) !== JSON.stringify(['--marketplace','quota-panel-local','--json'])) process.exit(16);
-  console.log(JSON.stringify({installed:${installed ? "[{pluginId:'quota-panel@quota-panel-local',name:'quota-panel',marketplaceName:'quota-panel-local',installed:true,enabled:true,version:'1.4.4'}]" : '[]'}}));
+  console.log(JSON.stringify({installed:${installed ? "[{pluginId:'quota-panel@quota-panel-local',name:'quota-panel',marketplaceName:'quota-panel-local',installed:true,enabled:true,version:'1.4.4',access_token:'TEST_ONLY_SECRET_DO_NOT_COPY'}]" : '[]'}}));
 } else process.exit(17);
 `);
   return { stagePath, codexHome, codexBin: process.execPath, codexPrefixArgs: [cli, log], log, originalConfig };
@@ -62,6 +62,7 @@ test('plugin installer registers a complete private marketplace and verifies nat
   const result = api.installPlugin(settings);
   assert.equal(result.installed.pluginId, 'quota-panel@quota-panel-local');
   assert.equal(result.installed.enabled, true);
+  assert(!JSON.stringify(result).includes('TEST_ONLY_SECRET_DO_NOT_COPY'));
   for (const file of ['README.txt', 'LICENSE.txt', 'UPGRADING.txt', 'UNINSTALL.txt']) {
     assert.equal(await readFile(path.join(result.sourcePath, file), 'utf8'), 'payload:' + file);
   }
@@ -70,7 +71,8 @@ test('plugin installer registers a complete private marketplace and verifies nat
   assert.equal(await readFile(path.join(result.sourcePath, '.codex-plugin/plugin.json'), 'utf8'), await readFile(path.join(settings.stagePath, '.codex-plugin/plugin.json'), 'utf8'));
   assert.equal((await readdir(result.sourcePath)).includes('private-author-config.toml'), false);
   assert.equal((await readdir(result.sourcePath)).includes('plugin.json'), false);
-  assert.equal(await readFile(result.configBackupPath, 'utf8'), settings.originalConfig);
+  assert.equal(result.configBackupPath,null);
+  assert.equal((await readdir(result.marketplaceRoot)).includes('config-before-install.toml'),false);
   const inventory=JSON.parse(await readFile(path.join(result.marketplaceRoot,'uninstall-inventory.json'),'utf8'));
   assert.equal(inventory.schema,1);assert.equal(inventory.pluginId,'quota-panel@quota-panel-local');
   for(const [relative,digest] of Object.entries(inventory.files))assert.equal(createHash('sha256').update(await readFile(path.join(result.marketplaceRoot,relative))).digest('hex'),digest,'uninstall receipt records exact generated file bytes');

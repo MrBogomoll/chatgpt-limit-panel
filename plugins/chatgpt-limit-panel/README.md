@@ -1,4 +1,10 @@
-# ChatGPT Limit Panel 1.7.8
+# ChatGPT Limit Panel 1.8.0
+
+Отображение лимитов: **ПКМ → Содержимое панели → Лимиты** выбирает автоматическое скрытие отсутствующего пятичасового лимита, оба блока (∞ при подтверждённом отсутствии ограничения) или только недельный. Контур автоматически использует недельный остаток, если пятичасового ограничения нет.
+
+**ПКМ → Расположение → Панель задач → Что показывать** переключает проценты лимита и остаток кредитов Codex. Большие суммы сокращаются, например `300k`; API-баланс источник не предоставляет. **«Показывать индикатор»** отдельно включает отображение. Тот же выбор есть в меню самого индикатора.
+
+Quota display: Panel content → Quota blocks selects Automatic, Keep both (∞ for a confirmed absent short limit), or Weekly only. The contour falls back to weekly. Placement → Taskbar → Content selects quota percentages or remaining Codex credits; Show indicator independently enables the taskbar display. The taskbar indicator's own menu offers the same content choice.
 
 «Показывать сбросы» в меню панели и трея включает блок над лимитами. Полный вид: количество, дата и время; компактный: количество и дата; ультракомпактный: `↻ 3`. Выбор сохраняется во всех режимах.
 

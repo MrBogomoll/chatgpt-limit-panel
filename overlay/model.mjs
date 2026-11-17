@@ -50,13 +50,14 @@ export function overlayView(snapshot, { now = Date.now(), timeZone = Intl.DateTi
   return { stale, collectedAt: snapshot.collectedAt, resets, credits, rows: ['short', 'weekly'].map(kind => {
     const w = snapshot.windows?.find(w => w.kind === kind);
     const known = Number.isFinite(w?.remaining);
+    const unlimited = w?.availability === 'unlimited';
     const remaining = known ? Math.min(100, Math.max(0, w.remaining)) : null;
     const candidate = Number.isSafeInteger(w?.resetsAt) && w.resetsAt > 0 ? new Date(w.resetsAt * 1000) : null;
     const reset = candidate && Number.isFinite(candidate.getTime()) ? candidate : null;
     const duration = w?.windowDurationMins;
     const period = kind === 'weekly' ? 'Нед.' : Number.isFinite(duration) && duration > 0 ? duration % 60 === 0 ? `${duration / 60} ч` : `${duration} мин` : '—';
-    return { period, value: known ? `${remaining}%` : '—', remaining,
-      date: reset ? date.format(reset) : '—', time: reset ? time.format(reset) : '—', marker: known && stale ? 'устар.' : '',
-      tone: !known ? 'unknown' : remaining <= 10 ? 'critical' : remaining <= 30 ? 'warning' : 'normal' };
+    return { period, value: unlimited ? '∞' : known ? `${remaining}%` : '—', remaining, unlimited,
+      date: reset ? date.format(reset) : '—', time: reset ? time.format(reset) : '—', marker: (known || unlimited) && stale ? 'устар.' : '',
+      tone: unlimited ? 'normal' : !known ? 'unknown' : remaining <= 10 ? 'critical' : remaining <= 30 ? 'warning' : 'normal' };
   }) };
 }

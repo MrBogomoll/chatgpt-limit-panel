@@ -57,27 +57,25 @@ export function installPlugin({
       policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' }, category: 'Productivity' }],
   }, null, 2) + '\n', { flag: 'wx' });
 
-  let configBackupPath = null;
-  const configPath = path.join(home, 'config.toml');
-  if (existsSync(configPath)) {
-    configBackupPath = path.join(marketplaceRoot, 'config-before-install.toml');
-    copyFileSync(configPath, configBackupPath, constants.COPYFILE_EXCL);
-  }
-  const inventoryFiles=[...files.map(relative=>'plugins/chatgpt-limit-panel/'+relative),'.agents/plugins/marketplace.json',...(configBackupPath?['config-before-install.toml']:[])];
+  const configBackupPath = null;
+  // Codex owns its configuration and sign-in. Do not duplicate a config file:
+  // it can contain inline API keys even though this plugin never needs them.
+  const inventoryFiles=[...files.map(relative=>'plugins/chatgpt-limit-panel/'+relative),'.agents/plugins/marketplace.json'];
   writeFileSync(path.join(marketplaceRoot,'uninstall-inventory.json'),JSON.stringify({schema:1,pluginId,files:Object.fromEntries(inventoryFiles.map(relative=>[relative,createHash('sha256').update(readFileSync(path.join(marketplaceRoot,relative))).digest('hex')]))},null,2)+'\n',{flag:'wx'});
   const run = args => {
     const result = spawnSync(codexBin, [...codexPrefixArgs, ...args], {
       env: { ...process.env, CODEX_HOME: home }, encoding: 'utf8', windowsHide: true, timeout: 30_000,
     });
-    if (result.error || result.status !== 0) throw new Error(`Native Codex plugin command failed (${args.slice(0, 3).join(' ')}). Configuration backup: ${configBackupPath || 'not needed'}`);
+    if (result.error || result.status !== 0) throw new Error(`Native Codex plugin command failed (${args.slice(0, 3).join(' ')}).`);
     try { return JSON.parse(result.stdout); }
     catch { throw new Error('Native Codex plugin command returned invalid JSON.'); }
   };
   run(['plugin', 'marketplace', 'add', marketplaceRoot, '--json']);
   run(['plugin', 'add', pluginId, '--json']);
   const listed = run(['plugin', 'list', '--marketplace', marketplaceName, '--json']);
-  const installed = listed.installed?.find(plugin => plugin.pluginId === pluginId && plugin.installed && plugin.enabled && plugin.version === manifest.version);
-  if (!installed) throw new Error('Could not verify ChatGPT Limit Panel as installed and enabled in native Codex plugin metadata.');
+  const record = listed.installed?.find(plugin => plugin.pluginId === pluginId && plugin.installed && plugin.enabled && plugin.version === manifest.version);
+  if (!record) throw new Error('Could not verify ChatGPT Limit Panel as installed and enabled in native Codex plugin metadata.');
+  const installed={pluginId,name:manifest.name,marketplaceName,version:manifest.version,installed:true,enabled:true};
   return { installed, marketplaceRoot, sourcePath, configBackupPath };
 }
 

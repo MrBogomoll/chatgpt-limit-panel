@@ -1,4 +1,4 @@
-export const CURRENT_VERSION='1.7.8';
+export const CURRENT_VERSION='1.8.0';
 export const RELEASE_ORIGIN='https://github.com/MrBogomoll/chatgpt-limit-panel';
 // Repository names can change. The verified public repository ID stays stable.
 const endpoint='https://api.github.com/repositories/1433242334/releases/latest';
@@ -52,8 +52,9 @@ export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=gl
             const asset=names.map(name=>release.assets?.find(item=>item.name===name)).find(Boolean);
             const filename=asset?.name;
             if(!asset||asset.state!=='uploaded'||!Number.isSafeInteger(asset.size)||asset.size<=0||asset.browser_download_url!==origin+'/releases/download/'+release.tag_name+'/'+filename)throw new Error();
-            const compared=compareVersions(latestVersion,currentVersion);
-            return {state:compared>0?'available':compared===0?'current':'ahead',currentVersion,latestVersion,url:compared>0?url:null,checkedAt:now()};
+            const localBeta=/-b\.\d+$/.test(currentVersion);
+            const compared=compareVersions(latestVersion,localBeta?currentVersion.replace(/-b\.\d+$/,''):currentVersion);
+            return {state:compared>0?'available':compared===0&&!localBeta?'current':'ahead',currentVersion,latestVersion,url:compared>0?url:null,checkedAt:now()};
           }catch{return failure('invalid');}
         })();
         return await Promise.race([work,new Promise((resolve)=>{cancelPending=()=>{resolve(failure('cancelled'));abort.abort();};timer=setTimeout(()=>{timedOut=true;abort.abort();resolve(failure('timeout'));},timeoutMs);})]);
@@ -65,6 +66,7 @@ export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=gl
   return {check,cancel(){if(cancelPending)cancelPending();else activeAbort?.abort();}};
 }
 export function updateMessage(update,language='ru') {
+  update={...update,currentVersion:String(update.currentVersion??'—').replace('-b.','_b.')};
   const en=language==='en';
   if(update.state==='available')return en?`ChatGPT Limit Panel ${update.latestVersion} is available. Installed: ${update.currentVersion}.`:`Доступна ChatGPT Limit Panel ${update.latestVersion}. Установлена: ${update.currentVersion}.`;
   if(update.state==='current')return en?`ChatGPT Limit Panel ${update.currentVersion} is up to date.`:`Установлена актуальная ChatGPT Limit Panel ${update.currentVersion}.`;

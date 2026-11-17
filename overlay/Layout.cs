@@ -23,24 +23,24 @@ namespace QuotaOverlay {
       if(extent<=0||Double.IsNaN(bottom)||Double.IsInfinity(bottom))return null;
       return Math.Max(0,Math.Min(1,(bottom-top-panelHeight)/extent));
     }
-    public static Placement PlaceFloating(double left,double top,double width,double height,double scale,string preferredMode,double? x,double? y,bool showResets=false,bool showCredits=false,int staleRows=0) {
+    public static Placement PlaceFloating(double left,double top,double width,double height,double scale,string preferredMode,double? x,double? y,bool showResets=false,bool showCredits=false,int staleRows=0,int shortLayout=0) {
       if(scale<=0||Double.IsNaN(scale)||Double.IsInfinity(scale))scale=1;
       double margin=4*scale,availableWidth=Math.Max(0,width-2*margin),availableHeight=Math.Max(0,height-2*margin);
       string mode=preferredMode=="ultra"?"ultra":preferredMode=="compact"?"compact":"full";
-      double panelHeight=HeightForMode(mode,showResets,showCredits,staleRows)*scale;
-      if(panelHeight>availableHeight&&mode=="full"){mode="compact";panelHeight=HeightForMode(mode,showResets,showCredits,staleRows)*scale;}
-      if(panelHeight>availableHeight){mode="ultra";panelHeight=HeightForMode(mode,showResets,showCredits,staleRows)*scale;}
+      double panelHeight=HeightForMode(mode,showResets,showCredits,staleRows,shortLayout)*scale;
+      if(panelHeight>availableHeight&&mode=="full"){mode="compact";panelHeight=HeightForMode(mode,showResets,showCredits,staleRows,shortLayout)*scale;}
+      if(panelHeight>availableHeight){mode="ultra";panelHeight=HeightForMode(mode,showResets,showCredits,staleRows,shortLayout)*scale;}
       double px=x.HasValue&&!Double.IsNaN(x.Value)&&!Double.IsInfinity(x.Value)?Math.Max(0,Math.Min(1,x.Value)):0;
       double py=y.HasValue&&!Double.IsNaN(y.Value)&&!Double.IsInfinity(y.Value)?Math.Max(0,Math.Min(1,y.Value)):Math.Max(0,Math.Min(1,(height-BottomClearance*scale-panelHeight-margin)/Math.Max(1,availableHeight-panelHeight)));
       return new Placement {Visible=availableWidth>=PanelWidth*scale&&availableHeight>=panelHeight,Mode=mode,Compact=mode!="full",Width=PanelWidth*scale,Height=panelHeight,
         X=left+margin+Math.Max(0,availableWidth-PanelWidth*scale)*px,Y=top+margin+Math.Max(0,availableHeight-panelHeight)*py};
     }
-    public static Placement PlaceInAvailableRail(double left,double top,double width,double height,double scale,string preferredMode,IList<RailRegion> occupied,double? position,bool showResets=false,bool showCredits=false,int staleRows=0) {
+    public static Placement PlaceInAvailableRail(double left,double top,double width,double height,double scale,string preferredMode,IList<RailRegion> occupied,double? position,bool showResets=false,bool showCredits=false,int staleRows=0,int shortLayout=0) {
       if(scale<=0||Double.IsNaN(scale)||Double.IsInfinity(scale))scale=1;
-      var result=PlaceInRail(Place(left,top,width,height,scale,preferredMode,showResets,showCredits,staleRows),top,height,scale,occupied,position);
-      if(!result.Visible&&preferredMode=="full")result=PlaceInRail(Place(left,top,width,height,scale,"compact",showResets,showCredits,staleRows),top,height,scale,occupied,position);
+      var result=PlaceInRail(Place(left,top,width,height,scale,preferredMode,showResets,showCredits,staleRows,shortLayout),top,height,scale,occupied,position);
+      if(!result.Visible&&preferredMode=="full")result=PlaceInRail(Place(left,top,width,height,scale,"compact",showResets,showCredits,staleRows,shortLayout),top,height,scale,occupied,position);
       if(!result.Visible&&occupied!=null) {
-        var ultra=Place(left,top,width,height,scale,"ultra",showResets,showCredits,staleRows);
+        var ultra=Place(left,top,width,height,scale,"ultra",showResets,showCredits,staleRows,shortLayout);
         // With measured controls, the actual free interval is authoritative;
         // retain minimum width and let PlaceInRail enforce header/control gaps.
         ultra.Visible=width/scale>=320;
@@ -66,8 +66,8 @@ namespace QuotaOverlay {
     public static double HeaderHeight(string mode) {return mode=="ultra"?3:StaleHeaderHeight;}
     public static double ResetsHeight(string mode) {return mode=="ultra"?22:mode=="compact"?41:64;}
     public static double CreditsHeight(string mode) {return mode=="ultra"?24:mode=="compact"?38:40;}
-    public static double HeightForMode(string mode,bool showResets=false,bool showCredits=false,int staleRows=0) {
-      return (mode=="ultra"?UltraHeight:mode=="compact"?CompactHeight:PanelHeight)+(showResets?ResetsHeight(mode)-HeaderHeight(mode):0)+(showCredits?CreditsHeight(mode):0);
+    public static double HeightForMode(string mode,bool showResets=false,bool showCredits=false,int staleRows=0,int shortLayout=0) {
+      return (shortLayout==1?(mode=="ultra"?20:mode=="compact"?68:96):shortLayout==2?(mode=="ultra"?44:mode=="compact"?111:139):(mode=="ultra"?UltraHeight:mode=="compact"?CompactHeight:PanelHeight))+(showResets?ResetsHeight(mode)-HeaderHeight(mode):0)+(showCredits?CreditsHeight(mode):0);
     }
     // Keep within the current 52 DIP rail, leaving the update button, avatar and upper navigation free.
     public static Placement Place(double left,double top,double width,double height,double scale) {
@@ -76,11 +76,11 @@ namespace QuotaOverlay {
     public static Placement Place(double left,double top,double width,double height,double scale,bool preferCompact) {
       return Place(left,top,width,height,scale,preferCompact?"compact":"full");
     }
-    public static Placement Place(double left,double top,double width,double height,double scale,string preferredMode,bool showResets=false,bool showCredits=false,int staleRows=0) {
+    public static Placement Place(double left,double top,double width,double height,double scale,string preferredMode,bool showResets=false,bool showCredits=false,int staleRows=0,int shortLayout=0) {
       if(scale<=0 || double.IsNaN(scale)) scale=1;
-      double compactMinimum=650+HeightForMode("compact",showResets,showCredits,staleRows)-CompactHeight,fullMinimum=760+HeightForMode("full",showResets,showCredits,staleRows)-PanelHeight;
+      double compactMinimum=650+HeightForMode("compact",showResets,showCredits,staleRows,shortLayout)-CompactHeight,fullMinimum=760+HeightForMode("full",showResets,showCredits,staleRows,shortLayout)-PanelHeight;
       string mode=preferredMode=="ultra"||height/scale<compactMinimum?"ultra":preferredMode=="compact"||height/scale<fullMinimum?"compact":"full";
-      double panelHeight=HeightForMode(mode,showResets,showCredits,staleRows),minimum=(mode=="ultra"?582:mode=="compact"?650:760)+panelHeight-HeightForMode(mode);
+      double panelHeight=HeightForMode(mode,showResets,showCredits,staleRows,shortLayout),minimum=(mode=="ultra"?582:mode=="compact"?650:760)+panelHeight-HeightForMode(mode);
       return new Placement { Visible=width/scale>=320 && height/scale>=minimum,Compact=mode!="full",Mode=mode,
         X=left+3*scale,Y=top+height-(BottomClearance+panelHeight)*scale,
         Width=PanelWidth*scale,Height=panelHeight*scale };

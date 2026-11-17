@@ -4,6 +4,11 @@ import { fileURLToPath } from 'node:url';
 const api = await import('../plugins/chatgpt-limit-panel/server/reader.mjs').catch(() => ({}));
 const fixture = fileURLToPath(new URL('./fixtures/limits-app-server.cjs', import.meta.url));
 
+test('backend errors and stderr never expose a synthetic credential in reader errors',async()=>{
+ const reader=new api.RateLimitReader({command:process.execPath,args:[fixture,'--secret-error'],timeoutMs:1000});
+ try{await assert.rejects(reader.read(),error=>!error.message.includes('TEST_ONLY_SECRET_DO_NOT_COPY')&&/rejected/.test(error.message));}finally{reader.close();}
+});
+
 test('reader initializes a subprocess and reads the actual JSON-RPC response', async () => {
   assert.equal(typeof api.RateLimitReader, 'function');
   const reader = new api.RateLimitReader({ command: process.execPath, args: [fixture], timeoutMs: 1000 });
