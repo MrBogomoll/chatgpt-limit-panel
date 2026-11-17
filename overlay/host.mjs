@@ -3,6 +3,7 @@ import { mkdirSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RateLimitReader } from '../plugins/chatgpt-limit-panel/server/reader.mjs';
 import { normalizeQuota } from '../plugins/chatgpt-limit-panel/server/limits.mjs';
@@ -13,6 +14,9 @@ const executablePath = fileURLToPath(new URL('../dist/overlay/ChatGPTLimitPanel.
 export function mergeQuotaSnapshot(previous,next) {
   const planChanged = previous.planType && next.planType && previous.planType !== next.planType;
   if (planChanged) return next;
+  if (next.status === 'unavailable' && previous.status !== 'unavailable') {
+    return { ...previous, stale: true };
+  }
   let retained=false;
   const windows=next.windows.map(window=>{
     const old=previous.windows?.find(value=>value.kind===window.kind);
@@ -33,6 +37,7 @@ export function createOverlayHost({
   guiArgs = [],
   statePath = defaultStatePath(),
   pollIntervalMs = 30_000,
+  retryDelayMs = 2_000,
   freshnessIntervalMs = 1_000,
   shutdownTimeoutMs = 1_000,
   waitForApp = false,
@@ -49,6 +54,7 @@ export function createOverlayHost({
   let liveTrayEnabled = false;
   let checkingUpdate=false;
   let snapshot = normalizeQuota(null, now());
+  const retryWait = new AbortController();
   let result = { code: 0, reason: 'stopped' };
   let resolveDone;
   const done = new Promise(resolve => { resolveDone = resolve; });
@@ -63,6 +69,7 @@ export function createOverlayHost({
     result = { code, reason };
     clearInterval(pollTimer);
     clearInterval(freshnessTimer);
+    retryWait.abort();
     try{updateChecker.cancel?.();}catch{}
     closeReader();
     if (!child || closed) {
@@ -100,16 +107,40 @@ export function createOverlayHost({
     finally{checkingUpdate=false;}
   }
 
+  function canRefresh() {
+    return !stopping && ready && !paused && (appPresent || taskbarEnabled || liveTrayEnabled);
+  }
+
+  async function readSnapshot(previous) {
+    try {
+      const raw = await reader.read();
+      return mergeQuotaSnapshot(previous, normalizeQuota(raw, now()));
+    } catch {
+      return { ...previous, stale: true };
+    }
+  }
+
   function refresh() {
-    if (stopping || !ready || paused || (!appPresent && !taskbarEnabled && !liveTrayEnabled)) return Promise.resolve(null);
+    if (!canRefresh()) return Promise.resolve(null);
     if (inFlight) return inFlight;
     // Set the shared promise before calling even a synchronous injected reader.
     const pending = Promise.resolve().then(async () => {
-      if (stopping || paused || (!appPresent && !taskbarEnabled && !liveTrayEnabled)) return;
-      const raw = await reader.read();
-      if (!stopping) snapshot = mergeQuotaSnapshot(snapshot,normalizeQuota(raw, now()));
-    }).catch(() => {
-      if (!stopping) snapshot = { ...snapshot, stale: true };
+      if (!canRefresh()) return;
+      const previous = snapshot;
+      let next = await readSnapshot(previous);
+      if (next.stale && !previous.stale && canRefresh()) {
+        // A brief outage gets one extra attempt. Once stale, the regular poll
+        // handles recovery without doubling requests throughout an outage.
+        try {
+          await delay(retryDelayMs, undefined, { signal: retryWait.signal });
+        } catch (error) {
+          if (error.name !== 'AbortError') throw error;
+          return;
+        }
+        if (!canRefresh()) return;
+        next = await readSnapshot(previous);
+      }
+      if (canRefresh()) snapshot = next;
     }).then(() => {
       if (!stopping) render();
       return snapshot;

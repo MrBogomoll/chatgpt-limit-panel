@@ -17,7 +17,7 @@ export function normalizeQuota(raw, collectedAt = Date.now()) {
       kind,
       availability: valid ? 'limited' : unlimited ? 'unlimited' : 'unknown',
       windowDurationMins: value?.windowDurationMins ?? (kind === 'weekly' ? 10080 : 300),
-      remaining: valid ? Math.round(Math.max(0, Math.min(100, 100 - value.usedPercent))) : null,
+      remaining: valid ? Math.max(0, Math.min(100, 100 - value.usedPercent)) : null,
       usedPercent: valid ? value.usedPercent : null,
       resetsAt: Number.isSafeInteger(value?.resetsAt) && value.resetsAt > 0 && Number.isFinite(new Date(value.resetsAt * 1000).getTime()) ? value.resetsAt : null,
     };
@@ -46,7 +46,7 @@ export function contextForQuota(snapshot, { now = Date.now(), timeZone = Intl.Da
   return { content: windows.map(value => {
     const duration = value.windowDurationMins;
     const label = value.kind === 'weekly' ? 'Неделя' : duration % 60 === 0 ? `${duration / 60} ч` : `${duration} мин`;
-    let title = `${label}: ${value.availability === 'unlimited' ? 'без ограничений' : value.remaining === null ? 'нет данных' : value.remaining + '%'}`;
+    let title = `${label}: ${value.availability === 'unlimited' ? 'без ограничений' : value.remaining === null ? 'нет данных' : Math.round(value.remaining) + '%'}`;
     if (value.remaining !== null && value.resetsAt !== null) {
       const reset = new Date(value.resetsAt * 1000);
       const time = parts(reset, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });

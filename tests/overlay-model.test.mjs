@@ -5,6 +5,13 @@ const api = await import('../overlay/model.mjs').catch(() => ({}));
 const collectedAt = Date.parse('2026-10-23T14:00:00Z');
 const snapshot = { collectedAt, status: 'ok', windows: [{ kind: 'short', windowDurationMins: 300, remaining: 10, resetsAt: 1792774531 }, { kind: 'weekly', windowDurationMins: 10080, remaining: 30, resetsAt: 1793297434 }] };
 
+test('fractional source reaches native numeric rows while default text stays rounded', () => {
+  const quota=normalizeQuota({rateLimits:{primary:{usedPercent:1.65,windowDurationMins:300}}},collectedAt);
+  const row=api.overlayView(quota,{now:collectedAt}).rows[0];
+  assert.equal(row.remaining,98.35);
+  assert.equal(row.value,'98%');
+});
+
 test('overlay retains server resets and applies warning boundaries with readable colours', () => {
   assert.equal(typeof api.overlayView, 'function');
   const view = api.overlayView(snapshot, { now: collectedAt, timeZone: 'Europe/Moscow' });

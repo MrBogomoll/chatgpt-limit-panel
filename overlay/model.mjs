@@ -56,7 +56,7 @@ export function overlayView(snapshot, { now = Date.now(), timeZone = Intl.DateTi
     const reset = candidate && Number.isFinite(candidate.getTime()) ? candidate : null;
     const duration = w?.windowDurationMins;
     const period = kind === 'weekly' ? 'Нед.' : Number.isFinite(duration) && duration > 0 ? duration % 60 === 0 ? `${duration / 60} ч` : `${duration} мин` : '—';
-    return { period, value: unlimited ? '∞' : known ? `${remaining}%` : '—', remaining, unlimited,
+    return { period, value: unlimited ? '∞' : known ? `${Math.round(remaining)}%` : '—', remaining, unlimited,
       date: reset ? date.format(reset) : '—', time: reset ? time.format(reset) : '—', marker: (known || unlimited) && stale ? 'устар.' : '',
       tone: unlimited ? 'normal' : !known ? 'unknown' : remaining <= 10 ? 'critical' : remaining <= 30 ? 'warning' : 'normal' };
   }) };

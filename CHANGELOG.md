@@ -1,5 +1,10 @@
 # Changes
 
+## 1.8.1 — 2026-11-18
+
+- При кратком сбое панель повторяет запрос лимитов через две секунды перед показом «устар.».
+- Во время сбоя панель сохраняет последние значения и продолжает опрос. Первый успешный ответ автоматически снимает предупреждение.
+
 ## 1.8.0 — 2026-11-17
 
 - Automatically hide confirmed absent Pro five-hour limits, allow both blocks with infinity or weekly-only, and use the weekly frame when short limits are absent.

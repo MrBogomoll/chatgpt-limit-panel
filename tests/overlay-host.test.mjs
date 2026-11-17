@@ -265,17 +265,59 @@ test('pause stops reads and resume refreshes immediately without starting anothe
   assert((await events()).some(event => event.command === 'resume'));
 });
 
-test('failed reads retain the last known values, mark them stale, and recover on the next success', { timeout: 6000 }, async t => {
-  const reader = readerFor(call => { if (call === 2) throw new Error('private backend diagnostic'); return quota; });
-  const { host, views } = await fixtureHost(t, { reader });
+test('one failed read retries before showing stale and an identical successful reply refreshes the view', { timeout: 6000 }, async t => {
+  let clock = instant;
+  let finishRetry;
+  const retry = new Promise(resolve => { finishRetry = resolve; });
+  const reader = readerFor(call => {
+    if (call === 2) throw new Error('private backend diagnostic');
+    return call === 3 ? retry : quota;
+  });
+  const { host, views } = await fixtureHost(t, { reader, retryDelayMs: 5, now: () => clock });
   await until(async () => (await views()).some(view => view.rows[0].value === '38%'), 'first success');
+  clock += 30000;
+  const refreshing = host.refresh();
+  await until(() => reader.calls === 3, 'automatic retry');
+  assert.equal(host.refresh(), refreshing, 'manual refresh joins the pending retry');
+  await until(async () => (await views()).filter(view => view.rows[0].value === '38%').length > 2, 'freshness renders while retry is pending');
+  finishRetry(quota);
+  await refreshing;
+  await until(async () => (await views()).some(view => view.collectedAt === clock), 'identical quota received again');
+  assert((await views()).every(view => !view.stale), 'a temporary failure must never flash a stale label');
+  assert(!JSON.stringify(await views()).includes('private backend diagnostic'));
+});
+
+test('two failed attempts show cached quota as stale until the regular poll succeeds', { timeout: 6000 }, async t => {
+  let offline = false;
+  const reader = readerFor(() => {
+    if (offline) throw new Error('network unavailable');
+    return quota;
+  });
+  const { host, views } = await fixtureHost(t, { reader, retryDelayMs: 5, pollIntervalMs: 100 });
+  await until(async () => (await views()).some(view => view.rows[0].value === '38%'), 'first success');
+  offline = true;
   await host.refresh();
   const stale = await until(async () => (await views()).find(view => view.stale && view.rows[0].value === '38%'), 'stale retained values');
+  assert(reader.calls >= 3, 'stale requires the failed read and one retry after initial success');
   assert.equal(stale.collectedAt, instant);
   assert(stale.rows.every(row => row.marker === 'устар.'));
-  assert(!JSON.stringify(await views()).includes('private backend diagnostic'));
+  const before = reader.calls;
+  await until(() => reader.calls > before, 'polling while stale and still offline');
+  offline = false;
+  await until(async () => { const last = (await views()).at(-1); return last?.rows[0].value === '38%' && !last.stale; }, 'automatic recovery on a successful poll');
+});
+
+test('an empty quota reply retries and cannot clear stale cached limits', { timeout: 6000 }, async t => {
+  const reader = readerFor(call => call === 1 || call === 5 ? quota : {});
+  const { host, views } = await fixtureHost(t, { reader, retryDelayMs: 5 });
+  await until(async () => (await views()).some(view => view.rows[0].value === '38%'), 'initial quota');
   await host.refresh();
-  await until(async () => { const last = (await views()).at(-1); return last?.rows[0].value === '38%' && !last.stale; }, 'successful recovery');
+  assert.equal(reader.calls, 3);
+  await until(async () => (await views()).some(view => view.stale && view.rows[0].value === '38%'), 'stale retained after two empty replies');
+  await host.refresh();
+  assert.equal(reader.calls, 4);
+  await host.refresh();
+  await until(async () => { const last = (await views()).at(-1); return last?.rows[0].value === '38%' && !last.stale; }, 'valid response replaces stale data');
 });
 
 test('freshness changes while a provider read hangs and shutdown ignores its late result', { timeout: 6000 }, async t => {

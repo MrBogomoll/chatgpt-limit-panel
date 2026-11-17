@@ -3,6 +3,16 @@ import assert from 'node:assert/strict';
 const api = await import('../plugins/chatgpt-limit-panel/server/limits.mjs').catch(() => ({}));
 const sample = { rateLimitsByLimitId: { codex: { limitId: 'codex', primary: { usedPercent: 62, windowDurationMins: 300, resetsAt: 1792774530 }, secondary: { usedPercent: 57, windowDurationMins: 10080, resetsAt: 1793297434 } }, codex_other: { primary: { usedPercent: 1, windowDurationMins: 300, resetsAt: 100 } } } };
 
+test('retains server fractional precision without estimating missing tenths', () => {
+  for (const usedPercent of [1.65, 99.96, 0, 100, -1, 101]) {
+    const result = api.normalizeQuota({rateLimits:{primary:{usedPercent,windowDurationMins:300}}}, 1792760000000);
+    assert.equal(result.windows[0].remaining, Math.max(0, Math.min(100, 100-usedPercent)));
+    assert.equal(result.windows[0].usedPercent, usedPercent);
+    const context=api.contextForQuota(result,{now:1792760000000});
+    assert(context.content[0].text.includes(`${Math.round(result.windows[0].remaining)}%`));
+  }
+});
+
 test('uses the Codex bucket, returns server resets, and calculates remaining quota', () => {
   assert.equal(typeof api.normalizeQuota, 'function');
   const result = api.normalizeQuota(sample, 1792760000000);
