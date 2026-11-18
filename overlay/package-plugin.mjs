@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
-const version = '1.8.1';
+const version = '1.8.2';
 const displayVersion=version.replace("-b.","_b.");
 const archiveName = `chatgpt-limit-panel-${displayVersion}-windows-x64.zip`;
 const pluginFiles = [

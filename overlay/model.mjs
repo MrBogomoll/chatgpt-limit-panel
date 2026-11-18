@@ -47,7 +47,7 @@ export function overlayView(snapshot, { now = Date.now(), timeZone = Intl.DateTi
   const unlimited=creditSnapshot?.unlimited===true;
   const credits={balance,display:unlimited?'∞':creditDisplay(balance),unlimited,hasCredits:typeof creditSnapshot?.hasCredits==='boolean'?creditSnapshot.hasCredits:null,
     tone:unlimited?'normal':balance===null?'unknown':balance.startsWith('-')||/^0+(?:\.0+)?$/.test(balance)?'critical':'normal',stale};
-  return { stale, collectedAt: snapshot.collectedAt, resets, credits, rows: ['short', 'weekly'].map(kind => {
+  return { stale, collectedAt: snapshot.collectedAt, refreshIssue: snapshot.refreshIssue ?? null, resets, credits, rows: ['short', 'weekly'].map(kind => {
     const w = snapshot.windows?.find(w => w.kind === kind);
     const known = Number.isFinite(w?.remaining);
     const unlimited = w?.availability === 'unlimited';

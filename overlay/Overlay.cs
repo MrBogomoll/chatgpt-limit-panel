@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -517,9 +518,10 @@ namespace QuotaOverlay {
         Native.SetWindowLongPtr(hwnd,-20,new IntPtr((style|0x08000000L|0x00000080L)&~0x00000020L));
         HwndSource.FromHwnd(hwnd).AddHook(WindowProc);
       };
-      Loaded+=delegate { if(started)return;started=true;StartupCheckpoint("loaded");Hide(); SetupTray(); StartInput(); UpdatePlacement();StartupCheckpoint("ready"); };
+      Loaded+=delegate { if(started)return;started=true;StartupCheckpoint("loaded");Hide(); SetupTray(); StartInput(); WatchNetwork(); UpdatePlacement();StartupCheckpoint("ready"); };
       Closed+=delegate {
         closing=true;if(optionsMenu!=null)optionsMenu.IsOpen=false;
+        if(networkWatched)NetworkChange.NetworkAvailabilityChanged-=OnNetworkAvailabilityChanged;
         if(updateDialog!=null)updateDialog.Close();
         DisposeTaskbarView();sidebarGeometry.Dispose();
         if(menuDismiss!=null)menuDismiss.Dispose();StopTracking();
@@ -1109,6 +1111,21 @@ namespace QuotaOverlay {
         Dispatcher.BeginInvoke(new Action(delegate {if(closing)return;optionsMenu.IsOpen=false;if(taskbarMenu!=null)taskbarMenu.IsOpen=false;trayMenu.IsOpen=true;}));
       };
       UpdateTrayIcon();tray.Visible=true;tray.DoubleClick+=delegate {Command("refresh");};
+    }
+    bool networkWatched;
+    void WatchNetwork() {
+      try {
+        NetworkChange.NetworkAvailabilityChanged+=OnNetworkAvailabilityChanged;
+        networkWatched=true;
+      } catch(NetworkInformationException) {
+        // Quota polling still handles reconnects when notifications are unavailable.
+      }
+    }
+    void OnNetworkAvailabilityChanged(object sender,NetworkAvailabilityEventArgs change) {
+      if(!change.IsAvailable||Dispatcher.HasShutdownStarted)return;
+      Dispatcher.BeginInvoke(DispatcherPriority.Background,new Action(delegate {
+        if(!closing)Command("network-available");
+      }));
     }
     void StartInput() {
       var thread=new Thread(delegate() {

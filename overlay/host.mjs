@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync, existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -11,6 +11,67 @@ import { overlayView } from './model.mjs';
 import {createUpdateChecker,CURRENT_VERSION} from '../plugins/chatgpt-limit-panel/server/updates.mjs';
 
 const executablePath = fileURLToPath(new URL('../dist/overlay/ChatGPTLimitPanel.exe', import.meta.url));
+const failureHistoryLimit = 10;
+const failureReasons = new Set(['empty-reply', 'incomplete-reply', 'timeout', 'rejected', 'disconnected', 'read-failed']);
+
+function createRefreshLog(file, now) {
+  let incidents = [];
+  let active = null;
+  const temporary = `${file}.${process.pid}.tmp`;
+
+  function save() {
+    try {
+      writeFileSync(temporary, JSON.stringify(incidents, null, 2) + '\n', 'utf8');
+      renameSync(temporary, file);
+    } catch {
+      // Diagnosis is best effort. A locked file must not interrupt quota reads.
+      try { unlinkSync(temporary); } catch {}
+    }
+  }
+
+  const isTimestamp = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value);
+  try {
+    const stored = JSON.parse(readFileSync(file, 'utf8'));
+    if (Array.isArray(stored)) {
+      for (const entry of stored.slice(-failureHistoryLimit)) {
+        if (!isTimestamp(entry?.startedAt) || !isTimestamp(entry.lastFailedAt) ||
+            !Number.isSafeInteger(entry.attempts) || entry.attempts < 1 ||
+            !Array.isArray(entry.reasons)) continue;
+        const reasons = [...new Set(entry.reasons.filter(value => failureReasons.has(value)))];
+        if (!reasons.length) continue;
+        incidents.push({
+          startedAt: entry.startedAt, lastFailedAt: entry.lastFailedAt,
+          recoveredAt: isTimestamp(entry.recoveredAt) ? entry.recoveredAt : null,
+          attempts: entry.attempts, reasons, markedStale: entry.markedStale === true,
+        });
+      }
+    }
+  } catch (error) {
+    if (error.code === 'ENOENT') save();
+  }
+
+  return function record(reason, markedStale) {
+    if (!reason && !active) return;
+    const at = new Date(now()).toISOString();
+    if (!reason) {
+      active.recoveredAt = at;
+      active = null;
+    } else {
+      if (!active) {
+        active = { startedAt: at, lastFailedAt: at, recoveredAt: null, attempts: 0, reasons: [], markedStale: false };
+        incidents.push(active);
+        if (incidents.length > failureHistoryLimit) incidents.shift();
+      }
+      active.lastFailedAt = at;
+      active.attempts++;
+      const category = failureReasons.has(reason) ? reason : 'read-failed';
+      if (!active.reasons.includes(category)) active.reasons.push(category);
+      if (markedStale) active.markedStale = true;
+    }
+    save();
+  };
+}
+
 export function mergeQuotaSnapshot(previous,next) {
   const planChanged = previous.planType && next.planType && previous.planType !== next.planType;
   if (planChanged) return next;
@@ -37,6 +98,7 @@ export function createOverlayHost({
   guiArgs = [],
   statePath = defaultStatePath(),
   pollIntervalMs = 30_000,
+  recoveryIntervalMs = 5_000,
   retryDelayMs = 2_000,
   freshnessIntervalMs = 1_000,
   shutdownTimeoutMs = 1_000,
@@ -47,8 +109,9 @@ export function createOverlayHost({
   updateChecker=createUpdateChecker(),
 } = {}) {
   const absoluteStatePath = resolve(statePath);
-  let child, lines, pollTimer, freshnessTimer, shutdownTimer, inFlight;
+  let child, lines, pollTimer, freshnessTimer, shutdownTimer, inFlight, recordRefresh;
   let ready = false, paused = false, stopping = false, closed = false;
+  let reconnectPending = false;
   let appPresent = !waitForApp;
   let taskbarEnabled = false;
   let liveTrayEnabled = false;
@@ -67,7 +130,7 @@ export function createOverlayHost({
     if (stopping) return done;
     stopping = true;
     result = { code, reason };
-    clearInterval(pollTimer);
+    clearTimeout(pollTimer);
     clearInterval(freshnessTimer);
     retryWait.abort();
     try{updateChecker.cancel?.();}catch{}
@@ -114,21 +177,36 @@ export function createOverlayHost({
   async function readSnapshot(previous) {
     try {
       const raw = await reader.read();
-      return mergeQuotaSnapshot(previous, normalizeQuota(raw, now()));
-    } catch {
-      return { ...previous, stale: true };
+      const received = normalizeQuota(raw, now());
+      const merged = mergeQuotaSnapshot(previous, received);
+      if (merged.stale || received.status === 'unavailable') {
+        const refreshIssue = received.status === 'unavailable' ? 'empty-reply' : 'incomplete-reply';
+        return { ...merged, refreshIssue };
+      }
+      return merged;
+    } catch (error) {
+      // Only fixed categories go into the local panel state.
+      let refreshIssue = 'read-failed';
+      if (error?.message === 'Codex quota request timeout') refreshIssue = 'timeout';
+      if (error?.message === 'Codex quota request was rejected') refreshIssue = 'rejected';
+      if (error?.message === 'Codex App Server disconnected') refreshIssue = 'disconnected';
+      return { ...previous, stale: true, refreshIssue };
     }
   }
 
   function refresh() {
     if (!canRefresh()) return Promise.resolve(null);
     if (inFlight) return inFlight;
+    clearTimeout(pollTimer);
     // Set the shared promise before calling even a synchronous injected reader.
     const pending = Promise.resolve().then(async () => {
       if (!canRefresh()) return;
       const previous = snapshot;
       let next = await readSnapshot(previous);
-      if (next.stale && !previous.stale && canRefresh()) {
+      if (!canRefresh()) return;
+      const retry = next.stale && !previous.stale;
+      recordRefresh(next.refreshIssue, next.stale && !retry);
+      if (retry) {
         // A brief outage gets one extra attempt. Once stale, the regular poll
         // handles recovery without doubling requests throughout an outage.
         try {
@@ -139,13 +217,20 @@ export function createOverlayHost({
         }
         if (!canRefresh()) return;
         next = await readSnapshot(previous);
+        if (!canRefresh()) return;
+        recordRefresh(next.refreshIssue, next.stale);
       }
-      if (canRefresh()) snapshot = next;
+      snapshot = next;
     }).then(() => {
       if (!stopping) render();
       return snapshot;
     }).finally(() => {
       if (inFlight === pending) inFlight = null;
+      const reconnect = reconnectPending;
+      reconnectPending = false;
+      if (!canRefresh()) return;
+      const interval = snapshot.stale ? Math.min(pollIntervalMs, recoveryIntervalMs) : pollIntervalMs;
+      pollTimer = setTimeout(refresh, reconnect && snapshot.stale ? 0 : interval);
     });
     inFlight = pending;
     return pending;
@@ -159,10 +244,14 @@ export function createOverlayHost({
       case 'ready':
         if (ready) return;
         ready = true;
-        pollTimer = setInterval(refresh, pollIntervalMs);
         refresh();
         break;
       case 'refresh': refresh(); break;
+      case 'network-available':
+        if (!canRefresh()) break;
+        if (inFlight) reconnectPending = true;
+        else refresh();
+        break;
       case 'check-updates': checkUpdates(); break;
       case 'app-open': if(!appPresent){appPresent=true;refresh();} break;
       case 'app-closed': if(appPresent){appPresent=false;if(waitForApp&&!taskbarEnabled&&!liveTrayEnabled)closeReader();} break;
@@ -180,6 +269,7 @@ export function createOverlayHost({
 
   try {
     mkdirSync(dirname(absoluteStatePath), { recursive: true });
+    recordRefresh = createRefreshLog(join(dirname(absoluteStatePath), 'quota-failures.json'), now);
     child = spawnGui(guiCommand, [...guiArgs, absoluteStatePath], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     child.stdin.on('error', () => stop(1, 'gui-input-error'));
     child.stdin.on('close', () => { if (!stopping) stop(1, 'gui-input-error'); });

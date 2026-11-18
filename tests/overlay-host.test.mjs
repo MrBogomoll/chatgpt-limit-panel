@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, appendFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, isAbsolute } from 'node:path';
+import { dirname, join, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -273,11 +273,12 @@ test('one failed read retries before showing stale and an identical successful r
     if (call === 2) throw new Error('private backend diagnostic');
     return call === 3 ? retry : quota;
   });
-  const { host, views } = await fixtureHost(t, { reader, retryDelayMs: 5, now: () => clock });
+  const { host, views, statePath } = await fixtureHost(t, { reader, retryDelayMs: 5, now: () => clock });
   await until(async () => (await views()).some(view => view.rows[0].value === '38%'), 'first success');
   clock += 30000;
   const refreshing = host.refresh();
   await until(() => reader.calls === 3, 'automatic retry');
+  clock += 2000;
   assert.equal(host.refresh(), refreshing, 'manual refresh joins the pending retry');
   await until(async () => (await views()).filter(view => view.rows[0].value === '38%').length > 2, 'freshness renders while retry is pending');
   finishRetry(quota);
@@ -285,15 +286,25 @@ test('one failed read retries before showing stale and an identical successful r
   await until(async () => (await views()).some(view => view.collectedAt === clock), 'identical quota received again');
   assert((await views()).every(view => !view.stale), 'a temporary failure must never flash a stale label');
   assert(!JSON.stringify(await views()).includes('private backend diagnostic'));
+  const history = await readFile(join(dirname(statePath), 'quota-failures.json'), 'utf8');
+  assert(!history.includes('private backend diagnostic'));
+  assert.deepEqual(JSON.parse(history), [{
+    startedAt: new Date(clock - 2000).toISOString(),
+    lastFailedAt: new Date(clock - 2000).toISOString(),
+    recoveredAt: new Date(clock).toISOString(),
+    attempts: 1,
+    reasons: ['read-failed'],
+    markedStale: false,
+  }]);
 });
 
-test('two failed attempts show cached quota as stale until the regular poll succeeds', { timeout: 6000 }, async t => {
+test('two failed attempts show cached quota as stale and trigger faster polling until recovery', { timeout: 6000 }, async t => {
   let offline = false;
   const reader = readerFor(() => {
     if (offline) throw new Error('network unavailable');
     return quota;
   });
-  const { host, views } = await fixtureHost(t, { reader, retryDelayMs: 5, pollIntervalMs: 100 });
+  const { host, views, statePath } = await fixtureHost(t, { reader, retryDelayMs: 5, recoveryIntervalMs: 40 });
   await until(async () => (await views()).some(view => view.rows[0].value === '38%'), 'first success');
   offline = true;
   await host.refresh();
@@ -302,9 +313,72 @@ test('two failed attempts show cached quota as stale until the regular poll succ
   assert.equal(stale.collectedAt, instant);
   assert(stale.rows.every(row => row.marker === 'устар.'));
   const before = reader.calls;
-  await until(() => reader.calls > before, 'polling while stale and still offline');
+  await until(() => reader.calls > before, 'faster polling while stale and still offline', 1000);
   offline = false;
-  await until(async () => { const last = (await views()).at(-1); return last?.rows[0].value === '38%' && !last.stale; }, 'automatic recovery on a successful poll');
+  await until(async () => { const last = (await views()).at(-1); return last?.rows[0].value === '38%' && !last.stale; }, 'automatic recovery on a successful poll', 1000);
+  const recovered = reader.calls;
+  await delay(120);
+  assert.equal(reader.calls, recovered, 'successful reads restore the normal interval');
+  const incidents = JSON.parse(await readFile(join(dirname(statePath), 'quota-failures.json'), 'utf8'));
+  assert.equal(incidents.length, 1, 'consecutive failed attempts belong to one incident');
+  assert(incidents[0].attempts >= 3);
+  assert.equal(incidents[0].markedStale, true);
+  assert.equal(incidents[0].recoveredAt, new Date(instant).toISOString());
+});
+
+test('only the ten newest failures are retained across a panel restart', { timeout: 6000 }, async t => {
+  let clock = instant;
+  let failNext = false;
+  const reader = readerFor(() => {
+    if (failNext) {
+      failNext = false;
+      throw new Error('Codex quota request timeout');
+    }
+    return quota;
+  });
+  const { host, views, statePath } = await fixtureHost(t, { reader, retryDelayMs: 5, now: () => clock });
+  await until(async () => (await views()).some(view => view.rows[0].value === '38%'), 'first success');
+  for (let i = 0; i < 11; i++) {
+    clock += 1000;
+    failNext = true;
+    await host.refresh();
+  }
+  const file = join(dirname(statePath), 'quota-failures.json');
+  const firstHistory = JSON.parse(await readFile(file, 'utf8'));
+  assert.equal(firstHistory.length, 10);
+  assert.equal(firstHistory[0].startedAt, new Date(instant + 2000).toISOString());
+  assert(firstHistory.every(incident => incident.reasons[0] === 'timeout'));
+  await host.stop();
+
+  const restarted = api.createOverlayHost({ reader, guiCommand: process.execPath, guiArgs: [fixture], statePath,
+    retryDelayMs: 5, pollIntervalMs: 10000, now: () => clock });
+  t.after(() => restarted.stop());
+  const calls = reader.calls;
+  await until(() => reader.calls > calls, 'restart read');
+  await restarted.refresh();
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), firstHistory);
+  clock += 1000;
+  failNext = true;
+  await restarted.refresh();
+  const historyAfterRestart = JSON.parse(await readFile(file, 'utf8'));
+  assert.deepEqual(historyAfterRestart.slice(0, -1), firstHistory.slice(1));
+  assert.equal(historyAfterRestart.at(-1).recoveredAt, new Date(clock).toISOString());
+  await restarted.stop();
+});
+
+test('a network recovery event requests an immediate refresh and respects pause', { timeout: 6000 }, async t => {
+  let clock = instant;
+  const { host, reader, views, send } = await fixtureHost(t, { now: () => clock });
+  await until(async () => (await views()).some(view => view.rows[0].value === '38%'), 'first success');
+  clock += 1000;
+  await send('network-available');
+  await until(async () => (await views()).some(view => view.collectedAt === clock), 'immediate reconnect refresh', 1000);
+  assert.equal(reader.calls, 2);
+  await send('pause');
+  await until(() => host.paused, 'paused');
+  await send('network-available');
+  await delay(100);
+  assert.equal(reader.calls, 2);
 });
 
 test('an empty quota reply retries and cannot clear stale cached limits', { timeout: 6000 }, async t => {
