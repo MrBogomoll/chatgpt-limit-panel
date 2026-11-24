@@ -89,7 +89,7 @@ internal static class PanelUninstall {
     var location=plugin!=null&&plugin.TryGetValue("source",out source)?source as Dictionary<string,object>:null;
     return plugin!=null&&Value(plugin,"name")=="quota-panel"&&location!=null&&Value(location,"source")=="local"&&Value(location,"path").Replace('\\','/')=="./plugins/chatgpt-limit-panel"&&OwnManifest(Path.Combine(root,"plugins","chatgpt-limit-panel"));
   }catch{return false;}}
-  static readonly string[] SourcePayload={"mcp.json",".mcp.json",".codex-plugin/plugin.json","assets/chatgpt-limit-panel.svg","assets/chatgpt-limit-panel.png","server/index.mjs","server/mcp.mjs","server/overlay-controller.mjs","server/ui.mjs","server/language.mjs","server/updates.mjs","server/uninstall.mjs","ui/control.html","ui/control.mjs","overlay/host.mjs","overlay/model.mjs","plugins/chatgpt-limit-panel/server/reader.mjs","plugins/chatgpt-limit-panel/server/limits.mjs","plugins/chatgpt-limit-panel/server/updates.mjs","dist/overlay/ChatGPTLimitPanel.exe","dist/overlay/ChatGPTLimitPanelLauncher.exe","dist/overlay/ChatGPTLimitPanelUninstaller.exe","dist/overlay/QuotaMonitor.exe","dist/overlay/runtime.json","runtime/node.exe","runtime/NODE-LICENSE.txt","README.txt","README.md","LICENSE.txt","LICENSE","UPGRADING.txt","UPGRADING.md","UNINSTALL.txt","UNINSTALL.md"};
+  static readonly string[] SourcePayload={"mcp.json",".mcp.json",".codex-plugin/plugin.json","assets/chatgpt-limit-panel.svg","assets/chatgpt-limit-panel.png","server/index.mjs","server/mcp.mjs","server/overlay-controller.mjs","server/ui.mjs","server/language.mjs","server/updates.mjs","server/uninstall.mjs","ui/control.html","ui/control.mjs","overlay/host.mjs","overlay/model.mjs","overlay/install-plugin.mjs","overlay/updater.mjs","plugins/chatgpt-limit-panel/server/reader.mjs","plugins/chatgpt-limit-panel/server/limits.mjs","plugins/chatgpt-limit-panel/server/updates.mjs","dist/overlay/ChatGPTLimitPanel.exe","dist/overlay/ChatGPTLimitPanelLauncher.exe","dist/overlay/ChatGPTLimitPanelUninstaller.exe","dist/overlay/QuotaMonitor.exe","dist/overlay/runtime.json","runtime/node.exe","runtime/NODE-LICENSE.txt","README.txt","README.md","LICENSE.txt","LICENSE","UPGRADING.txt","UPGRADING.md","UNINSTALL.txt","UNINSTALL.md"};
   internal sealed class SourceInventory {internal string Root;internal readonly Dictionary<string,string> Files=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);internal readonly List<string> Directories=new List<string>();}
   static string HashFile(string file){using(var sha=SHA256.Create())using(var stream=File.OpenRead(file))return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-","").ToLowerInvariant();}
   static string SourceReceipt(string root){string file=Path.Combine(root,"uninstall-inventory.json");try{var attributes=File.GetAttributes(file);if((attributes&(FileAttributes.Directory|FileAttributes.ReparsePoint))!=0)throw new IOException("Invalid source receipt");return HashFile(file);}catch(FileNotFoundException){return "absent";}catch(DirectoryNotFoundException){return "absent";}}
@@ -231,7 +231,10 @@ internal static class PanelUninstall {
       QuotaPanelTaskHost.RemoveOwn(plan.Launcher);
     }
     public void StopServers(Plan plan){
-      var allowed=new List<string>();foreach(string version in Directory.GetDirectories(plan.CacheFamily))try{PlainPath(version,plan.Home);if(OwnManifest(version,Path.GetFileName(version)))allowed.Add(Full(version));}catch{}
+      StopServers(plan,false);
+    }
+    internal void StopServers(Plan plan,bool currentOnly){
+      var allowed=new List<string>();foreach(string version in Directory.GetDirectories(plan.CacheFamily))try{if(currentOnly&&!Same(version,plan.Root))continue;PlainPath(version,plan.Home);if(OwnManifest(version,Path.GetFileName(version)))allowed.Add(Full(version));}catch{}
       using(var search=new ManagementObjectSearcher("SELECT ProcessId,ExecutablePath,CommandLine,CreationDate FROM Win32_Process WHERE Name = 'node.exe'"))using(var records=search.Get())foreach(ManagementObject record in records){
         try{
           string executable=Convert.ToString(record["ExecutablePath"]),command=Convert.ToString(record["CommandLine"]);if(String.IsNullOrEmpty(executable))continue;
@@ -294,6 +297,25 @@ internal class UninstallWindow:Form {
 
 internal static class PanelUninstallerProgram {
   [STAThread]static void Main(string[] args){
+    if(args.Length>0&&args[0]=="--prepare-update"){
+      try{
+        if(args.Length!=5||args[1]!="--root"||args[3]!="--home")throw new IOException("Invalid update request");
+        var profile=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var update=PanelUninstall.CreatePlan(args[2],args[4],profile);
+        if(update.Marketplace!="quota-panel-local")throw new IOException("Unsupported installation source");
+        var backend=LimitPanelLauncher.DiscoverCodex(profile,"auto",Path.GetDirectoryName(update.Launcher));
+        var ops=new PanelUninstall.NativeOperations(backend);
+        ops.Validate(update);
+        ops.StopMonitor(update);
+        var wait=Stopwatch.StartNew();
+        while(QuotaPanelTaskHost.Read(update.Launcher).running){
+          if(wait.ElapsedMilliseconds>6000)throw new IOException("The panel host has not stopped");
+          Thread.Sleep(100);
+        }
+        ops.StopServers(update,true);
+      }catch{Environment.ExitCode=1;}
+      return;
+    }
     bool created;string sid=WindowsIdentity.GetCurrent().User.Value;
     using(var singleton=new Mutex(true,"Local\\ChatGPTLimitPanel.Uninstall."+sid,out created)){
       try{

@@ -1,4 +1,4 @@
-# ChatGPT Limit Panel 1.8.3
+# ChatGPT Limit Panel 1.9.0
 
 Локальный журнал сбоев: `%LOCALAPPDATA%\ChatGPTLimitPanel\quota-failures.json`.
 Для каждого из 10 последних сбоев он хранит до 8 последних попыток:

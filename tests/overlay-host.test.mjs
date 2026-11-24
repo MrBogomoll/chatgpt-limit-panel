@@ -33,7 +33,7 @@ async function fixtureHost(t, { reader = readerFor(), config = {}, ...options } 
   const directory = await mkdtemp(join(tmpdir(), 'quota overlay тест '));
   const configuredStatePath = join(directory, 'state.json');
   await writeFile(configuredStatePath + '.fixture.json', JSON.stringify(config));
-  const host = api.createOverlayHost({ reader, guiCommand: process.execPath, guiArgs: [fixture], statePath: configuredStatePath, pollIntervalMs: 10000, freshnessIntervalMs: 20, shutdownTimeoutMs: 100, now: () => instant, timeZone: 'Europe/Moscow', ...options });
+  const host = api.createOverlayHost({ reader, guiCommand: process.execPath, guiArgs: [fixture], statePath: configuredStatePath, pollIntervalMs: 10000, freshnessIntervalMs: 20, shutdownTimeoutMs: 100, updateCheckIntervalMs: 0, now: () => instant, timeZone: 'Europe/Moscow', ...options });
   const events = async () => {
     let contents;
     try { contents = await readFile(configuredStatePath + '.events.ndjson', 'utf8'); }
@@ -315,9 +315,10 @@ for (const [mode, stage, reason] of [
       args: missing ? [] : [appServerFixture, mode],
       timeoutMs: 400,
     });
-    const { host, statePath, views } = await fixtureHost(t, { reader, retryDelayMs: 5, recoveryIntervalMs: 10000 });
-    await host.refresh();
-    const journal = await readFile(join(dirname(statePath), 'quota-failures.json'), 'utf8');
+    const { statePath, views } = await fixtureHost(t, { reader, retryDelayMs: 5, recoveryIntervalMs: 10000 });
+    const journalPath = join(dirname(statePath), 'quota-failures.json');
+    await until(async () => (await views()).some(view => view.refreshIssue === reason), 'published failure after ready');
+    const journal = await readFile(journalPath, 'utf8');
     assert(!journal.includes('TEST_ONLY_SECRET_DO_NOT_COPY'));
     assert(!JSON.stringify(await views()).includes('TEST_ONLY_SECRET_DO_NOT_COPY'));
     const [incident] = JSON.parse(journal);
@@ -573,6 +574,47 @@ test('manual update command uses a separate coalesced checker without changing q
   await until(async()=> (await views()).some(view=>view.update?.state==='available'));
   assert.equal(reader.calls,0);await send('check-updates');await until(()=>count===2);await host.stop();finish({state:'current'});await delay(20);
   assert(!(await views()).some(view=>view.update?.state==='current'));
+});
+
+test('automatic update checks are silent and an explicit request joins a check already in flight', {timeout: 6000}, async t => {
+  let calls = 0, finish;
+  const updateChecker = {check: () => { calls++; return new Promise(resolve => { finish = resolve; }); }};
+  const {host, views, send, reader} = await fixtureHost(t, {
+    updateChecker, waitForApp: true, updateCheckIntervalMs: 55, updateCheckDelayMs: 5,
+  });
+  const messages = async () => (await views()).filter(view => view.update).map(view => view.update);
+  const available = {state:'available',currentVersion:'1.8.3',latestVersion:'1.8.4',url:'https://github.com/MrBogomoll/chatgpt-limit-panel/releases/tag/v1.8.4'};
+  await until(() => calls === 1, 'automatic startup check');
+  assert.deepEqual(await messages(), [], 'auto check must not disable the manual action or open a dialog');
+  finish(available);
+  await until(async () => (await messages()).some(update => update.state === 'available' && update.silent === true));
+  await until(() => calls === 2, 'periodic check');
+  await send('check-updates');
+  await until(async () => (await messages()).some(update => update.state === 'checking'));
+  assert.equal(calls, 2);
+  finish({state:'current'});
+  await until(async () => (await messages()).some(update => update.state === 'current' && update.silent === false));
+  assert.equal(reader.calls, 0, 'release checks do not read quota');
+  await host.stop();
+});
+
+test('installation starts only after an explicit click for an eligible verified update', {timeout: 6000}, async t => {
+  let requested=[], fail;
+  const {views,send}=await fixtureHost(t,{
+    updateInstaller:version=>{requested.push(version);return new Promise((_,reject)=>{fail=reject;});},
+    updateChecker:{check:async()=>({state:'available',latestVersion:'1.8.4',installAssets:{zip:{},checksum:{}}})},
+  });
+  await send('install-update');
+  await send('check-updates');
+  await until(async()=>(await views()).some(view=>view.update?.canInstall));
+  assert.deepEqual(requested,[]);
+  assert(!(await views()).some(view=>view.update?.installAssets));
+  await send('install-update');
+  await send('install-update');
+  await until(() => requested.length===1);
+  fail(Error('data that must stay in worker'));
+  await until(async()=>(await views()).some(view=>view.update?.state==='install-failed'));
+  assert(!JSON.stringify(await views()).includes('data that must stay in worker'));
 });
 
 

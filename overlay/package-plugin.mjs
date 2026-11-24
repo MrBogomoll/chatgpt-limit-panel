@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
-const version = '1.8.3';
+const version = '1.9.0';
 const displayVersion=version.replace("-b.","_b.");
 const archiveName = `chatgpt-limit-panel-${displayVersion}-windows-x64.zip`;
 const pluginFiles = [
@@ -16,7 +16,7 @@ const pluginFiles = [
   'server/ui.mjs', 'server/language.mjs', 'server/updates.mjs', 'server/uninstall.mjs', 'ui/control.html', 'ui/control.mjs',
 ];
 const dependencyFiles = [
-  'overlay/host.mjs', 'overlay/model.mjs',
+  'overlay/host.mjs', 'overlay/model.mjs', 'overlay/install-plugin.mjs', 'overlay/updater.mjs',
   'plugins/chatgpt-limit-panel/server/updates.mjs',
   'plugins/chatgpt-limit-panel/server/reader.mjs', 'plugins/chatgpt-limit-panel/server/limits.mjs',
   'dist/overlay/ChatGPTLimitPanel.exe', 'dist/overlay/ChatGPTLimitPanelLauncher.exe', 'dist/overlay/ChatGPTLimitPanelUninstaller.exe',

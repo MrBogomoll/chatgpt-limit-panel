@@ -2,7 +2,9 @@
 
 ## Русский
 
-Скачай готовый ZIP для Windows из [актуального стабильного выпуска](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/latest). Используй архив программы из **Assets**. Кнопка проверки обновлений открывает страницу выпуска; пакет заменяется вручную.
+В меню панели выбери **«Проверить новую версию»**. Если в окне есть кнопка **«Обновить»**, нажми её: панель проверит архив и сама перезапустится. Закрывать ChatGPT не требуется. Эта кнопка доступна для локальной установки через штатный установщик панели и выпуска с контрольной суммой.
+
+Если есть только **«Открыть релиз»**, скачай ZIP для Windows из **Assets** [последнего стабильного выпуска](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/latest) и установи вручную:
 
 1. Останови панель через её меню или карточку управления.
 2. В меню плагинов замени старый пакет ChatGPT Limit Panel скачанным ZIP: удали старый пакет и выбери «Добавить → Загрузить архив плагина».
@@ -18,7 +20,9 @@
 
 ## English
 
-Download the built Windows ZIP from the [latest stable release](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/latest). Choose the application archive under **Assets**. Check for updates opens the release page; package replacement is manual.
+Choose **Check for updates** in the panel menu. If the dialog offers **Update**, click it to verify the archive, install it, and restart the panel. ChatGPT stays open. This button is available for installations registered by the panel's local installer and releases with a checksum.
+
+If the dialog only offers **Open release**, download the Windows ZIP from **Assets** in the [latest stable release](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/latest) and install it manually:
 
 1. Stop the panel through its menu or control card.
 2. Replace the old ChatGPT Limit Panel package in plugins: remove it, then import the downloaded ZIP through **Add → Upload plugin archive**.

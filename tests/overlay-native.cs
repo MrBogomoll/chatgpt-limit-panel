@@ -873,6 +873,51 @@ class OverlayNativeTest {
     var showProduction=Field<Action<Window>>(window,"showUpdateDialog");
     typeof(OverlayWindow).GetField("showUpdateDialog",PrivateInstance).SetValue(window,new Action<Window>(delegate(Window dialog){shown=dialog;}));
     typeof(OverlayWindow).GetField("openReleasePage",PrivateInstance).SetValue(window,new Action<string>(delegate(string url){opened=url;}));
+    var dot=Field<System.Windows.Shapes.Ellipse>(window,"updateDot");
+    var surface=Field<Grid>(window,"surface");
+    var silentUpdate=new Dictionary<string,object>{{"state","available"},{"silent",true},{"currentVersion","1.8.3"},{"latestVersion","1.8.4"},{"url","https://github.com/MrBogomoll/chatgpt-limit-panel/releases/tag/v1.8.4"}};
+    Check(dot.Visibility==Visibility.Collapsed,"no display before an update is confirmed");
+    Check(dot.Width==3.5&&dot.Height==3.5&&dot.Margin.Left==6.25&&dot.Margin.Top==5.25&&!dot.IsHitTestVisible,"approved dot must sit in top left and must not intercept input");
+    foreach(string mode in new[]{"full","compact","ultra"}){
+      Invoke(window,"SetMode",mode);double height=surface.Height,width=surface.Width;
+      Invoke(window,"ApplyUpdate",silentUpdate);
+      Check(dot.Visibility==Visibility.Visible&&shown==null&&opened==null,"automatic availability only shows the dot");
+      Check(surface.Height==height&&surface.Width==width,"dot does not change the panel size");
+      Invoke(window,"ApplyUpdate",new Dictionary<string,object>{{"state","error"},{"silent",true}});
+      Check(dot.Visibility==Visibility.Visible&&shown==null,"transient failure keeps the last confirmed availability");
+      Invoke(window,"ApplyUpdate",new Dictionary<string,object>{{"state","current"},{"silent",true}});
+      Check(dot.Visibility==Visibility.Collapsed&&shown==null,"verified up to date state clears the dot silently");
+    }
+    Invoke(window,"StartUpdateDotPreview",TimeSpan.FromMilliseconds(30));
+    Invoke(window,"ApplyUpdate",new Dictionary<string,object>{{"state","current"},{"silent",true}});
+    Check(dot.Visibility==Visibility.Visible&&!Field<bool>(window,"updateAvailable")&&shown==null,"preview shows the dot without claiming an update or showing a dialog");
+    var previewDeadline=DateTime.UtcNow.AddSeconds(1);
+    while(dot.Visibility==Visibility.Visible&&DateTime.UtcNow<previewDeadline){System.Threading.Thread.Sleep(5);PumpDispatcher();}
+    Check(dot.Visibility==Visibility.Collapsed,"temporary preview must hide itself");
+    typeof(OverlayWindow).GetField("quotaVisibility",PrivateInstance).SetValue(window,"weekly");
+    Invoke(window,"SetMode","ultra");
+    Invoke(window,"ApplyUpdate",silentUpdate);
+    Check(surface.Height==20&&dot.Margin.Left==4.75&&dot.Margin.Top==8.25,"weekly-only ultra reserves space beside the bar without adding height");
+    surface.Measure(new Size(surface.Width,surface.Height));surface.Arrange(new Rect(0,0,surface.Width,surface.Height));surface.UpdateLayout();
+    var weeklyTrack=Field<Border[]>(window,"progressTracks")[1];
+    var dotBounds=dot.TransformToAncestor(surface).TransformBounds(new Rect(new Point(0,0),dot.RenderSize));
+    var trackBounds=weeklyTrack.TransformToAncestor(surface).TransformBounds(new Rect(new Point(0,0),weeklyTrack.RenderSize));
+    Check(dotBounds.Left>=4&&trackBounds.Left-dotBounds.Right>=3,"the rendered dot has a clear gap from both the bar and the rim");
+    Check(Math.Abs((dotBounds.Top+dotBounds.Height/2)-(trackBounds.Top+trackBounds.Height/2))<=1,"dot and bar align vertically");
+    Invoke(window,"ApplyUpdate",new Dictionary<string,object>{{"state","current"},{"silent",true}});
+    Check(dot.Visibility==Visibility.Collapsed&&weeklyTrack.Width==32,"the weekly bar returns to its normal width with no update");
+    typeof(OverlayWindow).GetField("quotaVisibility",PrivateInstance).SetValue(window,"auto");
+    Invoke(window,"SetMode","full");
+
+    var installable=new Dictionary<string,object>(silentUpdate){{"canInstall",true}};
+    installable["silent"]=false;
+    Invoke(window,"ApplyUpdate",installable);
+    var installButtons=(StackPanel)((StackPanel)shown.Content).Children[1];
+    Check(installButtons.Children.Count==3&&((Button)installButtons.Children[0]).Content.ToString()=="Обновить","eligible stable package has a one click install action");
+    ((Button)installButtons.Children[0]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    Check(!((Button)installButtons.Children[0]).IsEnabled&&opened==null,"install click starts work without opening the browser and disables repeat clicks");
+    Invoke(window,"ApplyUpdate",new Dictionary<string,object>{{"state","install-failed"},{"url",silentUpdate["url"]}});
+    shown.Close();shown=null;
     var action=Field<MenuItem>(window,"updatesItem");MenuClick(action);Check(!action.IsEnabled,"update check must disable duplicate clicks");
     foreach(string language in new[]{"ru","en"})foreach(string theme in new[]{"dark","light"}) {
       Invoke(window,"SelectLanguage",language);Invoke(window,"SelectTheme",theme);

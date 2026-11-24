@@ -1,4 +1,4 @@
-export const CURRENT_VERSION='1.8.3';
+export const CURRENT_VERSION='1.9.0';
 export const RELEASE_ORIGIN='https://github.com/MrBogomoll/chatgpt-limit-panel';
 // Repository names can change. The verified public repository ID stays stable.
 const endpoint='https://api.github.com/repositories/1433242334/releases/latest';
@@ -22,7 +22,7 @@ export function compareVersions(left,right) {
   }
   return Math.sign(a.pre.length-b.pre.length);
 }
-export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=globalThis.fetch,timeoutMs=8000,cooldownMs=15000,now=Date.now}={}) {
+export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=globalThis.fetch,timeoutMs=8000,cooldownMs=15000,now=Date.now,includeInstallAssets=false}={}) {
   currentVersion=version(currentVersion,true);
   let pending,cached,cancelPending,activeAbort,expires=0;
   function check() {
@@ -54,7 +54,18 @@ export function createUpdateChecker({currentVersion=CURRENT_VERSION,fetchImpl=gl
             if(!asset||asset.state!=='uploaded'||!Number.isSafeInteger(asset.size)||asset.size<=0||asset.browser_download_url!==origin+'/releases/download/'+release.tag_name+'/'+filename)throw new Error();
             const localBeta=/-b\.\d+$/.test(currentVersion);
             const compared=compareVersions(latestVersion,localBeta?currentVersion.replace(/-b\.\d+$/,''):currentVersion);
-            return {state:compared>0?'available':compared===0&&!localBeta?'current':'ahead',currentVersion,latestVersion,url:compared>0?url:null,checkedAt:now()};
+            const result={state:compared>0?'available':compared===0&&!localBeta?'current':'ahead',currentVersion,latestVersion,url:compared>0?url:null,checkedAt:now()};
+            if(includeInstallAssets&&compared>0){
+              const name=filename+'.sha256';
+              const checksum=release.assets.find(item=>item.name===name);
+              const descriptor=item=>Number.isSafeInteger(item?.size)&&item.size>0&&/^sha256:[0-9a-f]{64}$/.test(item.digest??'')?
+                {name:item.name,url:item.browser_download_url,size:item.size,digest:item.digest.slice(7)}:null;
+              const zip=descriptor(asset), digest=descriptor(checksum);
+              if(zip&&zip.size<=96*1024*1024&&digest&&digest.size<=1024&&checksum.state==='uploaded'&&
+                digest.url===origin+'/releases/download/'+release.tag_name+'/'+name)
+                result.installAssets={zip,checksum:digest};
+            }
+            return result;
           }catch{return failure('invalid');}
         })();
         return await Promise.race([work,new Promise((resolve)=>{cancelPending=()=>{resolve(failure('cancelled'));abort.abort();};timer=setTimeout(()=>{timedOut=true;abort.abort();resolve(failure('timeout'));},timeoutMs);})]);

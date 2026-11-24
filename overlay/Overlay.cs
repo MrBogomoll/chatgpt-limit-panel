@@ -365,6 +365,9 @@ namespace QuotaOverlay {
     readonly Border[] progressTracks=new Border[2],progressFills=new Border[2];
     readonly double?[] remainingQuota=new double?[2];
     System.Windows.Shapes.Path progressOutline;
+    System.Windows.Shapes.Ellipse updateDot;
+    bool updateAvailable;
+    DispatcherTimer updateDotPreviewTimer;
     ContextMenu optionsMenu;
     MenuDismissWatcher menuDismiss;
     MenuItem fullProgressItem,shortProgressItem,weeklyProgressItem,compactModeItem,pauseUpdatesItem;
@@ -507,6 +510,12 @@ namespace QuotaOverlay {
       surface=new Grid {Width=Layout.PanelWidth,Height=Layout.PanelHeight};surface.Children.Add(panel);
       progressOutline=new System.Windows.Shapes.Path {Width=Layout.PanelWidth,Height=Layout.CompactHeight,StrokeThickness=2,StrokeStartLineCap=PenLineCap.Round,StrokeEndLineCap=PenLineCap.Round,StrokeLineJoin=PenLineJoin.Round,IsHitTestVisible=false,Data=Geometry.Empty,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Top};
       surface.Children.Add(progressOutline);
+      updateDot=new System.Windows.Shapes.Ellipse {
+        Width=3.5,Height=3.5,Margin=new Thickness(6.25,5.25,0,0),HorizontalAlignment=HorizontalAlignment.Left,
+        VerticalAlignment=VerticalAlignment.Top,Fill=UpdateDotBrush(),Visibility=Visibility.Collapsed,IsHitTestVisible=false
+      };
+      surface.Children.Add(updateDot);
+      ReadUpdateDotPreview();
       SetupPanelMenu();
       Content=new QuotaVisualHost {Child=surface};
       SyncTaskbar();
@@ -521,6 +530,7 @@ namespace QuotaOverlay {
       Loaded+=delegate { if(started)return;started=true;StartupCheckpoint("loaded");Hide(); SetupTray(); StartInput(); WatchNetwork(); UpdatePlacement();StartupCheckpoint("ready"); };
       Closed+=delegate {
         closing=true;if(optionsMenu!=null)optionsMenu.IsOpen=false;
+        if(updateDotPreviewTimer!=null)updateDotPreviewTimer.Stop();
         if(networkWatched)NetworkChange.NetworkAvailabilityChanged-=OnNetworkAvailabilityChanged;
         if(updateDialog!=null)updateDialog.Close();
         DisposeTaskbarView();sidebarGeometry.Dispose();
@@ -577,6 +587,7 @@ namespace QuotaOverlay {
       try {File.WriteAllText(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(stateFile)),"startup.json"),json.Serialize(new {process=Process.GetCurrentProcess().Id,executable=Process.GetCurrentProcess().MainModule.FileName,time=DateTime.UtcNow.ToString("o"),stage=stage,hwnd=hwnd.ToInt64(),previewError=previewError,stateWriteError=stateWriteError,receivedUpdates=receivedUpdates,statePath=stateFile,stateUpdated=File.GetLastWriteTimeUtc(stateFile).ToString("o"),previewUpdated=File.GetLastWriteTimeUtc(Path.Combine(Path.GetDirectoryName(stateFile),"panel.png")).ToString("o"),monitorState=diagnosticState}),Encoding.UTF8);}catch{}
     }
     static SolidColorBrush Brush(string color) { var b=(SolidColorBrush)new BrushConverter().ConvertFromString(color);b.Freeze();return b; }
+    SolidColorBrush UpdateDotBrush() {return Brush(effectiveTheme=="light"?"#477D78":"#83AAA6");}
     static TextBlock Text(string text,double size,FontWeight weight,string color) {
       return new TextBlock { Text=text,FontSize=size,FontWeight=weight,Foreground=Brush(color),TextAlignment=TextAlignment.Center,HorizontalAlignment=HorizontalAlignment.Stretch,TextWrapping=TextWrapping.NoWrap };
     }
@@ -631,6 +642,7 @@ namespace QuotaOverlay {
       effectiveTheme=resolved;palette=resolved=="light"?ThemePalette.Light:ThemePalette.Dark;
       Background=TaskbarAppearance.InputSurface(100-sidebarBackgroundOpacity);panel.Background=Brush(palette.Background(100-sidebarBackgroundOpacity));panel.BorderBrush=Brush(palette.Border);divider.Background=Brush(palette.Divider);
       staleLabel.Foreground=Brush(palette.Warning);
+      updateDot.Fill=UpdateDotBrush();
       for(int i=0;i<2;i++) {
         periods[i].Foreground=Brush(palette.Secondary);markers[i].Foreground=Brush(palette.Secondary);
         values[i].Foreground=Brush(palette.Tone(rowTones[i]));times[i].Foreground=values[i].Foreground;
@@ -938,6 +950,7 @@ namespace QuotaOverlay {
       showCompactProgress=showUltraProgress=contour;
       panel.Padding=new Thickness(3,0,3,7);
       divider.Margin=ultra&&shortUnlimited?new Thickness(1,1,1,1):new Thickness(1,4,1,4);
+      LayoutUpdateDot();
       for(int i=0;i<2;i++) {
         double fraction=IndicatorFraction(remainingQuota[i]);
         values[i].Opacity=ultra&&i==0&&shortUnlimited&&markers[i].Text.Length>0?.55:1;
@@ -945,7 +958,7 @@ namespace QuotaOverlay {
         progressTracks[i].Height=4;
         progressTracks[i].Margin=ultra?new Thickness(3,4,3,0):new Thickness(3,2,3,0);
         progressFills[i].Height=progressTracks[i].Height;
-        progressFills[i].Width=32*fraction;
+        progressFills[i].Width=progressTracks[i].Width*fraction;
         Brush colour=!remainingQuota[i].HasValue?Brush(palette.Secondary):remainingQuota[i]<=10?Brush(palette.Critical):remainingQuota[i]<=30?Brush(palette.Warning):Brush(i==0?palette.Short:palette.Weekly);
         progressFills[i].Background=colour;
         progressTracks[i].Opacity=markers[i].Text.Length>0?.45:1;
@@ -1237,21 +1250,75 @@ namespace QuotaOverlay {
     static bool SafeReleaseUrl(string url) {
       return url!=null&&url.Length<200&&System.Text.RegularExpressions.Regex.IsMatch(url,@"\Ahttps://github\.com/MrBogomoll/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/releases/tag/v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)\z");
     }
+    void ReadUpdateDotPreview() {
+      // One local, one-shot display request. It never changes the update result.
+      string request=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(stateFile)),"update-dot-preview-until.txt");
+      try {
+        var file=new FileInfo(request);
+        if(!file.Exists||file.Length>32)return;
+        long ticks;
+        if(!Int64.TryParse(File.ReadAllText(request).Trim(),NumberStyles.None,CultureInfo.InvariantCulture,out ticks))return;
+        File.Delete(request);
+        long remaining=ticks-DateTime.UtcNow.Ticks;
+        if(remaining>0&&remaining<=TimeSpan.FromMinutes(10).Ticks)StartUpdateDotPreview(TimeSpan.FromTicks(remaining));
+      }catch(IOException){}catch(UnauthorizedAccessException){}
+    }
+    void StartUpdateDotPreview(TimeSpan duration) {
+      if(updateDotPreviewTimer!=null)updateDotPreviewTimer.Stop();
+      updateDotPreviewTimer=new DispatcherTimer {Interval=duration};
+      updateDotPreviewTimer.Tick+=delegate {
+        updateDotPreviewTimer.Stop();updateDotPreviewTimer=null;RefreshUpdateDot();
+      };
+      updateDotPreviewTimer.Start();
+      RefreshUpdateDot();
+    }
+    void RefreshUpdateDot() {
+      var visibility=updateAvailable||updateDotPreviewTimer!=null?Visibility.Visible:Visibility.Collapsed;
+      if(updateDot.Visibility!=visibility){updateDot.Visibility=visibility;LayoutUpdateDot();pendingPreview=true;}
+    }
+    void LayoutUpdateDot() {
+      if(updateDot==null)return;
+      // In the one-bar pill there is enough horizontal room to reserve a
+      // separate lane for the dot, clear of both the rounded rim and the bar.
+      bool beside=updateDot.Visibility==Visibility.Visible&&presentationMode=="ultra"&&
+        ShortLayout==1&&!showResets&&!showCredits;
+      updateDot.Margin=beside?new Thickness(4.75,8.25,0,0):new Thickness(6.25,5.25,0,0);
+      progressTracks[1].Width=beside?26:32;
+      progressTracks[1].HorizontalAlignment=beside?HorizontalAlignment.Right:HorizontalAlignment.Center;
+      progressFills[1].Width=progressTracks[1].Width*IndicatorFraction(remainingQuota[1]);
+    }
     void ApplyUpdate(Dictionary<string,object> update) {
       if(closing||update==null)return;
       string state=Get(update,"state");
       if(state=="checking"){updatesItem.IsEnabled=false;updatesItem.Header=T("checkingUpdates");return;}
-      updatesItem.IsEnabled=true;updatesItem.Header=T("checkUpdates");
+      if(state=="installing"){updatesItem.IsEnabled=false;updatesItem.Header=T("installingUpdate");return;}
       string current=Get(update,"currentVersion").Replace("-b.","_b."),latest=Get(update,"latestVersion"),url=Get(update,"url"),reason=Get(update,"reason");
       bool available=state=="available"&&SafeReleaseUrl(url);
-      string text=available?String.Format(T("updateAvailable"),latest,current):state=="current"?String.Format(T("updateCurrent"),current):state=="ahead"?String.Format(T("updateAhead"),current,latest):T(reason=="rate-limit"?"updateRateLimit":reason=="timeout"?"updateTimeout":"updateError");
+      if(available||state=="current"||state=="ahead"){
+        updateAvailable=available;RefreshUpdateDot();
+      }
+      object silent;
+      if(update.TryGetValue("silent",out silent)&&silent is bool&&(bool)silent)return;
+      updatesItem.IsEnabled=true;updatesItem.Header=T("checkUpdates");
+      bool installFailed=state=="install-failed",restored=state=="install-restored";
+      string text=installFailed?T("installUpdateFailed"):restored?T("installUpdateRestored"):available?String.Format(T("updateAvailable"),latest,current):state=="current"?String.Format(T("updateCurrent"),current):state=="ahead"?String.Format(T("updateAhead"),current,latest):T(reason=="rate-limit"?"updateRateLimit":reason=="timeout"?"updateTimeout":"updateError");
       if(updateDialog!=null)updateDialog.Close();
       var dialog=new Window {Title=T("updatesTitle"),Width=400,SizeToContent=SizeToContent.Height,ResizeMode=ResizeMode.NoResize,ShowActivated=false,ShowInTaskbar=false,WindowStartupLocation=WindowStartupLocation.CenterScreen,Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),FontFamily=FontFamily,FontSize=14};
       if(hwnd!=IntPtr.Zero)dialog.Owner=this;
       var body=new StackPanel {Margin=new Thickness(20)};dialog.Content=body;
       var label=new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Foreground=Brush(palette.MenuText),Margin=new Thickness(0,0,0,18)};body.Children.Add(label);
       var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};body.Children.Add(buttons);
-      if(available) {
+      object canInstall;
+      if(available&&update.TryGetValue("canInstall",out canInstall)&&canInstall is bool&&(bool)canInstall){
+        var install=new Button {Content=T("installUpdate"),Padding=new Thickness(12,6,12,6),Margin=new Thickness(0,0,8,0),Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),BorderBrush=Brush(palette.MenuBorder)};
+        install.Click+=delegate {
+          foreach(var action in buttons.Children)if(action is Button)((Button)action).IsEnabled=false;
+          label.Text=T("installingUpdate");updatesItem.IsEnabled=false;updatesItem.Header=T("installingUpdate");
+          Command("install-update");
+        };
+        buttons.Children.Add(install);
+      }
+      if(available||(installFailed&&SafeReleaseUrl(url))) {
         var open=new Button {Content=T("openRelease"),Padding=new Thickness(12,6,12,6),Margin=new Thickness(0,0,8,0),Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),BorderBrush=Brush(palette.MenuBorder)};
         open.Click+=delegate {try{openReleasePage(url);}catch{label.Text=T("openReleaseError");}};buttons.Children.Add(open);
       }
@@ -1367,7 +1434,7 @@ namespace QuotaOverlay {
       if(!appSignalSent||lastAppReady!=appReady){appSignalSent=true;lastAppReady=appReady;Command(appReady?"app-open":"app-closed");}
       if(pendingPreview) {pendingPreview=false;UpdateLayout();SavePreview();}
       IntPtr owner=Native.GetWindowLongPtr(hwnd,-8);uint ownerProcess=0;if(owner!=IntPtr.Zero)Native.GetWindowThreadProcessId(owner,out ownerProcess);
-      var state=new {sidebar=new {geometry=sidebarGeometry.Debug,attached=false,host="window",status=sidebarStatus,parent=0L,pinned=sidebarPinned,backgroundOpacity=sidebarBackgroundOpacity,position=sidebarPosition,floatingX=floatingX,floatingY=floatingY},backgroundTransparency=backgroundTransparency,taskbar=new {enabled=taskbarEnabled,side=taskbarSide,position=taskbarPosition,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,quotaVisibility=quotaVisibility,shortLayout=ShortLayout,taskbarContent=taskbarContent,showResets=showResets,showCredits=showCredits,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
+      var state=new {updateAvailable=updateAvailable,updateDotVisible=updateDot.Visibility==Visibility.Visible,updateDotPreview=updateDotPreviewTimer!=null,sidebar=new {geometry=sidebarGeometry.Debug,attached=false,host="window",status=sidebarStatus,parent=0L,pinned=sidebarPinned,backgroundOpacity=sidebarBackgroundOpacity,position=sidebarPosition,floatingX=floatingX,floatingY=floatingY},backgroundTransparency=backgroundTransparency,taskbar=new {enabled=taskbarEnabled,side=taskbarSide,position=taskbarPosition,visible=taskbarWindow!=null&&taskbarWindow.IsVisible,status=taskbarWindow==null?null:taskbarWindow.PlacementStatus},targetVisible=valid,topmost=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&8)!=0,targetTopmost=(Native.GetWindowLongPtr(target,-20).ToInt64()&8)!=0,language=language,appReady=appReady,appPresent=appPresent,startupDelayMs=AppStartupGate.DelayMilliseconds,autoStartEnabled=autoStartEnabled,visible=show,paused=paused,compact=compact,preferredCompact=preferCompact,mode=presentationMode,preferredMode=preferredMode,quotaVisibility=quotaVisibility,shortLayout=ShortLayout,taskbarContent=taskbarContent,showResets=showResets,showCredits=showCredits,theme=new {mode=themeMode,effective=effectiveTheme,appPreference=themeResolver.AppPreference,source=themeResolver.Source},target=target.ToInt64(),foreground=foreground.ToInt64(),owner=owner.ToInt64(),ownerProcess=ownerProcess,process=Process.GetCurrentProcess().Id,dpi=scale*96,client=new {x=origin.X,y=origin.Y,width=rect.Right-rect.Left,height=rect.Bottom-rect.Top},panel=new {x=placement.X,y=placement.Y,width=placement.Width,height=placement.Height},noActivate=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x08000000)!=0,clickThrough=(Native.GetWindowLongPtr(hwnd,-20).ToInt64()&0x20)!=0,clickToToggle=true,hoverTooltipEnabled=ToolTipService.GetIsEnabled(panel),progress=new {indicatorMode=fullProgressMode,fullEnabled=showFullProgress,fullMode=fullProgressMode,fullWindow=contourWindow,compactEnabled=showCompactProgress,compactWindow=contourWindow,ultraEnabled=showUltraProgress,ultraWindow=contourWindow,shortRemaining=remainingQuota[0],weeklyRemaining=remainingQuota[1]},view=view};
       string encoded=json.Serialize(state);
       diagnosticState=state;
       if(encoded!=lastState){lastState=encoded;try{File.WriteAllText(stateFile,encoded,Encoding.UTF8);stateWriteError="";}catch(Exception error){stateWriteError=error.GetType().Name+":"+error.HResult.ToString();}}

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 const marketplaceName = 'quota-panel-local';
 const pluginId = `quota-panel@${marketplaceName}`;
-const payloadFiles = [
+export const payloadFiles = [
   'mcp.json', '.codex-plugin/plugin.json', '.mcp.json',
   'assets/chatgpt-limit-panel.svg', 'assets/chatgpt-limit-panel.png', 'server/index.mjs', 'server/mcp.mjs', 'server/overlay-controller.mjs',
   'server/ui.mjs', 'server/language.mjs', 'ui/control.html', 'ui/control.mjs', 'overlay/host.mjs', 'overlay/model.mjs',
@@ -17,6 +17,8 @@ const payloadFiles = [
   'server/updates.mjs','plugins/chatgpt-limit-panel/server/updates.mjs',
   'server/uninstall.mjs','dist/overlay/ChatGPTLimitPanelUninstaller.exe',
 ];
+export const updaterFiles=['overlay/install-plugin.mjs','overlay/updater.mjs'];
+export const bundledDocuments=['README.txt', 'README.md', 'LICENSE.txt', 'LICENSE', 'UPGRADING.txt', 'UPGRADING.md', 'UNINSTALL.txt', 'UNINSTALL.md'];
 
 /** Install a complete release through the native Codex plugin commands. */
 export function installPlugin({
@@ -24,18 +26,20 @@ export function installPlugin({
   codexHome = process.env.CODEX_HOME || path.join(homedir(), '.codex'),
   codexBin = 'codex',
   codexPrefixArgs = [],
+  stageOnly = false,
+  expectedVersion,
 } = {}) {
   if (!stagePath) throw new Error('A complete staged plugin package is required.');
   const stage = path.resolve(stagePath), home = path.resolve(codexHome);
   if (!existsSync(path.join(stage, 'README.txt')) && !existsSync(path.join(stage, 'README.md'))) throw new Error('Missing complete bundled plugin file: README.txt');
-  const files = [...payloadFiles, ...['README.txt', 'README.md', 'LICENSE.txt', 'LICENSE', 'UPGRADING.txt', 'UPGRADING.md', 'UNINSTALL.txt', 'UNINSTALL.md'].filter(file => existsSync(path.join(stage, file)))];
+  const files = [...payloadFiles, ...[...updaterFiles,...bundledDocuments].filter(file => existsSync(path.join(stage, file)))];
   for (const relative of files) {
     let info;
     try { info = lstatSync(path.join(stage, relative)); } catch { /* Checked below. */ }
     if (!info?.isFile() || info.isSymbolicLink() || !info.size) throw new Error(`Missing complete bundled plugin file: ${relative}`);
   }
   const manifest = JSON.parse(readFileSync(path.join(stage, '.codex-plugin/plugin.json'), 'utf8'));
-  if (manifest.name !== 'quota-panel' || !manifest.version || manifest.interface?.displayName !== 'ChatGPT Limit Panel') {
+  if (manifest.name !== 'quota-panel' || !manifest.version || (expectedVersion && expectedVersion !== manifest.version) || manifest.interface?.displayName !== 'ChatGPT Limit Panel') {
     throw new Error('The compatibility plugin manifest must identify the ChatGPT Limit Panel release.');
   }
 
@@ -62,6 +66,7 @@ export function installPlugin({
   // it can contain inline API keys even though this plugin never needs them.
   const inventoryFiles=[...files.map(relative=>'plugins/chatgpt-limit-panel/'+relative),'.agents/plugins/marketplace.json'];
   writeFileSync(path.join(marketplaceRoot,'uninstall-inventory.json'),JSON.stringify({schema:1,pluginId,files:Object.fromEntries(inventoryFiles.map(relative=>[relative,createHash('sha256').update(readFileSync(path.join(marketplaceRoot,relative))).digest('hex')]))},null,2)+'\n',{flag:'wx'});
+  if(stageOnly)return {marketplaceRoot,sourcePath,version:manifest.version};
   const run = args => {
     const result = spawnSync(codexBin, [...codexPrefixArgs, ...args], {
       env: { ...process.env, CODEX_HOME: home }, encoding: 'utf8', windowsHide: true, timeout: 30_000,

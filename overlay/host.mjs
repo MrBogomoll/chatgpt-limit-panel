@@ -9,6 +9,7 @@ import { RateLimitReader, RateLimitReadError } from '../plugins/chatgpt-limit-pa
 import { normalizeQuota } from '../plugins/chatgpt-limit-panel/server/limits.mjs';
 import { overlayView } from './model.mjs';
 import {createUpdateChecker,CURRENT_VERSION} from '../plugins/chatgpt-limit-panel/server/updates.mjs';
+import {launchPanelUpdate,managedUpdateRoot,takeUpdateOutcome} from './updater.mjs';
 
 const executablePath = fileURLToPath(new URL('../dist/overlay/ChatGPTLimitPanel.exe', import.meta.url));
 const failureHistoryLimit = 10;
@@ -124,16 +125,20 @@ export function createOverlayHost({
   now = Date.now,
   timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
   spawnGui = spawn,
-  updateChecker=createUpdateChecker(),
+  updateChecker=createUpdateChecker({includeInstallAssets:true}),
+  updateInstaller = null,
+  updateCheckDelayMs = 2_000,
+  updateCheckIntervalMs = 6 * 60 * 60_000,
 } = {}) {
   const absoluteStatePath = resolve(statePath);
-  let child, lines, pollTimer, freshnessTimer, shutdownTimer, inFlight, recordRefresh;
+  let child, lines, pollTimer, freshnessTimer, shutdownTimer, updateTimer, inFlight, recordRefresh;
   let ready = false, paused = false, stopping = false, closed = false;
   let reconnectPending = false;
   let appPresent = !waitForApp;
   let taskbarEnabled = false;
   let liveTrayEnabled = false;
-  let checkingUpdate=false;
+  let checkingUpdate=false, showUpdateResult=false;
+  let installingUpdate=false, offeredUpdate=null;
   let lastRendered;
   let snapshot = normalizeQuota(null, now());
   const retryWait = new AbortController();
@@ -151,6 +156,7 @@ export function createOverlayHost({
     result = { code, reason };
     clearTimeout(pollTimer);
     clearInterval(freshnessTimer);
+    clearTimeout(updateTimer);
     retryWait.abort();
     try{updateChecker.cancel?.();}catch{}
     closeReader();
@@ -183,12 +189,39 @@ export function createOverlayHost({
     if(stopping||!child||child.stdin.destroyed)return;
     try{child.stdin.write(JSON.stringify({update})+'\n',error=>{if(error)stop(1,'gui-input-error');});}catch{stop(1,'gui-input-error');}
   }
-  async function checkUpdates() {
-    if(checkingUpdate||stopping)return;
-    checkingUpdate=true;sendUpdate({state:'checking',currentVersion:CURRENT_VERSION});
-    try{sendUpdate(await updateChecker.check());}
-    catch{sendUpdate({state:'error',reason:'network',currentVersion:CURRENT_VERSION});}
-    finally{checkingUpdate=false;}
+  function scheduleUpdateCheck(delayMs) {
+    if (!ready || stopping || updateCheckIntervalMs <= 0) return;
+    clearTimeout(updateTimer);
+    updateTimer = setTimeout(() => checkUpdates(false), delayMs);
+  }
+  async function checkUpdates(manual) {
+    if (stopping) return;
+    if (manual && !showUpdateResult) {
+      showUpdateResult = true;
+      sendUpdate({state:'checking',currentVersion:CURRENT_VERSION});
+    }
+    if (checkingUpdate || stopping) return;
+    clearTimeout(updateTimer);
+    checkingUpdate = true;
+    let result;
+    try { result = await updateChecker.check(); }
+    catch { result = {state:'error',reason:'network',currentVersion:CURRENT_VERSION}; }
+    const silent = !showUpdateResult;
+    checkingUpdate = showUpdateResult = false;
+    const {installAssets,...uiResult}=result;
+    if(result.state==='available')offeredUpdate=installAssets&&updateInstaller?uiResult:null;
+    else if(result.state==='current'||result.state==='ahead')offeredUpdate=null;
+    sendUpdate({...uiResult,canInstall:!!(result.state==='available'&&offeredUpdate),silent});
+    scheduleUpdateCheck(updateCheckIntervalMs);
+  }
+  async function installUpdate() {
+    if(stopping||!ready||installingUpdate||!offeredUpdate)return;
+    installingUpdate=true;
+    const request=offeredUpdate;
+    sendUpdate({state:'installing'});
+    try {await updateInstaller(request.latestVersion);}
+    catch {sendUpdate({...request,state:'install-failed'});}
+    finally{installingUpdate=false;}
   }
 
   function canRefresh() {
@@ -278,6 +311,10 @@ export function createOverlayHost({
         if (ready) return;
         ready = true;
         refresh();
+        scheduleUpdateCheck(updateCheckDelayMs);
+        if(updateInstaller)void takeUpdateOutcome(absoluteStatePath).then(outcome=>{
+          if(outcome==='restored')sendUpdate({state:'install-restored'});
+        });
         break;
       case 'refresh': refresh(); break;
       case 'network-available':
@@ -285,7 +322,8 @@ export function createOverlayHost({
         if (inFlight) reconnectPending = true;
         else refresh();
         break;
-      case 'check-updates': checkUpdates(); break;
+      case 'check-updates': checkUpdates(true); break;
+      case 'install-update': installUpdate(); break;
       case 'app-open': if(!appPresent){appPresent=true;refresh();} break;
       case 'app-closed': if(appPresent){appPresent=false;if(waitForApp&&!taskbarEnabled&&!liveTrayEnabled)closeReader();} break;
       case 'taskbar-on': if(!taskbarEnabled){taskbarEnabled=true;refresh();} break;
@@ -341,7 +379,11 @@ async function run() {
     }
     statePath = args[1];
   }
-  const host = createOverlayHost({ statePath,waitForApp:true });
+  statePath ??= defaultStatePath();
+  const root=fileURLToPath(new URL('../',import.meta.url));
+  const updateInstaller=managedUpdateRoot(root)&&process.env.QUOTA_CODEX_BIN
+    ? version=>launchPanelUpdate({root,statePath,version}) : null;
+  const host = createOverlayHost({statePath,waitForApp:true,updateInstaller});
   const stop = () => { host.stop(); };
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
