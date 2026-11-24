@@ -6,7 +6,7 @@ import { dirname, join, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
-import { RateLimitReader } from '../plugins/chatgpt-limit-panel/server/reader.mjs';
+import { RateLimitReader, RateLimitReadError } from '../plugins/chatgpt-limit-panel/server/reader.mjs';
 
 const api = await import('../overlay/host.mjs').catch(() => ({}));
 const fixture = fileURLToPath(new URL('./fixtures/overlay-gui.cjs', import.meta.url));
@@ -280,7 +280,9 @@ test('one failed read retries before showing stale and an identical successful r
   await until(() => reader.calls === 3, 'automatic retry');
   clock += 2000;
   assert.equal(host.refresh(), refreshing, 'manual refresh joins the pending retry');
-  await until(async () => (await views()).filter(view => view.rows[0].value === '38%').length > 2, 'freshness renders while retry is pending');
+  const beforeRetry = (await views()).length;
+  await delay(85);
+  assert.equal((await views()).length, beforeRetry, 'an unchanged view must not be sent again on each freshness tick');
   finishRetry(quota);
   await refreshing;
   await until(async () => (await views()).some(view => view.collectedAt === clock), 'identical quota received again');
@@ -295,8 +297,40 @@ test('one failed read retries before showing stale and an identical successful r
     attempts: 1,
     reasons: ['read-failed'],
     markedStale: false,
+    recentAttempts: [{ at: new Date(clock - 2000).toISOString(), stage: 'unknown', reason: 'read-failed' }],
   }]);
 });
+
+for (const [mode, stage, reason] of [
+  ['missing-executable', 'launch', 'unavailable'],
+  ['--hang-initialize', 'initialize', 'timeout'],
+  ['--hang', 'read-limits', 'timeout'],
+  ['--secret-error', 'read-limits', 'rejected'],
+  ['--empty-reply', 'validate-reply', 'empty-reply'],
+]) {
+  test(`journal identifies ${mode} without storing backend contents`, { timeout: 6000 }, async t => {
+    const missing = mode === 'missing-executable';
+    const reader = new RateLimitReader({
+      command: missing ? join(tmpdir(), 'TEST_ONLY_SECRET_DO_NOT_COPY', 'nonexistent.exe') : process.execPath,
+      args: missing ? [] : [appServerFixture, mode],
+      timeoutMs: 400,
+    });
+    const { host, statePath, views } = await fixtureHost(t, { reader, retryDelayMs: 5, recoveryIntervalMs: 10000 });
+    await host.refresh();
+    const journal = await readFile(join(dirname(statePath), 'quota-failures.json'), 'utf8');
+    assert(!journal.includes('TEST_ONLY_SECRET_DO_NOT_COPY'));
+    assert(!JSON.stringify(await views()).includes('TEST_ONLY_SECRET_DO_NOT_COPY'));
+    const [incident] = JSON.parse(journal);
+    assert.deepEqual(incident.reasons, [reason]);
+    assert(incident.recentAttempts.length > 0);
+    for (const attempt of incident.recentAttempts) {
+      const { durationMs } = attempt;
+      assert(Number.isSafeInteger(durationMs) && durationMs >= 0);
+      if (reason === 'timeout') assert(durationMs >= 350);
+      assert.deepEqual(attempt, { at: new Date(instant).toISOString(), stage, reason, durationMs });
+    }
+  });
+}
 
 test('two failed attempts show cached quota as stale and trigger faster polling until recovery', { timeout: 6000 }, async t => {
   let offline = false;
@@ -326,6 +360,32 @@ test('two failed attempts show cached quota as stale and trigger faster polling 
   assert.equal(incidents[0].recoveredAt, new Date(instant).toISOString());
 });
 
+test('a long outage keeps the order of only its eight most recent attempts', { timeout: 6000 }, async t => {
+  let clock = instant;
+  let failure;
+  const reader = readerFor(() => {
+    if (failure) throw new RateLimitReadError(failure.reason, failure.stage, performance.now());
+    return quota;
+  });
+  const { host, views, statePath } = await fixtureHost(t, { reader, retryDelayMs: 5, recoveryIntervalMs: 10000, now: () => clock });
+  await until(async () => (await views()).some(view => view.rows[0].value === '38%'), 'first success');
+  for (let i = 1; i <= 10; i++) {
+    failure = i % 2
+      ? { stage: 'initialize', reason: 'timeout' }
+      : { stage: 'read-limits', reason: 'disconnected' };
+    clock = instant + i * 1000;
+    await host.refresh();
+  }
+  failure = null;
+  clock += 1000;
+  await host.refresh();
+  const [incident] = JSON.parse(await readFile(join(dirname(statePath), 'quota-failures.json'), 'utf8'));
+  assert.equal(incident.attempts, 11);
+  assert.equal(incident.recoveredAt, new Date(clock).toISOString());
+  assert.deepEqual(incident.recentAttempts.map(({ stage }) => stage), Array(4).fill(['initialize', 'read-limits']).flat());
+  assert.deepEqual(incident.recentAttempts.map(({ at }) => Date.parse(at)), Array.from({ length: 8 }, (_, i) => instant + (i + 3) * 1000));
+});
+
 test('only the ten newest failures are retained across a panel restart', { timeout: 6000 }, async t => {
   let clock = instant;
   let failNext = false;
@@ -350,6 +410,10 @@ test('only the ten newest failures are retained across a panel restart', { timeo
   assert(firstHistory.every(incident => incident.reasons[0] === 'timeout'));
   await host.stop();
 
+  // Older installations have aggregate counts and timestamps but no individual attempts.
+  delete firstHistory[0].recentAttempts;
+  delete firstHistory[2].recentAttempts;
+  await writeFile(file, JSON.stringify(firstHistory));
   const restarted = api.createOverlayHost({ reader, guiCommand: process.execPath, guiArgs: [fixture], statePath,
     retryDelayMs: 5, pollIntervalMs: 10000, now: () => clock });
   t.after(() => restarted.stop());

@@ -5,14 +5,26 @@ import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { RateLimitReader } from '../plugins/chatgpt-limit-panel/server/reader.mjs';
+import { RateLimitReader, RateLimitReadError } from '../plugins/chatgpt-limit-panel/server/reader.mjs';
 import { normalizeQuota } from '../plugins/chatgpt-limit-panel/server/limits.mjs';
 import { overlayView } from './model.mjs';
 import {createUpdateChecker,CURRENT_VERSION} from '../plugins/chatgpt-limit-panel/server/updates.mjs';
 
 const executablePath = fileURLToPath(new URL('../dist/overlay/ChatGPTLimitPanel.exe', import.meta.url));
 const failureHistoryLimit = 10;
-const failureReasons = new Set(['empty-reply', 'incomplete-reply', 'timeout', 'rejected', 'disconnected', 'read-failed']);
+const attemptHistoryLimit = 8;
+const failureReasons = new Set(['empty-reply', 'incomplete-reply', 'timeout', 'rejected', 'disconnected', 'unavailable', 'read-failed']);
+const failureStages = new Set(['launch', 'initialize', 'read-limits', 'validate-reply', 'unknown']);
+const isTimestamp = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value);
+
+function safeAttempt({ at, stage, reason, durationMs }) {
+  return {
+    at,
+    stage: failureStages.has(stage) ? stage : 'unknown',
+    reason: failureReasons.has(reason) ? reason : 'read-failed',
+    ...(Number.isSafeInteger(durationMs) && durationMs >= 0 ? { durationMs } : {}),
+  };
+}
 
 function createRefreshLog(file, now) {
   let incidents = [];
@@ -29,7 +41,6 @@ function createRefreshLog(file, now) {
     }
   }
 
-  const isTimestamp = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value);
   try {
     const stored = JSON.parse(readFileSync(file, 'utf8'));
     if (Array.isArray(stored)) {
@@ -39,10 +50,15 @@ function createRefreshLog(file, now) {
             !Array.isArray(entry.reasons)) continue;
         const reasons = [...new Set(entry.reasons.filter(value => failureReasons.has(value)))];
         if (!reasons.length) continue;
+        const recentAttempts = Array.isArray(entry.recentAttempts)
+          ? entry.recentAttempts.slice(-attemptHistoryLimit).filter(attempt =>
+            isTimestamp(attempt?.at) && failureStages.has(attempt.stage) && failureReasons.has(attempt.reason)).map(safeAttempt)
+          : [];
         incidents.push({
           startedAt: entry.startedAt, lastFailedAt: entry.lastFailedAt,
           recoveredAt: isTimestamp(entry.recoveredAt) ? entry.recoveredAt : null,
           attempts: entry.attempts, reasons, markedStale: entry.markedStale === true,
+          ...(recentAttempts.length ? { recentAttempts } : {}),
         });
       }
     }
@@ -50,22 +66,24 @@ function createRefreshLog(file, now) {
     if (error.code === 'ENOENT') save();
   }
 
-  return function record(reason, markedStale) {
-    if (!reason && !active) return;
+  return function record(failure, markedStale) {
+    if (!failure && !active) return;
     const at = new Date(now()).toISOString();
-    if (!reason) {
+    if (!failure) {
       active.recoveredAt = at;
       active = null;
     } else {
       if (!active) {
-        active = { startedAt: at, lastFailedAt: at, recoveredAt: null, attempts: 0, reasons: [], markedStale: false };
+        active = { startedAt: at, lastFailedAt: at, recoveredAt: null, attempts: 0, reasons: [], markedStale: false, recentAttempts: [] };
         incidents.push(active);
         if (incidents.length > failureHistoryLimit) incidents.shift();
       }
       active.lastFailedAt = at;
       active.attempts++;
-      const category = failureReasons.has(reason) ? reason : 'read-failed';
-      if (!active.reasons.includes(category)) active.reasons.push(category);
+      const attempt = safeAttempt({ ...failure, at });
+      if (!active.reasons.includes(attempt.reason)) active.reasons.push(attempt.reason);
+      active.recentAttempts.push(attempt);
+      if (active.recentAttempts.length > attemptHistoryLimit) active.recentAttempts.shift();
       if (markedStale) active.markedStale = true;
     }
     save();
@@ -116,6 +134,7 @@ export function createOverlayHost({
   let taskbarEnabled = false;
   let liveTrayEnabled = false;
   let checkingUpdate=false;
+  let lastRendered;
   let snapshot = normalizeQuota(null, now());
   const retryWait = new AbortController();
   let result = { code: 0, reason: 'stopped' };
@@ -151,11 +170,13 @@ export function createOverlayHost({
 
   function render() {
     if (stopping || !child || child.stdin.destroyed || child.stdin.writableNeedDrain) return;
-    const view = overlayView(snapshot, { now: now(), timeZone });
+    const serialized = JSON.stringify(overlayView(snapshot, { now: now(), timeZone }));
+    if (serialized === lastRendered) return;
     try {
-      child.stdin.write(JSON.stringify(view) + '\n', error => {
+      child.stdin.write(serialized + '\n', error => {
         if (error) stop(1, 'gui-input-error');
       });
+      lastRendered = serialized;
     } catch { stop(1, 'gui-input-error'); }
   }
   function sendUpdate(update) {
@@ -175,22 +196,34 @@ export function createOverlayHost({
   }
 
   async function readSnapshot(previous) {
+    let validationStartedAt;
     try {
       const raw = await reader.read();
+      validationStartedAt = performance.now();
       const received = normalizeQuota(raw, now());
       const merged = mergeQuotaSnapshot(previous, received);
       if (merged.stale || received.status === 'unavailable') {
         const refreshIssue = received.status === 'unavailable' ? 'empty-reply' : 'incomplete-reply';
-        return { ...merged, refreshIssue };
+        return {
+          next: { ...merged, refreshIssue },
+          failure: { reason: refreshIssue, stage: 'validate-reply', durationMs: Math.round(performance.now() - validationStartedAt) },
+        };
       }
-      return merged;
+      return { next: merged };
     } catch (error) {
       // Only fixed categories go into the local panel state.
-      let refreshIssue = 'read-failed';
-      if (error?.message === 'Codex quota request timeout') refreshIssue = 'timeout';
-      if (error?.message === 'Codex quota request was rejected') refreshIssue = 'rejected';
-      if (error?.message === 'Codex App Server disconnected') refreshIssue = 'disconnected';
-      return { ...previous, stale: true, refreshIssue };
+      let failure = { reason: 'read-failed', stage: 'unknown' };
+      if (validationStartedAt !== undefined) {
+        failure = { ...failure, stage: 'validate-reply', durationMs: Math.round(performance.now() - validationStartedAt) };
+      } else if (error instanceof RateLimitReadError) {
+        const { reason, stage, durationMs } = error;
+        failure = { reason: failureReasons.has(reason) ? reason : 'read-failed', stage, durationMs };
+      } else {
+        if (error?.message === 'Codex quota request timeout') failure.reason = 'timeout';
+        if (error?.message === 'Codex quota request was rejected') failure.reason = 'rejected';
+        if (error?.message === 'Codex App Server disconnected') failure.reason = 'disconnected';
+      }
+      return { next: { ...previous, stale: true, refreshIssue: failure.reason }, failure };
     }
   }
 
@@ -202,10 +235,10 @@ export function createOverlayHost({
     const pending = Promise.resolve().then(async () => {
       if (!canRefresh()) return;
       const previous = snapshot;
-      let next = await readSnapshot(previous);
+      let { next, failure } = await readSnapshot(previous);
       if (!canRefresh()) return;
       const retry = next.stale && !previous.stale;
-      recordRefresh(next.refreshIssue, next.stale && !retry);
+      recordRefresh(failure, next.stale && !retry);
       if (retry) {
         // A brief outage gets one extra attempt. Once stale, the regular poll
         // handles recovery without doubling requests throughout an outage.
@@ -216,9 +249,9 @@ export function createOverlayHost({
           return;
         }
         if (!canRefresh()) return;
-        next = await readSnapshot(previous);
+        ({ next, failure } = await readSnapshot(previous));
         if (!canRefresh()) return;
-        recordRefresh(next.refreshIssue, next.stale);
+        recordRefresh(failure, next.stale);
       }
       snapshot = next;
     }).then(() => {

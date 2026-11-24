@@ -132,10 +132,19 @@ internal static class TaskbarNativeTest {
       IntPtr handle=new WindowInteropHelper(window).Handle;long style=GetWindowLongPtr(handle,-20).ToInt64();Check((style&0x08000000)!=0&&(style&0x80)!=0,"own window must be NOACTIVATE tool window");
       IntPtr owner=GetWindowLongPtr(handle,-8);uint ownerProcess=0;if(owner!=IntPtr.Zero)GetWindowThreadProcessId(owner,out ownerProcess);Check(owner==IntPtr.Zero||ownerProcess==(uint)System.Diagnostics.Process.GetCurrentProcess().Id,"indicator must have no foreign parent or owner");
       Check(!window.ShowInTaskbar&&!window.ShowActivated&&!window.Focusable,"indicator must retain nonactivating WPF behavior");
-      Exception automationFailure=null;int cachedTexts=0;var complete=new ManualResetEvent(false);
-      ThreadPool.QueueUserWorkItem(delegate {try{var elements=TaskbarNative.ReadAutomationElements(handle);for(int i=0;i<elements.Count;i++)if(elements[i].Cached.ControlType==ControlType.Text)cachedTexts++;}catch(Exception error){automationFailure=error;}finally{complete.Set();}});
+      Exception automationFailure=null;int cachedTexts=0,openedRoots=0;var complete=new ManualResetEvent(false);
+      var automationReader=new TaskbarNative.AutomationReader(delegate(IntPtr root){openedRoots++;return AutomationElement.FromHandle(root);});
+      ThreadPool.QueueUserWorkItem(delegate {try {
+        Check(automationReader.Read(IntPtr.Zero)==null,"do not open a provider for an invalid HWND");
+        for(int n=0;n<3;n++){
+          var elements=automationReader.Read(handle);
+          int count=0;for(int i=0;i<elements.Count;i++)if(elements[i].Cached.ControlType==ControlType.Text)count++;
+          cachedTexts=count;
+        }
+      }catch(Exception error){automationFailure=error;}finally{complete.Set();}});
       var automationWait=System.Diagnostics.Stopwatch.StartNew();while(!complete.WaitOne(0)&&automationWait.ElapsedMilliseconds<3000){Pump();Thread.Sleep(5);}
       Check(complete.WaitOne(0)&&automationFailure==null&&cachedTexts>=2,"background UIA must enumerate own cached descendants from a live root: "+automationFailure);
+      Check(openedRoots==1,"each scan must reuse the live provider for the same window");
       complete.Dispose();
       window.ContextMenu=new ContextMenu{Visibility=Visibility.Collapsed};window.ContextMenu.IsOpen=true;
       var cover=new Window{Left=-21000,Top=-21000,Width=32,Height=32,ShowInTaskbar=false,ShowActivated=false,WindowStyle=WindowStyle.None,Topmost=true};

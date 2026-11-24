@@ -1,5 +1,19 @@
 import { normalizeQuota, STALE_AFTER_MS } from '../plugins/chatgpt-limit-panel/server/limits.mjs';
 
+const creditFormatter = new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1});
+let formatterZone, dateFormats;
+function formatters(timeZone) {
+  if (!dateFormats || formatterZone !== timeZone) {
+    dateFormats = {
+      date: new Intl.DateTimeFormat('ru-RU', { day:'2-digit',month:'2-digit',timeZone }),
+      time: new Intl.DateTimeFormat('ru-RU', { hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone }),
+      fullDate: new Intl.DateTimeFormat('ru-RU', { day:'2-digit',month:'2-digit',year:'numeric',timeZone }),
+    };
+    formatterZone = timeZone;
+  }
+  return dateFormats;
+}
+
 function creditDisplay(balance) {
   if(balance===null)return '—';
   const numeric=Number(balance);
@@ -7,7 +21,7 @@ function creditDisplay(balance) {
     const fraction=balance.split('.')[1]??'',first=fraction.search(/[1-9]/);
     return (balance.startsWith('-')?'-':'')+fraction[first]+(fraction[first+1]&&fraction[first+1]!=='0'?'.'+fraction[first+1]:'')+'e-'+(first+1);
   }
-  if(Number.isFinite(numeric)&&Math.abs(numeric)<1e15)return new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(numeric).toLowerCase();
+  if(Number.isFinite(numeric)&&Math.abs(numeric)<1e15)return creditFormatter.format(numeric).toLowerCase();
   const whole=balance.replace(/^-?/,'').split('.')[0].replace(/^0+/,'');
   return (balance.startsWith('-')?'-':'')+whole[0]+(whole[1]&&whole[1]!=='0'?'.'+whole[1]:'')+'e'+(whole.length-1);
 }
@@ -15,10 +29,8 @@ function creditDisplay(balance) {
 export function overlayView(snapshot, { now = Date.now(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone } = {}) {
   snapshot ??= normalizeQuota(null, now);
   const stale = snapshot.stale === true || !Number.isFinite(snapshot.collectedAt) || now - snapshot.collectedAt > STALE_AFTER_MS;
-  const date = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', timeZone });
-  const time = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone });
+  const { date, time, fullDate } = formatters(timeZone);
   const availableCount = Number.isSafeInteger(snapshot.bankedResets?.availableCount) && snapshot.bankedResets.availableCount >= 0 ? snapshot.bankedResets.availableCount : null;
-  const fullDate = new Intl.DateTimeFormat('ru-RU', { day:'2-digit',month:'2-digit',year:'numeric',timeZone });
   const resetEntries = availableCount !== null && Array.isArray(snapshot.bankedResets?.entries) ? snapshot.bankedResets.entries
     .filter(entry=>entry&&entry.expiresAt===null || entry&&Number.isSafeInteger(entry.expiresAt)&&entry.expiresAt>0&&entry.expiresAt*1000>now&&Number.isFinite(new Date(entry.expiresAt*1000).getTime()))
     .map(entry=>{
@@ -37,7 +49,7 @@ export function overlayView(snapshot, { now = Date.now(), timeZone = Intl.DateTi
   const remainingMs = expiry ? expiry.getTime() - now : null;
   const resets = {
     availableCount, expiresAt: expiry ? expirySeconds : null,
-    date: expiry ? new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone }).format(expiry) : '—',
+    date: expiry ? fullDate.format(expiry) : '—',
     time: expiry ? time.format(expiry) : '—', daysRemaining: expiry ? Math.max(0, Math.ceil(remainingMs / 86400000)) : null,
     tone: availableCount === 0 ? 'normal' : !expiry ? 'unknown' : remainingMs <= 3 * 86400000 ? 'critical' : remainingMs <= 10 * 86400000 ? 'warning' : 'normal', stale,
     entries:resetEntries,detailsComplete:availableCount!==null&&Array.isArray(snapshot.bankedResets?.entries)&&resetEntries.length===availableCount,
