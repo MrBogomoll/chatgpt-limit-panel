@@ -366,7 +366,8 @@ namespace QuotaOverlay {
     readonly double?[] remainingQuota=new double?[2];
     System.Windows.Shapes.Path progressOutline;
     System.Windows.Shapes.Ellipse updateDot;
-    bool updateAvailable;
+    bool updateAvailable,showUpdateDot;
+    MenuItem showUpdateDotItem;
     DispatcherTimer updateDotPreviewTimer;
     ContextMenu optionsMenu;
     MenuDismissWatcher menuDismiss;
@@ -393,7 +394,8 @@ namespace QuotaOverlay {
     bool syncingTransparency;
     readonly Func<TaskbarSnapshot> taskbarSnapshotReader;
     MenuItem updatesItem;
-    Window updateDialog;
+    UpdateWindow updateDialog;
+    bool updateDialogInstalling;
     MenuItem resetsItem,trayResetsItem;
     string resetsMenuSignature="";
     Dictionary<string,object> resetsView;
@@ -433,6 +435,7 @@ namespace QuotaOverlay {
       if(preferences.TryGetValue("taskbarContent",out choice)&&Convert.ToString(choice)=="credits")taskbarContent="credits";
       showResets=BooleanPreference(preferences,"showResets",false);
       showCredits=BooleanPreference(preferences,"showCredits",false);
+      showUpdateDot=BooleanPreference(preferences,"showUpdateDot",true);
       liveTrayIcon=BooleanPreference(preferences,"liveTrayIcon",false);
       taskbarEnabled=BooleanPreference(preferences,"taskbarEnabled",false);
       taskbarSide=preferences.ContainsKey("taskbarSide")&&Convert.ToString(preferences["taskbarSide"])=="right"?"right":"left";
@@ -815,6 +818,7 @@ namespace QuotaOverlay {
       showCreditsItem=Menu("showCredits",true);showCreditsItem.Click+=delegate {SetShowCredits(showCreditsItem.IsChecked);};optionsMenu.Items.Add(showCreditsItem);
       updatesItem=Menu("checkUpdates");updatesItem.Click+=delegate {
         if(!updatesItem.IsEnabled)return;
+        if(updateDialogInstalling){ShowInstallProgress();return;}
         updatesItem.IsEnabled=false;updatesItem.Header=T("checkingUpdates");Command("check-updates");
       };optionsMenu.Items.Add(updatesItem);
       liveTrayPanelItem=Menu("liveTrayIcon",true);liveTrayPanelItem.Click+=delegate {SetLiveTrayIcon(liveTrayPanelItem.IsChecked);};optionsMenu.Items.Add(liveTrayPanelItem);
@@ -874,6 +878,9 @@ namespace QuotaOverlay {
       var appearance=Menu("appearance");appearance.Items.Add(original["view"]);appearance.Items.Add(original["indicator"]);appearance.Items.Add(original["source"]);appearance.Items.Add(MenuSeparator());appearance.Items.Add(original["theme"]);appearance.Items.Add(opacityItem);optionsMenu.Items.Add(appearance);
       var placement=Menu("placement");placement.Items.Add(original["sidebarPinned"]);placement.Items.Add(original["resetPosition"]);placement.Items.Add(MenuSeparator());placement.Items.Add(original["taskbar"]);placement.Items.Add(original["liveTrayIcon"]);optionsMenu.Items.Add(placement);
       var settings=Menu("settings");settings.Items.Add(original["language"]);settings.Items.Add(original["autostart"]);optionsMenu.Items.Add(settings);
+      showUpdateDotItem=Menu("showUpdateDot",true);
+      showUpdateDotItem.Click+=delegate {SetShowUpdateDot(showUpdateDotItem.IsChecked);};
+      settings.Items.Add(showUpdateDotItem);
       optionsMenu.Items.Add(MenuSeparator());optionsMenu.Items.Add(original["checkUpdates"]);optionsMenu.Items.Add(MenuSeparator());optionsMenu.Items.Add(original["pauseUpdates"]);optionsMenu.Items.Add(original["stop"]);
     }
     MenuItem QuotaVisibilityMenu() {
@@ -902,7 +909,8 @@ namespace QuotaOverlay {
       SyncSidebarOpacityControl();
       TranslateMenu(optionsMenu);languageRussianItem.IsChecked=language=="ru";languageEnglishItem.IsChecked=language=="en";
       RefreshResetsMenu();
-      if(updatesItem!=null&&!updatesItem.IsEnabled)updatesItem.Header=T("checkingUpdates");
+      if(updatesItem!=null)updatesItem.Header=T(updateDialogInstalling?"updateProgressMenu":updatesItem.IsEnabled?"checkUpdates":"checkingUpdates");
+      if(showUpdateDotItem!=null)showUpdateDotItem.IsChecked=showUpdateDot;
       taskbarEnabledItem.IsChecked=taskbarEnabled;
       if(sidebarPinItem!=null)sidebarPinItem.IsChecked=sidebarPinned;
       if(traySidebarPinItem!=null)traySidebarPinItem.IsChecked=sidebarPinned;
@@ -1273,8 +1281,13 @@ namespace QuotaOverlay {
       RefreshUpdateDot();
     }
     void RefreshUpdateDot() {
-      var visibility=updateAvailable||updateDotPreviewTimer!=null?Visibility.Visible:Visibility.Collapsed;
+      var visibility=showUpdateDot&&(updateAvailable||updateDotPreviewTimer!=null)?Visibility.Visible:Visibility.Collapsed;
       if(updateDot.Visibility!=visibility){updateDot.Visibility=visibility;LayoutUpdateDot();pendingPreview=true;}
+    }
+    void SetShowUpdateDot(bool enabled) {
+      try{Preferences.Update(settingsFile,p=>p["showUpdateDot"]=enabled);}
+      catch{SyncMenu();return;}
+      showUpdateDot=enabled;RefreshUpdateDot();SyncMenu();
     }
     void LayoutUpdateDot() {
       if(updateDot==null)return;
@@ -1287,11 +1300,83 @@ namespace QuotaOverlay {
       progressTracks[1].HorizontalAlignment=beside?HorizontalAlignment.Right:HorizontalAlignment.Center;
       progressFills[1].Width=progressTracks[1].Width*IndicatorFraction(remainingQuota[1]);
     }
+    internal sealed class UpdateWindow : Window {
+      internal readonly ContentControl Body=new ContentControl {HorizontalContentAlignment=HorizontalAlignment.Stretch};
+    }
+    UpdateWindow CreateUpdateDialog() {
+      var dialog=new UpdateWindow {Title=T("updatesTitle"),Width=400,SizeToContent=SizeToContent.Height,WindowStyle=WindowStyle.None,ResizeMode=ResizeMode.NoResize,ShowActivated=false,ShowInTaskbar=false,WindowStartupLocation=WindowStartupLocation.CenterScreen,Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),FontFamily=FontFamily,FontSize=14};
+      if(hwnd!=IntPtr.Zero)dialog.Owner=this;
+      var layout=new DockPanel();
+      var header=new DockPanel {Background=dialog.Background,Margin=new Thickness(16,8,8,0)};
+      var dismiss=UpdateDialogButton("dismiss",last:true);
+      dismiss.Content="×";dismiss.FontSize=17;dismiss.Padding=new Thickness(0);dismiss.Width=30;dismiss.Height=26;
+      dismiss.Background=Brushes.Transparent;dismiss.BorderBrush=Brushes.Transparent;
+      AutomationProperties.SetName(dismiss,T("dismiss"));dismiss.Click+=delegate {dialog.Close();};
+      DockPanel.SetDock(dismiss,Dock.Right);header.Children.Add(dismiss);
+      var title=new TextBlock {Text=dialog.Title,VerticalAlignment=VerticalAlignment.Center,FontWeight=FontWeights.SemiBold,
+        TextTrimming=TextTrimming.CharacterEllipsis,Margin=new Thickness(0,0,6,0)};
+      header.Children.Add(title);
+      header.MouseLeftButtonDown+=delegate(object sender,MouseButtonEventArgs args) {
+        if(args.LeftButton==MouseButtonState.Pressed&&dialog.IsVisible)try{dialog.DragMove();}catch(InvalidOperationException){}
+      };
+      DockPanel.SetDock(header,Dock.Top);layout.Children.Add(header);layout.Children.Add(dialog.Body);
+      dialog.Content=new Border {BorderBrush=Brush(palette.MenuBorder),BorderThickness=new Thickness(1),Child=layout};
+      dialog.Closed+=delegate {if(updateDialog==dialog)updateDialog=null;};
+      return dialog;
+    }
+    static readonly Lazy<ControlTemplate> UpdateButtonTemplate=new Lazy<ControlTemplate>(()=>
+      (ControlTemplate)System.Windows.Markup.XamlReader.Parse(@"
+        <ControlTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml' TargetType='Button'>
+          <Border x:Name='ButtonSurface' Background='{TemplateBinding Background}' BorderBrush='{TemplateBinding BorderBrush}'
+              BorderThickness='{TemplateBinding BorderThickness}' Padding='{TemplateBinding Padding}' CornerRadius='3' SnapsToDevicePixels='True'>
+            <ContentPresenter HorizontalAlignment='Center' VerticalAlignment='Center' RecognizesAccessKey='True'/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property='IsMouseOver' Value='True'>
+              <Setter TargetName='ButtonSurface' Property='Background' Value='{DynamicResource Quota.UpdateButtonHover}'/>
+            </Trigger>
+            <Trigger Property='IsPressed' Value='True'>
+              <Setter TargetName='ButtonSurface' Property='Background' Value='{DynamicResource Quota.UpdateButtonPressed}'/>
+            </Trigger>
+            <Trigger Property='IsKeyboardFocused' Value='True'>
+              <Setter TargetName='ButtonSurface' Property='BorderBrush' Value='{DynamicResource Quota.UpdateButtonFocus}'/>
+            </Trigger>
+            <Trigger Property='IsEnabled' Value='False'>
+              <Setter TargetName='ButtonSurface' Property='Opacity' Value='0.55'/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>"));
+    Button UpdateDialogButton(string key,bool primary=false,bool last=false) {
+      bool light=effectiveTheme=="light";
+      var text=Brush(primary?(light?"#FFFFFF":"#182923"):palette.MenuText);
+      var button=new Button {Template=UpdateButtonTemplate.Value,Content=T(key),Padding=new Thickness(12,6,12,6),Margin=last?new Thickness(0):new Thickness(0,0,8,0),
+        Background=Brush(primary?palette.MenuCheck:palette.MenuHover),Foreground=text,
+        BorderBrush=Brush(primary?palette.MenuCheck:palette.MenuBorder),BorderThickness=new Thickness(1)};
+      button.Resources["Quota.UpdateButtonHover"]=Brush(primary?(light?"#19695A":"#B4E4D6"):(light?"#DEE3EA":"#515359"));
+      button.Resources["Quota.UpdateButtonPressed"]=Brush(primary?(light?"#14564A":"#86C9B9"):(light?"#D4DAE2":"#37393D"));
+      button.Resources["Quota.UpdateButtonFocus"]=text;
+      return button;
+    }
+    void ShowInstallProgress() {
+      if(updateDialogInstalling&&updateDialog!=null)return;
+      updateDialogInstalling=true;updatesItem.IsEnabled=true;updatesItem.Header=T("updateProgressMenu");
+      bool show=updateDialog==null;
+      var dialog=updateDialog??CreateUpdateDialog();
+      var body=new StackPanel {Margin=new Thickness(20,12,20,16)};dialog.Body.Content=body;
+      body.Children.Add(new TextBlock {Text=T("installingUpdate"),TextWrapping=TextWrapping.Wrap,Foreground=Brush(palette.MenuText)});
+      body.Children.Add(new ProgressBar {IsIndeterminate=true,Height=4,Margin=new Thickness(0,14,0,14),
+        Background=Brush(palette.Track),Foreground=Brush(palette.MenuCheck),BorderThickness=new Thickness(0)});
+      body.Children.Add(new TextBlock {Text=T("updateKeepsRunning"),TextWrapping=TextWrapping.Wrap,FontSize=12,Foreground=Brush(palette.Secondary),Margin=new Thickness(0,0,0,12)});
+      var actions=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};body.Children.Add(actions);
+      var hide=UpdateDialogButton("hideUpdateWindow",last:true);hide.IsCancel=true;hide.Click+=delegate {dialog.Close();};
+      actions.Children.Add(hide);
+      if(show){updateDialog=dialog;showUpdateDialog(dialog);}
+    }
     void ApplyUpdate(Dictionary<string,object> update) {
       if(closing||update==null)return;
       string state=Get(update,"state");
       if(state=="checking"){updatesItem.IsEnabled=false;updatesItem.Header=T("checkingUpdates");return;}
-      if(state=="installing"){updatesItem.IsEnabled=false;updatesItem.Header=T("installingUpdate");return;}
+      if(state=="installing"){if(!updateDialogInstalling)ShowInstallProgress();return;}
       string current=Get(update,"currentVersion").Replace("-b.","_b."),latest=Get(update,"latestVersion"),url=Get(update,"url"),reason=Get(update,"reason");
       bool available=state=="available"&&SafeReleaseUrl(url);
       if(available||state=="current"||state=="ahead"){
@@ -1299,31 +1384,31 @@ namespace QuotaOverlay {
       }
       object silent;
       if(update.TryGetValue("silent",out silent)&&silent is bool&&(bool)silent)return;
+      updateDialogInstalling=false;
       updatesItem.IsEnabled=true;updatesItem.Header=T("checkUpdates");
       bool installFailed=state=="install-failed",restored=state=="install-restored";
       string text=installFailed?T("installUpdateFailed"):restored?T("installUpdateRestored"):available?String.Format(T("updateAvailable"),latest,current):state=="current"?String.Format(T("updateCurrent"),current):state=="ahead"?String.Format(T("updateAhead"),current,latest):T(reason=="rate-limit"?"updateRateLimit":reason=="timeout"?"updateTimeout":"updateError");
       if(updateDialog!=null)updateDialog.Close();
-      var dialog=new Window {Title=T("updatesTitle"),Width=400,SizeToContent=SizeToContent.Height,ResizeMode=ResizeMode.NoResize,ShowActivated=false,ShowInTaskbar=false,WindowStartupLocation=WindowStartupLocation.CenterScreen,Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),FontFamily=FontFamily,FontSize=14};
-      if(hwnd!=IntPtr.Zero)dialog.Owner=this;
-      var body=new StackPanel {Margin=new Thickness(20)};dialog.Content=body;
+      var dialog=CreateUpdateDialog();
+      var body=new StackPanel {Margin=new Thickness(20,12,20,16)};dialog.Body.Content=body;
       var label=new TextBlock {Text=text,TextWrapping=TextWrapping.Wrap,Foreground=Brush(palette.MenuText),Margin=new Thickness(0,0,0,18)};body.Children.Add(label);
       var buttons=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};body.Children.Add(buttons);
       object canInstall;
       if(available&&update.TryGetValue("canInstall",out canInstall)&&canInstall is bool&&(bool)canInstall){
-        var install=new Button {Content=T("installUpdate"),Padding=new Thickness(12,6,12,6),Margin=new Thickness(0,0,8,0),Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),BorderBrush=Brush(palette.MenuBorder)};
+        var install=UpdateDialogButton("installUpdate",primary:true);
         install.Click+=delegate {
-          foreach(var action in buttons.Children)if(action is Button)((Button)action).IsEnabled=false;
-          label.Text=T("installingUpdate");updatesItem.IsEnabled=false;updatesItem.Header=T("installingUpdate");
+          if(updateDialogInstalling)return;
+          ShowInstallProgress();
           Command("install-update");
         };
         buttons.Children.Add(install);
       }
       if(available||(installFailed&&SafeReleaseUrl(url))) {
-        var open=new Button {Content=T("openRelease"),Padding=new Thickness(12,6,12,6),Margin=new Thickness(0,0,8,0),Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),BorderBrush=Brush(palette.MenuBorder)};
+        var open=UpdateDialogButton("openRelease");
         open.Click+=delegate {try{openReleasePage(url);}catch{label.Text=T("openReleaseError");}};buttons.Children.Add(open);
       }
-      var close=new Button {Content=T("dismiss"),Padding=new Thickness(12,6,12,6),Background=Brush(palette.MenuSurface),Foreground=Brush(palette.MenuText),BorderBrush=Brush(palette.MenuBorder),IsCancel=true};close.Click+=delegate {dialog.Close();};buttons.Children.Add(close);
-      dialog.Closed+=delegate {if(updateDialog==dialog)updateDialog=null;};updateDialog=dialog;showUpdateDialog(dialog);
+      var close=UpdateDialogButton("dismiss",last:true);close.IsCancel=true;close.Click+=delegate {dialog.Close();};buttons.Children.Add(close);
+      updateDialog=dialog;showUpdateDialog(dialog);
     }
     static string Get(Dictionary<string,object> row,string key) { return row.ContainsKey(key)?Convert.ToString(row[key]):""; }
     void SetSidebarPinned(bool pinned) {

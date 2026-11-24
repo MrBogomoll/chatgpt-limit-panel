@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -868,6 +869,20 @@ class OverlayNativeTest {
     Check(body.Children.Count==4&&((TextBlock)body.Children[3]).Text.Contains("unavailable"),"incomplete server lists must be identified rather than inventing entries");
     AssertUnshown(window);Console.WriteLine("PASS native resets: read-only ordered submenu, distinct dates, colours, themes and capped details");
   }
+  static StackPanel UpdateBody(Window dialog) {
+    return (StackPanel)((OverlayWindow.UpdateWindow)dialog).Body.Content;
+  }
+  static void CheckUpdateButtonContrast(Button button) {
+    button.ApplyTemplate();
+    Check(button.Template.FindName("ButtonSurface",button) is Border,"Windows theme must not replace the button surface on hover");
+    Func<Color,double> luminance=colour=>0.2126*colour.ScR+0.7152*colour.ScG+0.0722*colour.ScB;
+    double text=luminance(ColorOf(button.Foreground));
+    foreach(var fill in new[]{button.Background,button.Resources["Quota.UpdateButtonHover"] as Brush,button.Resources["Quota.UpdateButtonPressed"] as Brush}){
+      Check(fill is SolidColorBrush,"all button states have a themed fill");
+      double background=luminance(ColorOf(fill));
+      Check((Math.Max(text,background)+.05)/(Math.Min(text,background)+.05)>=4.5,"button text is readable on normal, hovered and pressed surfaces");
+    }
+  }
   static void UpdatesTest(OverlayWindow window) {
     Known(window);Window shown=null;string opened=null;
     var showProduction=Field<Action<Window>>(window,"showUpdateDialog");
@@ -877,6 +892,16 @@ class OverlayNativeTest {
     var surface=Field<Grid>(window,"surface");
     var silentUpdate=new Dictionary<string,object>{{"state","available"},{"silent",true},{"currentVersion","1.8.3"},{"latestVersion","1.8.4"},{"url","https://github.com/MrBogomoll/chatgpt-limit-panel/releases/tag/v1.8.4"}};
     Check(dot.Visibility==Visibility.Collapsed,"no display before an update is confirmed");
+    var dotSetting=Field<MenuItem>(window,"showUpdateDotItem");
+    Check(dotSetting.IsChecked&&((MenuItem)dotSetting.Parent).Tag.ToString()=="settings","update dot is enabled by default and discoverable in Settings");
+    Invoke(window,"ApplyUpdate",silentUpdate);
+    MenuClick(dotSetting);
+    Invoke(window,"ApplyUpdate",silentUpdate);
+    Check(!dotSetting.IsChecked&&dot.Visibility==Visibility.Collapsed&&Field<bool>(window,"updateAvailable"),"disabling the dot does not discard update availability");
+    Check(!(bool)Preferences.Read(Field<string>(window,"settingsFile"))["showUpdateDot"],"the off setting is saved");
+    MenuClick(dotSetting);
+    Check(dotSetting.IsChecked&&dot.Visibility==Visibility.Visible,"enabling the dot immediately reveals a known update");
+    Invoke(window,"ApplyUpdate",new Dictionary<string,object>{{"state","current"},{"silent",true}});
     Check(dot.Width==3.5&&dot.Height==3.5&&dot.Margin.Left==6.25&&dot.Margin.Top==5.25&&!dot.IsHitTestVisible,"approved dot must sit in top left and must not intercept input");
     foreach(string mode in new[]{"full","compact","ultra"}){
       Invoke(window,"SetMode",mode);double height=surface.Height,width=surface.Width;
@@ -912,10 +937,30 @@ class OverlayNativeTest {
     var installable=new Dictionary<string,object>(silentUpdate){{"canInstall",true}};
     installable["silent"]=false;
     Invoke(window,"ApplyUpdate",installable);
-    var installButtons=(StackPanel)((StackPanel)shown.Content).Children[1];
+    Check(shown.WindowStyle==WindowStyle.None,"update window must not show a separate system caption");
+    var heading=(DockPanel)((DockPanel)((Border)shown.Content).Child).Children[0];
+    var titleClose=(Button)heading.Children[0];
+    Check(titleClose.IsEnabled&&titleClose.Content.ToString()=="×"&&
+      System.Windows.Automation.AutomationProperties.GetName(titleClose)=="Закрыть","custom header keeps an accessible close action");
+    var installButtons=(StackPanel)UpdateBody(shown).Children[1];
     Check(installButtons.Children.Count==3&&((Button)installButtons.Children[0]).Content.ToString()=="Обновить","eligible stable package has a one click install action");
+    CheckUpdateButtonContrast((Button)installButtons.Children[0]);
     ((Button)installButtons.Children[0]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    Check(!((Button)installButtons.Children[0]).IsEnabled&&opened==null,"install click starts work without opening the browser and disables repeat clicks");
+    var updateBody=UpdateBody(shown);
+    var progress=updateBody.Children.OfType<ProgressBar>().SingleOrDefault();
+    var waitingActions=updateBody.Children.OfType<StackPanel>().Single();
+    Check(progress!=null&&progress.IsIndeterminate,"installing must show an honest progress indicator");
+    Check(waitingActions.Children.Count==1&&opened==null,"installing removes actions that no longer apply");
+    var hide=(Button)waitingActions.Children[0];
+    Check(hide.IsEnabled&&hide.Content.ToString()=="Скрыть окно","users can hide the dialog while installation continues");
+    CheckUpdateButtonContrast(hide);
+    hide.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    var updateMenu=Field<MenuItem>(window,"updatesItem");
+    Check(updateMenu.IsEnabled&&updateMenu.Header.ToString()=="Ход обновления…","the panel menu can reopen progress");
+    Invoke(window,"ApplyUpdate",new Dictionary<string,object>{{"state","installing"}});
+    Check(Field<Window>(window,"updateDialog")==null,"a delayed installer acknowledgement must not reopen a hidden dialog");
+    MenuClick(updateMenu);
+    Check(UpdateBody(shown).Children.OfType<ProgressBar>().Any(),"menu reopens progress without another check");
     Invoke(window,"ApplyUpdate",new Dictionary<string,object>{{"state","install-failed"},{"url",silentUpdate["url"]}});
     shown.Close();shown=null;
     var action=Field<MenuItem>(window,"updatesItem");MenuClick(action);Check(!action.IsEnabled,"update check must disable duplicate clicks");
@@ -924,18 +969,20 @@ class OverlayNativeTest {
       var update=new Dictionary<string,object>{{"state","available"},{"currentVersion","1.1.0"},{"latestVersion","1.2.0"},{"url","https://github.com/MrBogomoll/chatgpt-limit-panel/releases/tag/v1.2.0"}};
       Invoke(window,"Apply",new Dictionary<string,object>{{"update",update}});Check(shown!=null&&action.IsEnabled,"manual result must show its own dialog and re-enable action");
       Check(!shown.ShowActivated,"delayed update result must not activate over the user's current app");
-      var stack=(StackPanel)shown.Content;var text=(TextBlock)stack.Children[0];Check(text.Text.Contains("1.2.0")&&text.Text.Contains("1.1.0"),"result must show available and installed versions");
+      var stack=UpdateBody(shown);var text=(TextBlock)stack.Children[0];Check(text.Text.Contains("1.2.0")&&text.Text.Contains("1.1.0"),"result must show available and installed versions");
       Check(text.Text.Contains(language=="en"?"available":"Доступна"),"result must use selected language");
       var buttons=(StackPanel)stack.Children[1];Check(buttons.Children.Count==2,"available update needs explicit release and close buttons");
+      Check(buttons.Children.OfType<Button>().All(button=>button.IsEnabled&&ColorOf(button.Foreground)==ParseColor(theme=="dark"?ThemePalette.Dark.MenuText:ThemePalette.Light.MenuText)),"actions stay readable in both panel themes");
+      foreach(var button in buttons.Children.OfType<Button>())CheckUpdateButtonContrast(button);
       Check(opened==null,"checking must not open a browser automatically");((Button)buttons.Children[0]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Check(opened==Convert.ToString(update["url"]),"only explicit click opens verified release");opened=null;
       ((Button)buttons.Children[1]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));shown=null;
     }
     foreach(string state in new[]{"current","ahead","error"}) {
       Invoke(window,"Apply",new Dictionary<string,object>{{"update",new Dictionary<string,object>{{"state",state},{"reason","network"},{"currentVersion","1.1.0"},{"latestVersion","1.0.1"}}}});
-      var stack=(StackPanel)shown.Content;Check(((StackPanel)stack.Children[1]).Children.Count==1,"non-update results must not offer a download");shown.Close();shown=null;
+      var stack=UpdateBody(shown);Check(((StackPanel)stack.Children[1]).Children.Count==1,"non-update results must not offer a download");shown.Close();shown=null;
     }
     Invoke(window,"Apply",new Dictionary<string,object>{{"update",new Dictionary<string,object>{{"state","available"},{"url","file:///C:/bad.exe"},{"latestVersion","1.2.0"},{"currentVersion","1.1.0"}}}});
-    Check(((StackPanel)((StackPanel)shown.Content).Children[1]).Children.Count==1,"untrusted release URL must have no open action");shown.Close();
+    Check(((StackPanel)UpdateBody(shown).Children[1]).Children.Count==1,"untrusted release URL must have no open action");shown.Close();
     Check(Field<TextBlock[]>(window,"values")[0].Text=="100%","update messages must not replace quota rows");
     IntPtr foreground=Native.GetForegroundWindow();
     typeof(OverlayWindow).GetField("showUpdateDialog",PrivateInstance).SetValue(window,new Action<Window>(delegate(Window dialog){shown=dialog;dialog.WindowStartupLocation=WindowStartupLocation.Manual;dialog.Left=-32000;dialog.Top=-32000;showProduction(dialog);}));

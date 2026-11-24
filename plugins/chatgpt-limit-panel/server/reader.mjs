@@ -54,7 +54,7 @@ export class RateLimitReader {
         if (message.error) request.reject(new RateLimitReadError('rejected', request.stage, request.startedAt));
         else request.resolve(message.result);
       });
-      await this.request('initialize', { clientInfo: { name: 'chatgpt_limit_panel', title: 'ChatGPT Limit Panel', version: '1.9.0' } });
+      await this.request('initialize', { clientInfo: { name: 'chatgpt_limit_panel', title: 'ChatGPT Limit Panel', version: '1.9.1' } });
       child.stdin.write(JSON.stringify({ method: 'initialized' }) + '\n');
     })();
     try { await starting; } catch (error) { if (this.starting === starting) this.close(); throw error; }

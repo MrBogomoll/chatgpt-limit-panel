@@ -4,6 +4,8 @@
 
 В меню панели выбери **«Проверить новую версию»**. Если в окне есть кнопка **«Обновить»**, нажми её: панель проверит архив и сама перезапустится. Закрывать ChatGPT не требуется. Эта кнопка доступна для локальной установки через штатный установщик панели и выпуска с контрольной суммой.
 
+Точка нового выпуска включена по умолчанию. Её можно скрыть через **Настройки → Показывать точку обновления**. Проверять и устанавливать обновления можно и без точки.
+
 Если есть только **«Открыть релиз»**, скачай ZIP для Windows из **Assets** [последнего стабильного выпуска](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/latest) и установи вручную:
 
 1. Останови панель через её меню или карточку управления.
@@ -21,6 +23,8 @@
 ## English
 
 Choose **Check for updates** in the panel menu. If the dialog offers **Update**, click it to verify the archive, install it, and restart the panel. ChatGPT stays open. This button is available for installations registered by the panel's local installer and releases with a checksum.
+
+The update dot is enabled by default. Hide it under **Settings → Show update dot**. Checking for and installing updates still works with the dot hidden.
 
 If the dialog only offers **Open release**, download the Windows ZIP from **Assets** in the [latest stable release](https://github.com/MrBogomoll/chatgpt-limit-panel/releases/latest) and install it manually:
 
